@@ -1,0 +1,201 @@
+export type UserRole = "admin" | "manager" | "employee";
+
+export type ScheduleStatus = "draft" | "published" | "archived";
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export type SwapStatus = "pending" | "accepted" | "rejected" | "approved";
+
+export type NotificationType =
+  | "schedule_published"
+  | "shift_change"
+  | "request_update"
+  | "swap_request"
+  | "general";
+
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Department {
+  id: string;
+  location_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  location?: Location;
+}
+
+export interface Position {
+  id: string;
+  department_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+  department?: Department;
+}
+
+export interface Profile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  role: UserRole;
+  position_id: string | null;
+  location_id: string | null;
+  max_hours_per_week: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  position?: Position;
+  location?: Location;
+}
+
+export interface ShiftTemplate {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  color: string;
+  location_id: string;
+  created_at: string;
+  location?: Location;
+}
+
+export interface Schedule {
+  id: string;
+  location_id: string;
+  month: number;
+  year: number;
+  status: ScheduleStatus;
+  created_by: string;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  location?: Location;
+  creator?: Profile;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  schedule_id: string;
+  employee_id: string;
+  position_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  shift_template_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  employee?: Profile;
+  position?: Position;
+  shift_template?: ShiftTemplate;
+}
+
+export interface TimeOffRequest {
+  id: string;
+  employee_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: RequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  employee?: Profile;
+  reviewer?: Profile;
+}
+
+export interface ShiftSwapRequest {
+  id: string;
+  requester_id: string;
+  target_id: string;
+  requester_entry_id: string;
+  target_entry_id: string;
+  status: SwapStatus;
+  reviewed_by: string | null;
+  created_at: string;
+  requester?: Profile;
+  target?: Profile;
+  requester_entry?: ScheduleEntry;
+  target_entry?: ScheduleEntry;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  is_read: boolean;
+  link: string | null;
+  created_at: string;
+}
+
+export interface EmployeeSecondaryPosition {
+  id: string;
+  employee_id: string;
+  position_id: string;
+  created_at: string;
+  position?: Position;
+}
+
+export interface StaffingRequirement {
+  id: string;
+  location_id: string;
+  position_id: string;
+  shift_template_id: string;
+  day_of_week: number; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  required_count: number;
+  created_at: string;
+  updated_at: string;
+  position?: Position;
+  shift_template?: ShiftTemplate;
+}
+
+// Profile extended with secondary positions for schedule generation
+export interface ProfileWithPositions extends Profile {
+  secondary_positions: EmployeeSecondaryPosition[];
+}
+
+export interface LaborConstraints {
+  maxHoursPerWeek: number;
+  maxHoursPerDay: number;
+  minRestHoursBetweenShifts: number;
+  maxConsecutiveDays: number;
+}
+
+// Schedule helpers
+export type EntryMap = Record<string, ScheduleEntry>;
+
+export interface SchedulePeriod {
+  month: number; // 0-11
+  year: number;
+}
+
+// Auto-generation
+export interface AutoGenConfig {
+  scheduleId: string;
+  locationId: string;
+  month: number; // 0-11
+  year: number;
+  shiftTemplateIds: string[];
+  positionIds: string[];
+  excludeDates: string[];
+  employeeIds: string[];
+  useDemandRequirements: boolean;
+}
+
+export interface AutoGenResult {
+  entries: Omit<ScheduleEntry, "id" | "created_at" | "updated_at" | "employee" | "position" | "shift_template">[];
+  warnings: string[];
+  stats: Record<string, { shifts: number; hours: number }>;
+}

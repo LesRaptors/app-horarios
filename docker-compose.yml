@@ -1,0 +1,19 @@
+services:
+  # ============================================
+  # Next.js App (100% dockerizado)
+  # Supabase corre en Supabase Cloud (gratis)
+  # ============================================
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3100:3000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
