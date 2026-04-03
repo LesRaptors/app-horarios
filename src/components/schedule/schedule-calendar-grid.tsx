@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { cn, getDayAbbreviation, isWeekend, formatDateISO, entryMapKey } from "@/lib/utils";
 import { ScheduleCell } from "./schedule-cell";
 import type { Profile, ScheduleEntry } from "@/lib/types";
@@ -58,10 +59,9 @@ export function ScheduleCalendarGrid({
 
         {/* Employee rows */}
         {employees.map((employee) => (
-          <>
+          <Fragment key={employee.id}>
             {/* Employee name cell (sticky left) */}
             <div
-              key={`name-${employee.id}`}
               className="sticky left-0 z-10 flex items-center border-b border-r bg-card px-2 py-1"
             >
               <div className="truncate text-sm">
@@ -87,7 +87,7 @@ export function ScheduleCalendarGrid({
                 <div
                   key={`${employee.id}-${dateStr}`}
                   className={cn(
-                    "border-b p-0.5 min-h-[48px]",
+                    "border-b p-0.5 min-h-12",
                     weekend ? "bg-muted/30" : ""
                   )}
                 >
@@ -99,7 +99,7 @@ export function ScheduleCalendarGrid({
                 </div>
               );
             })}
-          </>
+          </Fragment>
         ))}
       </div>
     </div>
