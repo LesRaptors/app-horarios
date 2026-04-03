@@ -1,22 +1,34 @@
-import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: NextRequest) {
   try {
     // 1. Verify caller is admin or manager
-    const supabase = await createServerClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user)
+    if (!user) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
 
-    const { data: callerProfile } = await supabase
+    const { data: callerProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
+
+    if (profileError) {
+      console.error("Error fetching caller profile:", profileError);
+      return NextResponse.json(
+        { error: "Error al verificar permisos" },
+        { status: 500 }
+      );
+    }
 
     if (
       !callerProfile ||
@@ -25,9 +37,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // 2. Parse body
-    const body = await request.json();
-    const { swap_id, reviewer_id } = body;
+    // 2. Parse body (handle parse errors explicitly)
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "JSON inválido en el cuerpo de la solicitud" },
+        { status: 400 }
+      );
+    }
+
+    // 3. Validate swap_id
+    const { swap_id } = body as Record<string, unknown>;
 
     if (!swap_id) {
       return NextResponse.json(
@@ -36,94 +58,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Use admin client for cross-user operations
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    // 4. Fetch the swap request with entries
-    const { data: swap, error: swapError } = await adminSupabase
-      .from("shift_swap_requests")
-      .select("*")
-      .eq("id", swap_id)
-      .single();
-
-    if (swapError || !swap) {
+    if (typeof swap_id !== "string") {
       return NextResponse.json(
-        { error: "Solicitud de intercambio no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    if (swap.status !== "accepted") {
-      return NextResponse.json(
-        { error: "Solo se pueden aprobar intercambios aceptados" },
+        { error: "swap_id debe ser un string" },
         { status: 400 }
       );
     }
 
-    // 5. Swap employee_id in both schedule entries
-    const { error: swap1Error } = await adminSupabase
-      .from("schedule_entries")
-      .update({ employee_id: swap.target_id })
-      .eq("id", swap.requester_entry_id);
-
-    if (swap1Error) {
+    if (!UUID_REGEX.test(swap_id)) {
       return NextResponse.json(
-        { error: "Error al actualizar turno del solicitante: " + swap1Error.message },
-        { status: 500 }
+        { error: "swap_id debe ser un UUID válido" },
+        { status: 400 }
       );
     }
 
-    const { error: swap2Error } = await adminSupabase
-      .from("schedule_entries")
-      .update({ employee_id: swap.requester_id })
-      .eq("id", swap.target_entry_id);
+    // 4. CRITICAL: reviewer_id is ALWAYS from the session, never from the body
+    const reviewer_id = user.id;
 
-    if (swap2Error) {
-      return NextResponse.json(
-        { error: "Error al actualizar turno del destino: " + swap2Error.message },
-        { status: 500 }
-      );
-    }
-
-    // 6. Update swap status to approved
-    const { error: updateError } = await adminSupabase
-      .from("shift_swap_requests")
-      .update({
-        status: "approved",
-        reviewed_by: reviewer_id || user.id,
-      })
-      .eq("id", swap_id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { error: "Error al actualizar estado: " + updateError.message },
-        { status: 500 }
-      );
-    }
-
-    // 7. Create notifications for both employees
-    await adminSupabase.from("notifications").insert([
+    // 5. Call the RPC via admin client
+    const adminSupabase = createAdminClient();
+    const { data, error: rpcError } = await adminSupabase.rpc(
+      "approve_shift_swap",
       {
-        user_id: swap.requester_id,
-        title: "Intercambio aprobado",
-        message: "Tu solicitud de intercambio de turno ha sido aprobada.",
-        type: "swap_request",
-        link: "/requests",
-      },
-      {
-        user_id: swap.target_id,
-        title: "Intercambio aprobado",
-        message: "El intercambio de turno ha sido aprobado por el manager.",
-        type: "swap_request",
-        link: "/requests",
-      },
-    ]);
+        p_swap_id: swap_id,
+        p_reviewer_id: reviewer_id,
+      }
+    );
+
+    if (rpcError) {
+      console.error("RPC approve_shift_swap error:", rpcError);
+      return NextResponse.json(
+        { error: "Error al aprobar el intercambio" },
+        { status: 500 }
+      );
+    }
+
+    // 6. Check RPC-level errors (returned as JSON, not thrown)
+    if (data && !data.success) {
+      const statusCode = data.code === "NOT_FOUND" ? 404 : 400;
+      return NextResponse.json({ error: data.error }, { status: statusCode });
+    }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Unhandled error in swap approval:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }
