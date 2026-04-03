@@ -26,6 +26,7 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  keyAccessor?: (row: T) => string;
 }
 
 function SkeletonRow({ columns }: { columns: number }) {
@@ -48,6 +49,7 @@ export function DataTable<T>({
   searchPlaceholder,
   searchValue,
   onSearchChange,
+  keyAccessor,
 }: DataTableProps<T>) {
   return (
     <div className="space-y-4">
@@ -92,7 +94,7 @@ export function DataTable<T>({
               </TableRow>
             ) : (
               data.map((row, rowIndex) => (
-                <TableRow key={rowIndex}>
+                <TableRow key={keyAccessor ? keyAccessor(row) : rowIndex}>
                   {columns.map((column, colIndex) => (
                     <TableCell key={colIndex} className={column.className}>
                       {column.cell(row)}
