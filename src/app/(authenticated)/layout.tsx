@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 import { cn } from "@/lib/utils";
 import { AuthProvider } from "@/contexts/auth-context";
+import { NotificationsProvider } from "@/contexts/notifications-context";
 
 export default function AuthenticatedLayout({
   children,
@@ -15,6 +16,7 @@ export default function AuthenticatedLayout({
 
   return (
     <AuthProvider>
+      <NotificationsProvider>
       <div className="flex h-screen overflow-hidden">
         {/* Mobile sidebar overlay */}
         {sidebarOpen && (
@@ -42,6 +44,7 @@ export default function AuthenticatedLayout({
           </main>
         </div>
       </div>
+      </NotificationsProvider>
     </AuthProvider>
   );
 }
