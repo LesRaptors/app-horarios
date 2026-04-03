@@ -46,7 +46,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Types for fetched profiles with joins
 // ---------------------------------------------------------------------------
-interface ProfileWithJoins extends Profile {
+interface ProfileWithJoins extends Omit<Profile, "position" | "location"> {
   position: {
     id: string;
     name: string;

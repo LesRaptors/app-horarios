@@ -39,6 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
+    const userId = user.id;
 
     async function fetchStats() {
       setStatsLoading(true);
@@ -61,7 +62,7 @@ export default function DashboardPage() {
         const { count: shiftsCount } = await supabase
           .from("schedule_entries")
           .select("id, schedule:schedules!inner(status, month, year)", { count: "exact", head: true })
-          .eq("employee_id", user.id)
+          .eq("employee_id", userId)
           .eq("schedule.status", "published")
           .eq("schedule.month", currentMonth)
           .eq("schedule.year", currentYear);
@@ -71,7 +72,7 @@ export default function DashboardPage() {
         const { data: weekEntries } = await supabase
           .from("schedule_entries")
           .select("start_time, end_time, schedule:schedules!inner(status)")
-          .eq("employee_id", user.id)
+          .eq("employee_id", userId)
           .eq("schedule.status", "published")
           .gte("date", weekStartStr)
           .lte("date", weekEndStr);
@@ -106,7 +107,7 @@ export default function DashboardPage() {
         const { data: upcoming } = await supabase
           .from("schedule_entries")
           .select("id, date, start_time, end_time, position:positions(name, color), schedule:schedules!inner(status)")
-          .eq("employee_id", user.id)
+          .eq("employee_id", userId)
           .eq("schedule.status", "published")
           .gte("date", today)
           .order("date")

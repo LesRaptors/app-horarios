@@ -106,7 +106,7 @@ export default function ShiftsPage() {
   const [formStartTime, setFormStartTime] = useState("06:00");
   const [formEndTime, setFormEndTime] = useState("14:00");
   const [formBreakMinutes, setFormBreakMinutes] = useState(30);
-  const [formColor, setFormColor] = useState(COLOR_PALETTE[0].value);
+  const [formColor, setFormColor] = useState<string>(COLOR_PALETTE[0].value);
 
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";

@@ -91,7 +91,7 @@ export default function PositionsPage() {
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [formDepartmentId, setFormDepartmentId] = useState("");
   const [formName, setFormName] = useState("");
-  const [formColor, setFormColor] = useState(COLOR_PALETTE[0].value);
+  const [formColor, setFormColor] = useState<string>(COLOR_PALETTE[0].value);
 
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";
