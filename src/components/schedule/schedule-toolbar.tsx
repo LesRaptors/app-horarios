@@ -70,14 +70,14 @@ export function ScheduleToolbar({
 
         {/* Month navigation */}
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" onClick={onPrevMonth}>
-            <ChevronLeft className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={onPrevMonth} aria-label="Mes anterior">
+            <ChevronLeft className="size-4" aria-hidden="true" />
           </Button>
           <div className="min-w-[140px] text-center font-medium">
             {MONTHS[month]} {year}
           </div>
-          <Button variant="outline" size="icon" onClick={onNextMonth}>
-            <ChevronRight className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={onNextMonth} aria-label="Mes siguiente">
+            <ChevronRight className="size-4" aria-hidden="true" />
           </Button>
         </div>
 

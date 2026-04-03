@@ -22,18 +22,28 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         size="icon"
         className="lg:hidden"
         onClick={onMenuClick}
+        aria-label="Abrir menú"
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="size-5" aria-hidden="true" />
       </Button>
 
       <div className="flex-1" />
 
       {/* Notifications */}
       <Link href="/notifications">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label={
+            unreadCount > 0
+              ? `Notificaciones (${unreadCount} sin leer)`
+              : "Notificaciones"
+          }
+        >
+          <Bell className="size-5" aria-hidden="true" />
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
+            <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -43,7 +53,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       {/* User avatar */}
       {profile && (
         <div className="ml-3 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+          <div
+            className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground"
+            aria-label={`${profile.first_name} ${profile.last_name}`}
+          >
             {profile.first_name[0]}
             {profile.last_name[0]}
           </div>
