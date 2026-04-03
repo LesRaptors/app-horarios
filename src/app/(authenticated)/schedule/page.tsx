@@ -77,8 +77,7 @@ export default function SchedulePage() {
     }
 
     fetchLocations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading]);
+  }, [authLoading, profile?.location_id]);
 
   // Fetch schedule + employees + entries when location/month/year change
   const fetchScheduleData = useCallback(async () => {
@@ -86,43 +85,40 @@ export default function SchedulePage() {
     setLoading(true);
 
     try {
-      // Fetch schedule for this location/month/year
-      const { data: scheduleData } = await supabase
-        .from("schedules")
-        .select("*")
-        .eq("location_id", selectedLocationId)
-        .eq("month", month + 1)
-        .eq("year", year)
-        .maybeSingle();
+      // Queries 1-4 are independent — run in parallel
+      const [scheduleResult, empResult, posResult, shiftResult] = await Promise.all([
+        supabase
+          .from("schedules")
+          .select("*")
+          .eq("location_id", selectedLocationId)
+          .eq("month", month + 1)
+          .eq("year", year)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("*, position:positions(*), location:locations(*)")
+          .eq("location_id", selectedLocationId)
+          .eq("is_active", true)
+          .order("last_name"),
+        supabase
+          .from("positions")
+          .select("*, department:departments!inner(location_id)")
+          .eq("department.location_id", selectedLocationId)
+          .order("name"),
+        supabase
+          .from("shift_templates")
+          .select("*")
+          .eq("location_id", selectedLocationId)
+          .order("name"),
+      ]);
 
+      const scheduleData = scheduleResult.data;
       setSchedule(scheduleData);
+      setEmployees(empResult.data || []);
+      setPositions(posResult.data || []);
+      setShiftTemplates(shiftResult.data || []);
 
-      // Fetch employees for this location
-      const { data: empData } = await supabase
-        .from("profiles")
-        .select("*, position:positions(*), location:locations(*)")
-        .eq("location_id", selectedLocationId)
-        .eq("is_active", true)
-        .order("last_name");
-      setEmployees(empData || []);
-
-      // Fetch positions for the departments of this location
-      const { data: posData } = await supabase
-        .from("positions")
-        .select("*, department:departments!inner(location_id)")
-        .eq("department.location_id", selectedLocationId)
-        .order("name");
-      setPositions(posData || []);
-
-      // Fetch shift templates for this location
-      const { data: shiftData } = await supabase
-        .from("shift_templates")
-        .select("*")
-        .eq("location_id", selectedLocationId)
-        .order("name");
-      setShiftTemplates(shiftData || []);
-
-      // Fetch entries if schedule exists
+      // Query 5 depends on schedule existing
       if (scheduleData) {
         const { data: entryData } = await supabase
           .from("schedule_entries")
@@ -137,8 +133,7 @@ export default function SchedulePage() {
     }
 
     setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLocationId, month, year]);
+  }, [selectedLocationId, month, year, supabase]);
 
   useEffect(() => {
     if (selectedLocationId) {

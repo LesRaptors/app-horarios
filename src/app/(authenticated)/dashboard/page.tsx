@@ -58,18 +58,17 @@ export default function DashboardPage() {
       const weekEndStr = weekEnd.toISOString().split("T")[0];
 
       try {
-        // 1. My shifts this month (from published schedules)
-        const { count: shiftsCount } = await supabase
+        // 1. My shifts this month
+        const shiftsQuery = supabase
           .from("schedule_entries")
           .select("id, schedule:schedules!inner(status, month, year)", { count: "exact", head: true })
           .eq("employee_id", userId)
           .eq("schedule.status", "published")
           .eq("schedule.month", currentMonth)
           .eq("schedule.year", currentYear);
-        setMyShiftsCount(shiftsCount || 0);
 
         // 2. Hours this week
-        const { data: weekEntries } = await supabase
+        const weekQuery = supabase
           .from("schedule_entries")
           .select("start_time, end_time, schedule:schedules!inner(status)")
           .eq("employee_id", userId)
@@ -77,34 +76,8 @@ export default function DashboardPage() {
           .gte("date", weekStartStr)
           .lte("date", weekEndStr);
 
-        let totalHours = 0;
-        for (const entry of weekEntries || []) {
-          const [sh, sm] = entry.start_time.split(":").map(Number);
-          const [eh, em] = entry.end_time.split(":").map(Number);
-          let mins = eh * 60 + em - (sh * 60 + sm);
-          if (mins < 0) mins += 24 * 60;
-          totalHours += mins / 60;
-        }
-        setWeeklyHours(Math.round(totalHours * 10) / 10);
-
-        // 3. Active employees (admin/manager only)
-        if (canManage) {
-          const { count: empCount } = await supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true })
-            .eq("is_active", true);
-          setActiveEmployees(empCount || 0);
-
-          // 4. Pending requests
-          const { count: reqCount } = await supabase
-            .from("time_off_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending");
-          setPendingRequests(reqCount || 0);
-        }
-
-        // 5. Upcoming shifts (next 5)
-        const { data: upcoming } = await supabase
+        // 3. Upcoming shifts (next 5)
+        const upcomingQuery = supabase
           .from("schedule_entries")
           .select("id, date, start_time, end_time, position:positions(name, color), schedule:schedules!inner(status)")
           .eq("employee_id", userId)
@@ -112,7 +85,52 @@ export default function DashboardPage() {
           .gte("date", today)
           .order("date")
           .limit(5);
-        setUpcomingShifts(upcoming || []);
+
+        // Run all independent queries in parallel
+        const queries: PromiseLike<unknown>[] = [shiftsQuery, weekQuery, upcomingQuery];
+
+        if (canManage) {
+          // 4. Active employees
+          queries.push(
+            supabase
+              .from("profiles")
+              .select("id", { count: "exact", head: true })
+              .eq("is_active", true)
+          );
+          // 5. Pending requests
+          queries.push(
+            supabase
+              .from("time_off_requests")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "pending")
+          );
+        }
+
+        const results = await Promise.all(queries);
+
+        const shiftsResult = results[0] as Awaited<typeof shiftsQuery>;
+        const weekResult = results[1] as { data: { start_time: string; end_time: string }[] | null };
+        const upcomingResult = results[2] as Awaited<typeof upcomingQuery>;
+
+        setMyShiftsCount(shiftsResult.count || 0);
+        setUpcomingShifts(upcomingResult.data || []);
+
+        if (canManage) {
+          const empResult = results[3] as { count: number | null };
+          const reqResult = results[4] as { count: number | null };
+          setActiveEmployees(empResult.count || 0);
+          setPendingRequests(reqResult.count || 0);
+        }
+
+        let totalHours = 0;
+        for (const entry of weekResult.data || []) {
+          const [sh, sm] = entry.start_time.split(":").map(Number);
+          const [eh, em] = entry.end_time.split(":").map(Number);
+          let mins = eh * 60 + em - (sh * 60 + sm);
+          if (mins < 0) mins += 24 * 60;
+          totalHours += mins / 60;
+        }
+        setWeeklyHours(Math.round(totalHours * 10) / 10);
       } catch {
         // Silently handle errors — dashboard is non-critical
       }
@@ -121,8 +139,7 @@ export default function DashboardPage() {
     }
 
     fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading]);
+  }, [authLoading, user, canManage]);
 
   if (authLoading) {
     return (
