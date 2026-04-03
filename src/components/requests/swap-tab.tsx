@@ -106,21 +106,21 @@ export function SwapTab() {
     const { data: myData } = await supabase
       .from("schedule_entries")
       .select("*, schedule:schedules!inner(status), position:positions(name)")
-      .eq("employee_id", user?.id)
+      .eq("employee_id", user!.id)
       .eq("schedule.status", "published")
       .gte("date", new Date().toISOString().split("T")[0])
       .order("date");
-    setMyEntries(myData || []);
+    setMyEntries((myData as ScheduleEntry[]) || []);
 
     // Fetch other employees from same location
     const { data: empData } = await supabase
       .from("profiles")
       .select("id, first_name, last_name")
-      .eq("location_id", profile?.location_id)
+      .eq("location_id", profile!.location_id!)
       .eq("is_active", true)
-      .neq("id", user?.id)
+      .neq("id", user!.id)
       .order("last_name");
-    setTargetEmployees(empData || []);
+    setTargetEmployees((empData as Profile[]) || []);
   }
 
   // When target employee changes, fetch their entries
@@ -138,7 +138,7 @@ export function SwapTab() {
         .eq("schedule.status", "published")
         .gte("date", new Date().toISOString().split("T")[0])
         .order("date");
-      setTargetEntries(data || []);
+      setTargetEntries((data as ScheduleEntry[]) || []);
     }
 
     fetchTargetEntries();
@@ -153,11 +153,11 @@ export function SwapTab() {
 
     setSaving(true);
     const { error } = await supabase.from("shift_swap_requests").insert({
-      requester_id: user?.id,
+      requester_id: user!.id,
       target_id: selectedTargetId,
       requester_entry_id: selectedMyEntry,
       target_entry_id: selectedTargetEntry,
-      status: "pending",
+      status: "pending" as const,
     });
 
     if (error) {

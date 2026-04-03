@@ -21,7 +21,7 @@ export function useSettings() {
         .single();
 
       if (data?.value) {
-        setConstraints(data.value as LaborConstraints);
+        setConstraints(data.value as unknown as LaborConstraints);
       }
       setLoading(false);
     }
@@ -32,7 +32,7 @@ export function useSettings() {
   const updateConstraints = async (newConstraints: LaborConstraints) => {
     const { error } = await supabase
       .from("app_settings")
-      .update({ value: newConstraints as unknown as Record<string, unknown>, updated_at: new Date().toISOString() })
+      .update({ value: newConstraints as unknown as import("@/lib/supabase/database.types").Json, updated_at: new Date().toISOString() })
       .eq("key", "labor_constraints");
 
     if (!error) {

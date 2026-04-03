@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
 
     // 5. Call the RPC via admin client
     const adminSupabase = createAdminClient();
-    const { data, error: rpcError } = await adminSupabase.rpc(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error: rpcError } = await (adminSupabase.rpc as any)(
       "approve_shift_swap",
       {
         p_swap_id: swap_id,
@@ -94,9 +95,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Check RPC-level errors (returned as JSON, not thrown)
-    if (data && !data.success) {
-      const statusCode = data.code === "NOT_FOUND" ? 404 : 400;
-      return NextResponse.json({ error: data.error }, { status: statusCode });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpcResult = data as any;
+    if (rpcResult && !rpcResult.success) {
+      const statusCode = rpcResult.code === "NOT_FOUND" ? 404 : 400;
+      return NextResponse.json({ error: rpcResult.error }, { status: statusCode });
     }
 
     return NextResponse.json({ success: true });

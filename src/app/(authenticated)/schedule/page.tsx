@@ -114,8 +114,8 @@ export default function SchedulePage() {
 
       const scheduleData = scheduleResult.data;
       setSchedule(scheduleData);
-      setEmployees(empResult.data || []);
-      setPositions(posResult.data || []);
+      setEmployees((empResult.data as Profile[]) || []);
+      setPositions((posResult.data as Position[]) || []);
       setShiftTemplates(shiftResult.data || []);
 
       // Query 5 depends on schedule existing
@@ -124,7 +124,7 @@ export default function SchedulePage() {
           .from("schedule_entries")
           .select("*, employee:profiles(id, first_name, last_name), position:positions(*), shift_template:shift_templates(*)")
           .eq("schedule_id", scheduleData.id);
-        setEntries(entryData || []);
+        setEntries((entryData as ScheduleEntry[]) || []);
       } else {
         setEntries([]);
       }
@@ -171,7 +171,7 @@ export default function SchedulePage() {
         location_id: selectedLocationId,
         month: month + 1,
         year: year,
-        status: "draft",
+        status: "draft" as const,
         created_by: user.id,
       })
       .select()
@@ -192,7 +192,7 @@ export default function SchedulePage() {
 
     const { error } = await supabase
       .from("schedules")
-      .update({ status: "published", published_at: new Date().toISOString() })
+      .update({ status: "published" as const, published_at: new Date().toISOString() })
       .eq("id", schedule.id);
 
     if (error) {
@@ -210,7 +210,7 @@ export default function SchedulePage() {
 
     const { error } = await supabase
       .from("schedules")
-      .update({ status: "archived" })
+      .update({ status: "archived" as const })
       .eq("id", schedule.id);
 
     if (error) {

@@ -56,14 +56,14 @@ export function TimeOffTab() {
 
     // Employees only see their own
     if (!canManage) {
-      query = query.eq("employee_id", user?.id);
+      query = query.eq("employee_id", user!.id);
     }
 
     const { data, error } = await query;
     if (error) {
       toast.error(translateDbError(error.message, "Error al cargar solicitudes"));
     } else {
-      setRequests(data || []);
+      setRequests((data as TimeOffRequest[]) || []);
     }
     setLoading(false);
   }
@@ -94,11 +94,11 @@ export function TimeOffTab() {
 
     setSaving(true);
     const { error } = await supabase.from("time_off_requests").insert({
-      employee_id: user?.id,
+      employee_id: user!.id,
       start_date: startDate,
       end_date: endDate,
       reason: reason.trim(),
-      status: "pending",
+      status: "pending" as const,
     });
 
     if (error) {
