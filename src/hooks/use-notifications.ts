@@ -55,7 +55,7 @@ export function useNotifications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []);
 
   const markAsRead = async (id: string) => {
     await supabase

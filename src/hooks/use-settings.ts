@@ -27,7 +27,7 @@ export function useSettings() {
     }
 
     fetchSettings();
-  }, [supabase]);
+  }, []);
 
   const updateConstraints = async (newConstraints: LaborConstraints) => {
     const { error } = await supabase
