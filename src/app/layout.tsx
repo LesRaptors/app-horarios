@@ -6,8 +6,12 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Horarios - Gestión de Horarios",
+  title: {
+    default: "Horarios - Gestión de Horarios",
+    template: "%s | Horarios",
+  },
   description: "Aplicación para gestionar y repartir horarios de empleados",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
