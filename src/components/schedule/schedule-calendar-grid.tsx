@@ -65,8 +65,11 @@ export function ScheduleCalendarGrid({
               className="sticky left-0 z-10 flex items-center border-b border-r bg-card px-2 py-1"
             >
               <div className="truncate text-sm">
-                <div className="font-medium">
+                <div className={cn("font-medium", employee.is_demo && "italic text-muted-foreground/70")}>
                   {employee.first_name} {employee.last_name}
+                  {employee.is_demo && (
+                    <span className="ml-1 text-[10px] font-normal text-yellow-600">(Demo)</span>
+                  )}
                 </div>
                 {employee.position && (
                   <div className="text-xs text-muted-foreground truncate">
