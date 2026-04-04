@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
@@ -210,6 +208,7 @@ export type Database = {
           first_name: string
           id: string
           is_active: boolean
+          is_demo: boolean
           last_name: string
           location_id: string | null
           max_hours_per_week: number
@@ -224,6 +223,7 @@ export type Database = {
           first_name: string
           id: string
           is_active?: boolean
+          is_demo?: boolean
           last_name: string
           location_id?: string | null
           max_hours_per_week?: number
@@ -238,6 +238,7 @@ export type Database = {
           first_name?: string
           id?: string
           is_active?: boolean
+          is_demo?: boolean
           last_name?: string
           location_id?: string | null
           max_hours_per_week?: number
@@ -606,6 +607,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_shift_swap: {
+        Args: { p_reviewer_id: string; p_swap_id: string }
+        Returns: Json
+      }
       create_notification: {
         Args: {
           p_link?: string

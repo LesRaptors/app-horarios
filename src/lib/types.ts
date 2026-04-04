@@ -53,6 +53,7 @@ export interface Profile {
   location_id: string | null;
   max_hours_per_week: number;
   is_active: boolean;
+  is_demo: boolean;
   created_at: string;
   updated_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
