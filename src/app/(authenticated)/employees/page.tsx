@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Loader2, Search, UserPlus } from "lucide-react";
+import { Plus, Pencil, Loader2, Search, UserPlus, Repeat } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/constants";
 import type {
   Profile,
@@ -141,6 +141,17 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Demo badge helper
+// ---------------------------------------------------------------------------
+function DemoBadge() {
+  return (
+    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+      Demo
+    </Badge>
+  );
+}
+
 // ===========================================================================
 // PAGE COMPONENT
 // ===========================================================================
@@ -167,6 +178,34 @@ export default function EmployeesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+
+  // ---- Demo filter -----------------------------------------------------------
+  const [demoFilter, setDemoFilter] = useState<"all" | "real" | "demo">("all");
+
+  // ---- Demo create dialog ----------------------------------------------------
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [demoForm, setDemoForm] = useState({
+    first_name: "",
+    last_name: "",
+    role: "employee" as UserRole,
+    location_id: "",
+    department_id: "",
+    position_id: "",
+    max_hours_per_week: 40,
+  });
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  // ---- Convert dialog --------------------------------------------------------
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertDemoId, setConvertDemoId] = useState("");
+  const [convertEmail, setConvertEmail] = useState("");
+  const [convertLoading, setConvertLoading] = useState(false);
+
+  // ---- Transfer dialog -------------------------------------------------------
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferDemoId, setTransferDemoId] = useState("");
+  const [transferTargetId, setTransferTargetId] = useState("");
+  const [transferLoading, setTransferLoading] = useState(false);
 
   // --------------------------------------------------------------------------
   // Fetch all data
@@ -209,14 +248,23 @@ export default function EmployeesPage() {
   // Filtered employees (client-side search)
   // --------------------------------------------------------------------------
   const filteredEmployees = useMemo(() => {
-    if (!search.trim()) return employees;
+    let result = employees;
+
+    // Demo filter
+    if (demoFilter === "real") {
+      result = result.filter((e) => !e.is_demo);
+    } else if (demoFilter === "demo") {
+      result = result.filter((e) => e.is_demo);
+    }
+
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return employees.filter((e) => {
+    return result.filter((e) => {
       const fullName = `${e.first_name} ${e.last_name}`.toLowerCase();
       const email = e.email?.toLowerCase() ?? "";
       return fullName.includes(q) || email.includes(q);
     });
-  }, [employees, search]);
+  }, [employees, search, demoFilter]);
 
   // --------------------------------------------------------------------------
   // Cascading position filter helpers
@@ -376,6 +424,133 @@ export default function EmployeesPage() {
   }
 
   // --------------------------------------------------------------------------
+  // DEMO: handlers
+  // --------------------------------------------------------------------------
+  async function handleDemoCreate() {
+    if (!demoForm.first_name || !demoForm.last_name) {
+      toast.error("Por favor completa nombre y apellido");
+      return;
+    }
+
+    setDemoLoading(true);
+    try {
+      const res = await fetch("/api/employees/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: demoForm.first_name,
+          last_name: demoForm.last_name,
+          role: demoForm.role,
+          location_id: demoForm.location_id || undefined,
+          department_id: demoForm.department_id || undefined,
+          position_id: demoForm.position_id || undefined,
+          max_hours_per_week: demoForm.max_hours_per_week,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al crear empleado demo");
+        return;
+      }
+
+      toast.success("Empleado demo creado exitosamente");
+      setDemoOpen(false);
+      setDemoForm({
+        first_name: "",
+        last_name: "",
+        role: "employee",
+        location_id: "",
+        department_id: "",
+        position_id: "",
+        max_hours_per_week: 40,
+      });
+      fetchData();
+    } catch {
+      toast.error("Error al crear empleado demo");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  async function handleConvert() {
+    if (!convertEmail) {
+      toast.error("Por favor ingresa un email");
+      return;
+    }
+
+    setConvertLoading(true);
+    try {
+      const res = await fetch("/api/employees/demo/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          demo_id: convertDemoId,
+          email: convertEmail,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al convertir empleado demo");
+        return;
+      }
+
+      toast.success(
+        `Empleado convertido exitosamente. ${data.entries_migrated ?? 0} entradas migradas.`
+      );
+      setConvertOpen(false);
+      setConvertDemoId("");
+      setConvertEmail("");
+      fetchData();
+    } catch {
+      toast.error("Error al convertir empleado demo");
+    } finally {
+      setConvertLoading(false);
+    }
+  }
+
+  async function handleTransfer() {
+    if (!transferTargetId) {
+      toast.error("Por favor selecciona un empleado destino");
+      return;
+    }
+
+    setTransferLoading(true);
+    try {
+      const res = await fetch("/api/employees/demo/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          demo_id: transferDemoId,
+          target_employee_id: transferTargetId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al transferir turnos");
+        return;
+      }
+
+      toast.success(
+        `Turnos transferidos exitosamente. ${data.entries_transferred ?? 0} entradas transferidas.`
+      );
+      setTransferOpen(false);
+      setTransferDemoId("");
+      setTransferTargetId("");
+      fetchData();
+    } catch {
+      toast.error("Error al transferir turnos");
+    } finally {
+      setTransferLoading(false);
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // AUTH GUARD
   // --------------------------------------------------------------------------
   if (authLoading) {
@@ -412,21 +587,58 @@ export default function EmployeesPage() {
             Gestiona los empleados de tu organizacion
           </p>
         </div>
-        <Button onClick={openInviteDialog}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Invitar empleado
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDemoForm({
+                first_name: "",
+                last_name: "",
+                role: "employee",
+                location_id: "",
+                department_id: "",
+                position_id: "",
+                max_hours_per_week: 40,
+              });
+              setDemoOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Crear demo
+          </Button>
+          <Button onClick={openInviteDialog}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invitar empleado
+          </Button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nombre o email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search + Demo filter */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select
+          value={demoFilter}
+          onValueChange={(val) =>
+            setDemoFilter(val as "all" | "real" | "demo")
+          }
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="real">Solo reales</SelectItem>
+            <SelectItem value="demo">Solo demos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -471,7 +683,10 @@ export default function EmployeesPage() {
                 {filteredEmployees.map((emp) => (
                   <TableRow key={emp.id}>
                     <TableCell className="font-medium">
-                      {emp.first_name} {emp.last_name}
+                      <span className="flex items-center gap-2">
+                        {emp.first_name} {emp.last_name}
+                        {emp.is_demo && <DemoBadge />}
+                      </span>
                     </TableCell>
                     <TableCell>{emp.email}</TableCell>
                     <TableCell>
@@ -487,13 +702,43 @@ export default function EmployeesPage() {
                       <StatusBadge isActive={emp.is_active} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(emp)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {emp.is_demo && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Convertir a empleado real"
+                              onClick={() => {
+                                setConvertDemoId(emp.id);
+                                setConvertEmail("");
+                                setConvertOpen(true);
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Transferir turnos"
+                              onClick={() => {
+                                setTransferDemoId(emp.id);
+                                setTransferTargetId("");
+                                setTransferOpen(true);
+                              }}
+                            >
+                              <Repeat className="h-4 w-4 text-blue-600" />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(emp)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -982,6 +1227,300 @@ export default function EmployeesPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================================================================== */}
+      {/* DEMO CREATE DIALOG                                                 */}
+      {/* ================================================================== */}
+      <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear empleado demo</DialogTitle>
+            <DialogDescription>
+              Crea un empleado ficticio para pruebas. No se enviara ninguna
+              invitacion.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* First & last name */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="demo-first-name">Nombre *</Label>
+                <Input
+                  id="demo-first-name"
+                  placeholder="Nombre"
+                  value={demoForm.first_name}
+                  onChange={(e) =>
+                    setDemoForm((f) => ({
+                      ...f,
+                      first_name: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="demo-last-name">Apellido *</Label>
+                <Input
+                  id="demo-last-name"
+                  placeholder="Apellido"
+                  value={demoForm.last_name}
+                  onChange={(e) =>
+                    setDemoForm((f) => ({
+                      ...f,
+                      last_name: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Role */}
+            <div className="grid gap-2">
+              <Label>Rol *</Label>
+              <Select
+                value={demoForm.role}
+                onValueChange={(val) =>
+                  setDemoForm((f) => ({ ...f, role: val as UserRole }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employee">Empleado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location (Sede) */}
+            <div className="grid gap-2">
+              <Label>Sede</Label>
+              <Select
+                value={demoForm.location_id}
+                onValueChange={(val) =>
+                  setDemoForm((f) => ({
+                    ...f,
+                    location_id: val,
+                    department_id: "",
+                    position_id: "",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar sede" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Department (filtered by location) */}
+            <div className="grid gap-2">
+              <Label>Departamento</Label>
+              <Select
+                value={demoForm.department_id}
+                onValueChange={(val) =>
+                  setDemoForm((f) => ({
+                    ...f,
+                    department_id: val,
+                    position_id: "",
+                  }))
+                }
+                disabled={!demoForm.location_id}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      demoForm.location_id
+                        ? "Seleccionar departamento"
+                        : "Primero selecciona una sede"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {demoForm.location_id &&
+                    filteredDepartments(demoForm.location_id).map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Position (filtered by department) */}
+            <div className="grid gap-2">
+              <Label>Posicion</Label>
+              <Select
+                value={demoForm.position_id}
+                onValueChange={(val) =>
+                  setDemoForm((f) => ({ ...f, position_id: val }))
+                }
+                disabled={!demoForm.department_id}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      demoForm.department_id
+                        ? "Seleccionar posicion"
+                        : "Primero selecciona un departamento"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {demoForm.department_id &&
+                    filteredPositionsByDept(demoForm.department_id).map(
+                      (pos) => (
+                        <SelectItem key={pos.id} value={pos.id}>
+                          {pos.name}
+                        </SelectItem>
+                      )
+                    )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Max hours */}
+            <div className="grid gap-2">
+              <Label htmlFor="demo-hours">Horas maximas/semana</Label>
+              <Input
+                id="demo-hours"
+                type="number"
+                min={1}
+                max={168}
+                value={demoForm.max_hours_per_week}
+                onChange={(e) =>
+                  setDemoForm((f) => ({
+                    ...f,
+                    max_hours_per_week: Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDemoOpen(false)}
+              disabled={demoLoading}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleDemoCreate} disabled={demoLoading}>
+              {demoLoading && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Crear empleado demo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================================================================== */}
+      {/* CONVERT DIALOG                                                     */}
+      {/* ================================================================== */}
+      <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Convertir empleado demo</DialogTitle>
+            <DialogDescription>
+              Convierte este empleado demo en un empleado real. Se enviara una
+              invitacion al email proporcionado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="convert-email">Email *</Label>
+              <Input
+                id="convert-email"
+                type="email"
+                placeholder="empleado@empresa.com"
+                value={convertEmail}
+                onChange={(e) => setConvertEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConvertOpen(false)}
+              disabled={convertLoading}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleConvert} disabled={convertLoading}>
+              {convertLoading && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Convertir e invitar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================================================================== */}
+      {/* TRANSFER DIALOG                                                    */}
+      {/* ================================================================== */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transferir turnos</DialogTitle>
+            <DialogDescription>
+              Transfiere todos los turnos de este empleado demo a un empleado
+              real.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Empleado destino *</Label>
+              <Select
+                value={transferTargetId}
+                onValueChange={setTransferTargetId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar empleado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees
+                    .filter((e) => !e.is_demo && e.is_active)
+                    .map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTransferOpen(false)}
+              disabled={transferLoading}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleTransfer} disabled={transferLoading}>
+              {transferLoading && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Transferir turnos
             </Button>
           </DialogFooter>
         </DialogContent>
