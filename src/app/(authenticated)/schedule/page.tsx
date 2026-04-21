@@ -468,6 +468,7 @@ export default function SchedulePage() {
           existingEntries={entries}
           month={month}
           year={year}
+          locationName={locations.find((l) => l.id === selectedLocationId)?.name ?? ""}
           onGenerated={fetchScheduleData}
         />
       )}
