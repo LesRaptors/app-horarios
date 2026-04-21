@@ -202,14 +202,6 @@ export type AutoGenWarning =
   | { kind: "no_templates_selected" }
   | { kind: "no_employees_selected" };
 
-export interface AutoGenWarningGroup {
-  kind: AutoGenWarning["kind"];
-  count: number;
-  affectedPositionIds: string[];
-  affectedDates: string[];
-  samples: AutoGenWarning[]; // first 5 for drill-down
-}
-
 // Schedule helpers
 export type EntryMap = Record<string, ScheduleEntry>;
 
