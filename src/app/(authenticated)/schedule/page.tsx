@@ -102,7 +102,7 @@ export default function SchedulePage() {
           .order("last_name"),
         supabase
           .from("positions")
-          .select("*, department:departments!inner(location_id)")
+          .select("*, department:departments!inner(name, location_id)")
           .eq("department.location_id", selectedLocationId)
           .order("name"),
         supabase
