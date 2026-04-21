@@ -2,6 +2,7 @@ import { getMonthDates, formatDateISO } from "./utils";
 import type {
   AutoGenConfig,
   AutoGenResult,
+  AutoGenWarning,
   ProfileWithPositions,
   ShiftTemplate,
   LaborConstraints,
@@ -212,7 +213,7 @@ export function generateSchedule(
   constraints: LaborConstraints,
   staffingRequirements: StaffingRequirement[] = []
 ): AutoGenResult {
-  const warnings: string[] = [];
+  const warnings: AutoGenWarning[] = [];
   const entries: AutoGenResult["entries"] = [];
   const stats: Record<string, { shifts: number; hours: number }> = {};
 
@@ -221,11 +222,11 @@ export function generateSchedule(
   const selectedTemplates = templates.filter((t) => config.shiftTemplateIds.includes(t.id));
 
   if (selectedTemplates.length === 0) {
-    warnings.push("No se seleccionaron plantillas de turno.");
+    warnings.push({ kind: "no_templates_selected" });
     return { entries, warnings, stats };
   }
   if (selectedEmployees.length === 0) {
-    warnings.push("No se seleccionaron empleados.");
+    warnings.push({ kind: "no_employees_selected" });
     return { entries, warnings, stats };
   }
 
@@ -325,7 +326,12 @@ export function generateSchedule(
   for (const slot of demandSlots) {
     const eligibility = positionEligibility.get(slot.positionId);
     if (!eligibility) {
-      warnings.push(`No hay empleados asignados a la posicion para ${slot.date} — ${slot.startTime}`);
+      warnings.push({
+        kind: "no_employees_in_position",
+        positionId: slot.positionId,
+        date: slot.date,
+        shiftTemplateId: slot.shiftTemplateId,
+      });
       continue;
     }
 
@@ -377,8 +383,12 @@ export function generateSchedule(
     }
 
     if (scored.length === 0) {
-      const templateName = selectedTemplates.find((t) => t.id === slot.shiftTemplateId)?.name ?? slot.shiftTemplateId;
-      warnings.push(`No se encontro empleado disponible para ${slot.date} — ${templateName}`);
+      warnings.push({
+        kind: "no_available_employee",
+        positionId: slot.positionId,
+        date: slot.date,
+        shiftTemplateId: slot.shiftTemplateId,
+      });
       continue;
     }
 
