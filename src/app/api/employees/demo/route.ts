@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { translateDbError } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -67,15 +68,20 @@ export async function POST(request: NextRequest) {
       .insert(insertData);
 
     if (insertError) {
-      console.error("[demo] Insert error:", insertError.message);
+      console.error("[demo] Insert error:", insertError);
       return NextResponse.json(
-        { error: "Error al crear empleado demo" },
+        {
+          error: translateDbError(insertError.message, "Error al crear empleado demo"),
+          detail: insertError.message,
+          code: insertError.code,
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ success: true, employee_id: id });
-  } catch {
+  } catch (err) {
+    console.error("[demo] Unexpected error:", err);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }
