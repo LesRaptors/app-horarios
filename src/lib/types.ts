@@ -195,6 +195,21 @@ export interface LaborConstraints {
   maxConsecutiveDays: number;
 }
 
+// Auto-gen warnings are structured so the UI can group them by cause.
+export type AutoGenWarning =
+  | { kind: "no_employees_in_position"; positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "no_available_employee"; positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "no_templates_selected" }
+  | { kind: "no_employees_selected" };
+
+export interface AutoGenWarningGroup {
+  kind: AutoGenWarning["kind"];
+  count: number;
+  affectedPositionIds: string[];
+  affectedDates: string[];
+  samples: AutoGenWarning[]; // first 5 for drill-down
+}
+
 // Schedule helpers
 export type EntryMap = Record<string, ScheduleEntry>;
 
@@ -218,6 +233,6 @@ export interface AutoGenConfig {
 
 export interface AutoGenResult {
   entries: Omit<ScheduleEntry, "id" | "created_at" | "updated_at" | "employee" | "position" | "shift_template">[];
-  warnings: string[];
+  warnings: AutoGenWarning[];
   stats: Record<string, { shifts: number; hours: number }>;
 }
