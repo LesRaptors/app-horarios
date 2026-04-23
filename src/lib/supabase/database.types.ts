@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
@@ -30,6 +32,45 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: Json
+        }
+        Relationships: []
+      }
+      contract_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          max_holidays_per_quarter: number
+          max_sundays_per_quarter: number
+          name: string
+          target_hours_per_week: number | null
+          target_nights_per_month: number | null
+          target_saturdays_per_month: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_holidays_per_quarter?: number
+          max_sundays_per_quarter?: number
+          name: string
+          target_hours_per_week?: number | null
+          target_nights_per_month?: number | null
+          target_saturdays_per_month?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_holidays_per_quarter?: number
+          max_sundays_per_quarter?: number
+          name?: string
+          target_hours_per_week?: number | null
+          target_nights_per_month?: number | null
+          target_saturdays_per_month?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -61,6 +102,50 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_equity_rollups: {
+        Row: {
+          employee_id: string
+          holidays_worked: number
+          month: number
+          nights_worked: number
+          saturdays_worked: number
+          sundays_worked: number
+          total_hours: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          employee_id: string
+          holidays_worked?: number
+          month: number
+          nights_worked?: number
+          saturdays_worked?: number
+          sundays_worked?: number
+          total_hours?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          employee_id?: string
+          holidays_worked?: number
+          month?: number
+          nights_worked?: number
+          saturdays_worked?: number
+          sundays_worked?: number
+          total_hours?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_equity_rollups_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -97,6 +182,38 @@ export type Database = {
             columns: ["position_id"]
             isOneToOne: false
             referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holidays: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          location_id: string | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          location_id?: string | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          location_id?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holidays_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
         ]
@@ -203,6 +320,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          contract_type_id: string
           created_at: string
           email: string
           first_name: string
@@ -218,6 +336,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          contract_type_id?: string
           created_at?: string
           email: string
           first_name: string
@@ -233,6 +352,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          contract_type_id?: string
           created_at?: string
           email?: string
           first_name?: string
@@ -248,6 +368,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_contract_type_id_fkey"
+            columns: ["contract_type_id"]
+            isOneToOne: false
+            referencedRelation: "contract_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_location_id_fkey"
             columns: ["location_id"]
@@ -270,8 +397,13 @@ export type Database = {
           date: string
           employee_id: string
           end_time: string
+          exceeds_caps: string[]
           id: string
           notes: string | null
+          overtime_note: string | null
+          overtime_reviewed_at: string | null
+          overtime_reviewed_by: string | null
+          overtime_status: string
           position_id: string
           schedule_id: string
           shift_template_id: string | null
@@ -283,8 +415,13 @@ export type Database = {
           date: string
           employee_id: string
           end_time: string
+          exceeds_caps?: string[]
           id?: string
           notes?: string | null
+          overtime_note?: string | null
+          overtime_reviewed_at?: string | null
+          overtime_reviewed_by?: string | null
+          overtime_status?: string
           position_id: string
           schedule_id: string
           shift_template_id?: string | null
@@ -296,8 +433,13 @@ export type Database = {
           date?: string
           employee_id?: string
           end_time?: string
+          exceeds_caps?: string[]
           id?: string
           notes?: string | null
+          overtime_note?: string | null
+          overtime_reviewed_at?: string | null
+          overtime_reviewed_by?: string | null
+          overtime_status?: string
           position_id?: string
           schedule_id?: string
           shift_template_id?: string | null
@@ -308,6 +450,13 @@ export type Database = {
           {
             foreignKeyName: "schedule_entries_employee_id_fkey"
             columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_entries_overtime_reviewed_by_fkey"
+            columns: ["overtime_reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -462,6 +611,7 @@ export type Database = {
           created_at: string
           end_time: string
           id: string
+          is_night: boolean
           location_id: string
           name: string
           start_time: string
@@ -472,6 +622,7 @@ export type Database = {
           created_at?: string
           end_time: string
           id?: string
+          is_night?: boolean
           location_id: string
           name: string
           start_time: string
@@ -482,6 +633,7 @@ export type Database = {
           created_at?: string
           end_time?: string
           id?: string
+          is_night?: boolean
           location_id?: string
           name?: string
           start_time?: string
@@ -611,6 +763,10 @@ export type Database = {
         Args: { p_reviewer_id: string; p_swap_id: string }
         Returns: Json
       }
+      convert_demo_to_real: {
+        Args: { p_demo_id: string; p_real_id: string }
+        Returns: Json
+      }
       create_notification: {
         Args: {
           p_link?: string
@@ -625,6 +781,10 @@ export type Database = {
       get_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      recompute_equity_rollup: {
+        Args: { p_employee_id: string; p_month: number; p_year: number }
+        Returns: undefined
       }
     }
     Enums: {
