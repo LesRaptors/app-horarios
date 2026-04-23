@@ -276,6 +276,8 @@ export default function EmployeesPage() {
     (async () => {
       const now = new Date();
       const y = now.getFullYear();
+      // Rolling 3-month window never crosses more than one year boundary,
+      // so fetching from (current_year - 1) onward is always sufficient.
       const { data } = await supabase
         .from("employee_equity_rollups")
         .select("*")
@@ -675,7 +677,7 @@ export default function EmployeesPage() {
         <div>
           <h1 className="text-3xl font-bold">Empleados</h1>
           <p className="text-muted-foreground">
-            Gestiona los empleados de tu organizacion
+            Gestiona los empleados de tu organización
           </p>
         </div>
         <div className="flex gap-2">
@@ -764,7 +766,7 @@ export default function EmployeesPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead>Posicion</TableHead>
+                  <TableHead>Posición</TableHead>
                   <TableHead>Sede</TableHead>
                   <TableHead>Contrato</TableHead>
                   <TableHead>Estado</TableHead>
@@ -1034,7 +1036,7 @@ export default function EmployeesPage() {
 
             {/* Position (filtered by department) */}
             <div className="grid gap-2">
-              <Label>Posicion</Label>
+              <Label>Posición</Label>
               <Select
                 value={inviteForm.position_id}
                 onValueChange={(val) =>
@@ -1046,7 +1048,7 @@ export default function EmployeesPage() {
                   <SelectValue
                     placeholder={
                       inviteForm.department_id
-                        ? "Seleccionar posicion"
+                        ? "Seleccionar posición"
                         : "Primero selecciona un departamento"
                     }
                   />
@@ -1234,7 +1236,7 @@ export default function EmployeesPage() {
 
               {/* Position (filtered by department) */}
               <div className="grid gap-2">
-                <Label>Posicion</Label>
+                <Label>Posición</Label>
                 <Select
                   value={editForm.position_id}
                   onValueChange={(val) =>
@@ -1246,7 +1248,7 @@ export default function EmployeesPage() {
                     <SelectValue
                       placeholder={
                         editForm.department_id
-                          ? "Seleccionar posicion"
+                          ? "Seleccionar posición"
                           : "Primero selecciona un departamento"
                       }
                     />
@@ -1504,7 +1506,7 @@ export default function EmployeesPage() {
 
             {/* Position (filtered by department) */}
             <div className="grid gap-2">
-              <Label>Posicion</Label>
+              <Label>Posición</Label>
               <Select
                 value={demoForm.position_id}
                 onValueChange={(val) =>
@@ -1516,7 +1518,7 @@ export default function EmployeesPage() {
                   <SelectValue
                     placeholder={
                       demoForm.department_id
-                        ? "Seleccionar posicion"
+                        ? "Seleccionar posición"
                         : "Primero selecciona un departamento"
                     }
                   />

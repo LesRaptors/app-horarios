@@ -82,7 +82,7 @@ export default function StaffingPage() {
       <div>
         <h1 className="text-3xl font-bold">Necesidades de personal</h1>
         <p className="text-muted-foreground">
-          Define cuantos empleados de cada posicion necesitas por turno y dia de la semana
+          Define cuántos empleados de cada posición necesitas por turno y día de la semana
         </p>
       </div>
 

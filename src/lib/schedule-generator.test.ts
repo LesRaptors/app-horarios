@@ -146,6 +146,54 @@ describe("generateSchedule — block packing", () => {
   });
 });
 
+describe("generateSchedule — tie-breaker by totalShifts", () => {
+  it("when scores tie, prefers the employee with fewer existing shifts", () => {
+    const employees = [makeEmployee({ id: "e1" }), makeEmployee({ id: "e2" })];
+
+    // e1 already has 3 shifts in the month; e2 has 1. Both otherwise identical.
+    const existing: ScheduleEntry[] = [
+      { id: "x1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-01", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+      { id: "x2", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-02", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+      { id: "x3", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-03", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+      { id: "x4", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
+        date: "2026-04-04", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+    ];
+    // Slot on 2026-04-15 (far from existing to avoid block bonus/fragmentation)
+    const config = baseConfig({
+      employeeIds: ["e1", "e2"],
+      excludeDates: excludeAllExcept("2026-04-15"),
+    });
+
+    const result = generateSchedule(
+      config, employees, [makeTemplate()], existing, [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    expect(result.entries).toHaveLength(1);
+    // e2 has fewer prior shifts → wins the tie-breaker
+    expect(result.entries[0].employee_id).toBe("e2");
+  });
+});
+
 describe("generateSchedule — 24h rest after night", () => {
   it("rejects candidate who worked a night shift <24h before this slot", () => {
     const employees = [makeEmployee({ id: "e1" })];

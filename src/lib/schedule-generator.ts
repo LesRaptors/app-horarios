@@ -286,11 +286,19 @@ function pickBestCandidate(
   if (candidateIds.length === 0) return null;
   let bestId: string | null = null;
   let bestScore = -Infinity;
+  let bestShifts = Infinity;
   for (const empId of candidateIds) {
     const emp = employeeMap.get(empId)!;
     const tracker = trackers.get(empId)!;
     const score = scoreCandidate(emp, slot, tracker, ctx);
-    if (score > bestScore) { bestScore = score; bestId = empId; }
+    if (
+      score > bestScore ||
+      (score === bestScore && tracker.totalShifts < bestShifts)
+    ) {
+      bestScore = score;
+      bestShifts = tracker.totalShifts;
+      bestId = empId;
+    }
   }
   return bestId;
 }

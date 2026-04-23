@@ -179,7 +179,7 @@ export function StaffingMatrix({
                 <thead>
                   <tr>
                     <th className="text-left py-2 pr-4 font-medium text-muted-foreground">
-                      Posicion
+                      Posición
                     </th>
                     {WEEKDAYS_DISPLAY_ORDER.map((dow) => (
                       <th

@@ -60,8 +60,17 @@ export function OvertimeRequestsTab() {
   }
 
   async function reject(ids: string[]) {
-    // Rejection deletes the entry so the slot becomes uncovered again.
-    const { error } = await supabase.from("schedule_entries").delete().in("id", ids);
+    // Soft-reject: flip status to 'rejected' and persist reviewer metadata
+    // so audit trail is preserved. Schedule grid filters these out.
+    const { error } = await supabase
+      .from("schedule_entries")
+      .update({
+        overtime_status: "rejected",
+        overtime_reviewed_by: profile?.id ?? null,
+        overtime_reviewed_at: new Date().toISOString(),
+        overtime_note: note || null,
+      })
+      .in("id", ids);
     if (error) toast.error(translateDbError(error.message, "Error rechazando"));
     else {
       toast.success(`${ids.length} rechazado(s)`);

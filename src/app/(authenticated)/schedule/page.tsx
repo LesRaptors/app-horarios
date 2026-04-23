@@ -133,7 +133,8 @@ export default function SchedulePage() {
         const { data: entryData } = await supabase
           .from("schedule_entries")
           .select("*, employee:profiles(id, first_name, last_name), position:positions(*), shift_template:shift_templates(*)")
-          .eq("schedule_id", scheduleData.id);
+          .eq("schedule_id", scheduleData.id)
+          .neq("overtime_status", "rejected");
         setEntries((entryData as ScheduleEntry[]) || []);
       } else {
         setEntries([]);
@@ -166,6 +167,8 @@ export default function SchedulePage() {
           .from("holidays")
           .select("*")
           .or(`location_id.is.null,location_id.eq.${selectedLocationId}`),
+        // Rolling 3-month window never crosses more than one year boundary,
+        // so fetching from (current_year - 1) onward is always sufficient.
         supabase
           .from("employee_equity_rollups")
           .select("*")

@@ -177,7 +177,7 @@ export default function PositionsPage() {
       if (error) {
         toast.error(translateDbError(error.message, "Error al actualizar la posición"));
       } else {
-        toast.success("Posicion actualizada correctamente");
+        toast.success("Posición actualizada correctamente");
         setDialogOpen(false);
         fetchData();
       }
@@ -187,7 +187,7 @@ export default function PositionsPage() {
       if (error) {
         toast.error(translateDbError(error.message, "Error al crear la posición"));
       } else {
-        toast.success("Posicion creada correctamente");
+        toast.success("Posición creada correctamente");
         setDialogOpen(false);
         fetchData();
       }
@@ -207,7 +207,7 @@ export default function PositionsPage() {
     if (error) {
       toast.error(translateDbError(error.message, "Error al eliminar la posición"));
     } else {
-      toast.success("Posicion eliminada correctamente");
+      toast.success("Posición eliminada correctamente");
       fetchData();
     }
 
@@ -251,7 +251,7 @@ export default function PositionsPage() {
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="mr-2 h-4 w-4" />
-          Nueva posicion
+          Nueva posición
         </Button>
       </div>
 
@@ -343,12 +343,12 @@ export default function PositionsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingItem ? "Editar posicion" : "Nueva posicion"}
+              {editingItem ? "Editar posición" : "Nueva posición"}
             </DialogTitle>
             <DialogDescription>
               {editingItem
-                ? "Modifica los datos de la posicion."
-                : "Completa los datos para crear una nueva posicion."}
+                ? "Modifica los datos de la posición."
+                : "Completa los datos para crear una nueva posición."}
             </DialogDescription>
           </DialogHeader>
 
@@ -445,7 +445,7 @@ export default function PositionsPage() {
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingItem ? "Guardar cambios" : "Crear posicion"}
+              {editingItem ? "Guardar cambios" : "Crear posición"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -458,9 +458,9 @@ export default function PositionsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar posicion</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar posición</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta accion no se puede deshacer. Se eliminara la posicion de forma
+              Esta acción no se puede deshacer. Se eliminará la posición de forma
               permanente.
             </AlertDialogDescription>
           </AlertDialogHeader>
