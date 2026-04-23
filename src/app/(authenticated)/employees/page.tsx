@@ -32,6 +32,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { EmployeeEquityPanel } from "@/components/schedule/employee-equity-panel";
 import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/constants";
@@ -41,6 +48,8 @@ import type {
   Department,
   Position,
   UserRole,
+  ContractType,
+  EmployeeEquityRollup,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -207,6 +216,11 @@ export default function EmployeesPage() {
   const [transferTargetId, setTransferTargetId] = useState("");
   const [transferLoading, setTransferLoading] = useState(false);
 
+  // ---- Contracts + equity rollups + side panel ------------------------------
+  const [contracts, setContracts] = useState<ContractType[]>([]);
+  const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
+  const [panelEmp, setPanelEmp] = useState<Profile | null>(null);
+
   // --------------------------------------------------------------------------
   // Fetch all data
   // --------------------------------------------------------------------------
@@ -243,6 +257,27 @@ export default function EmployeesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, currentProfile]);
+
+  // Fetch contract types once
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("contract_types").select("*");
+      setContracts((data ?? []) as ContractType[]);
+    })();
+  }, [supabase]);
+
+  // Fetch equity rollups covering at least the last 3 months
+  useEffect(() => {
+    (async () => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const { data } = await supabase
+        .from("employee_equity_rollups")
+        .select("*")
+        .gte("year", y - 1);
+      setRollups((data ?? []) as EmployeeEquityRollup[]);
+    })();
+  }, [supabase]);
 
   // --------------------------------------------------------------------------
   // Filtered employees (client-side search)
@@ -675,73 +710,100 @@ export default function EmployeesPage() {
                   <TableHead>Rol</TableHead>
                   <TableHead>Posicion</TableHead>
                   <TableHead>Sede</TableHead>
+                  <TableHead>Contrato</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.map((emp) => (
-                  <TableRow key={emp.id}>
-                    <TableCell className="font-medium">
-                      <span className="flex items-center gap-2">
-                        {emp.first_name} {emp.last_name}
-                        {emp.is_demo && <DemoBadge />}
-                      </span>
-                    </TableCell>
-                    <TableCell>{emp.email}</TableCell>
-                    <TableCell>
-                      <RoleBadge role={emp.role} />
-                    </TableCell>
-                    <TableCell>
-                      {emp.position?.name ?? <span className="text-muted-foreground">&mdash;</span>}
-                    </TableCell>
-                    <TableCell>
-                      {emp.location?.name ?? <span className="text-muted-foreground">&mdash;</span>}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge isActive={emp.is_active} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {emp.is_demo && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Convertir a empleado real"
-                              onClick={() => {
-                                setConvertDemoId(emp.id);
-                                setConvertEmail("");
-                                setConvertOpen(true);
-                              }}
-                            >
-                              <UserPlus className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Transferir turnos"
-                              onClick={() => {
-                                setTransferDemoId(emp.id);
-                                setTransferTargetId("");
-                                setTransferOpen(true);
-                              }}
-                            >
-                              <Repeat className="h-4 w-4 text-blue-600" />
-                            </Button>
-                          </>
+                {filteredEmployees.map((emp) => {
+                  const contract = contracts.find(
+                    (c) => c.id === emp.contract_type_id
+                  );
+                  const isSinDefinir = contract?.name === "Sin definir";
+                  return (
+                    <TableRow
+                      key={emp.id}
+                      className="cursor-pointer"
+                      onClick={() => setPanelEmp(emp as Profile)}
+                    >
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-2">
+                          {emp.first_name} {emp.last_name}
+                          {emp.is_demo && <DemoBadge />}
+                        </span>
+                      </TableCell>
+                      <TableCell>{emp.email}</TableCell>
+                      <TableCell>
+                        <RoleBadge role={emp.role} />
+                      </TableCell>
+                      <TableCell>
+                        {emp.position?.name ?? <span className="text-muted-foreground">&mdash;</span>}
+                      </TableCell>
+                      <TableCell>
+                        {emp.location?.name ?? <span className="text-muted-foreground">&mdash;</span>}
+                      </TableCell>
+                      <TableCell>
+                        {contract ? (
+                          isSinDefinir ? (
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              {contract.name} ⚠
+                            </span>
+                          ) : (
+                            <span className="text-sm">{contract.name}</span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">&mdash;</span>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(emp)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge isActive={emp.is_active} />
+                      </TableCell>
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          {emp.is_demo && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Convertir a empleado real"
+                                onClick={() => {
+                                  setConvertDemoId(emp.id);
+                                  setConvertEmail("");
+                                  setConvertOpen(true);
+                                }}
+                              >
+                                <UserPlus className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Transferir turnos"
+                                onClick={() => {
+                                  setTransferDemoId(emp.id);
+                                  setTransferTargetId("");
+                                  setTransferOpen(true);
+                                }}
+                              >
+                                <Repeat className="h-4 w-4 text-blue-600" />
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(emp)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -1525,6 +1587,36 @@ export default function EmployeesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ================================================================== */}
+      {/* EMPLOYEE EQUITY SIDE SHEET                                         */}
+      {/* ================================================================== */}
+      <Sheet
+        open={!!panelEmp}
+        onOpenChange={(o) => !o && setPanelEmp(null)}
+      >
+        <SheetContent className="w-[400px] sm:max-w-[400px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Detalle del empleado</SheetTitle>
+          </SheetHeader>
+          {panelEmp && (
+            <div className="mt-4 px-4 pb-4">
+              <EmployeeEquityPanel
+                employee={panelEmp}
+                position={
+                  positions.find((p) => p.id === panelEmp.position_id) ?? null
+                }
+                contract={contracts.find(
+                  (c) => c.id === panelEmp.contract_type_id
+                )}
+                rollups={rollups.filter((r) => r.employee_id === panelEmp.id)}
+                currentYear={new Date().getFullYear()}
+                currentMonth={new Date().getMonth() + 1}
+              />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
