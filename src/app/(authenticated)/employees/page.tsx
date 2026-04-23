@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/sheet";
 import { EmployeeEquityPanel } from "@/components/schedule/employee-equity-panel";
 import { toast } from "sonner";
-import { Plus, Pencil, Loader2, Search, UserPlus, Repeat } from "lucide-react";
+import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
+import { DeleteDialog } from "@/components/shared/delete-dialog";
 import { ROLE_LABELS } from "@/lib/constants";
 import type {
   Profile,
@@ -215,6 +216,10 @@ export default function EmployeesPage() {
   const [transferDemoId, setTransferDemoId] = useState("");
   const [transferTargetId, setTransferTargetId] = useState("");
   const [transferLoading, setTransferLoading] = useState(false);
+
+  // ---- Delete dialog ---------------------------------------------------------
+  const [deleting, setDeleting] = useState<Profile | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ---- Contracts + equity rollups + side panel ------------------------------
   const [contracts, setContracts] = useState<ContractType[]>([]);
@@ -456,6 +461,57 @@ export default function EmployeesPage() {
     } finally {
       setEditLoading(false);
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // Inline contract change from the table
+  // --------------------------------------------------------------------------
+  async function handleContractChange(empId: string, newContractId: string) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ contract_type_id: newContractId })
+      .eq("id", empId);
+    if (error) {
+      toast.error(translateDbError(error.message, "Error al cambiar contrato"));
+    } else {
+      toast.success("Contrato actualizado");
+      fetchData();
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Delete / deactivate employee
+  // --------------------------------------------------------------------------
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteLoading(true);
+    if (deleting.is_demo) {
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", deleting.id);
+      if (error) {
+        toast.error(translateDbError(error.message, "Error al eliminar demo"));
+      } else {
+        toast.success("Empleado demo eliminado");
+        fetchData();
+      }
+    } else {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_active: false })
+        .eq("id", deleting.id);
+      if (error) {
+        toast.error(
+          translateDbError(error.message, "Error al desactivar empleado")
+        );
+      } else {
+        toast.success("Empleado desactivado");
+        fetchData();
+      }
+    }
+    setDeleting(null);
+    setDeleteLoading(false);
   }
 
   // --------------------------------------------------------------------------
@@ -728,10 +784,10 @@ export default function EmployeesPage() {
                       onClick={() => setPanelEmp(emp as Profile)}
                     >
                       <TableCell className="font-medium">
-                        <span className="flex items-center gap-2">
-                          {emp.first_name} {emp.last_name}
+                        <div className="flex items-center gap-2">
+                          <span>{emp.first_name} {emp.last_name}</span>
                           {emp.is_demo && <DemoBadge />}
-                        </span>
+                        </div>
                       </TableCell>
                       <TableCell>{emp.email}</TableCell>
                       <TableCell>
@@ -743,18 +799,30 @@ export default function EmployeesPage() {
                       <TableCell>
                         {emp.location?.name ?? <span className="text-muted-foreground">&mdash;</span>}
                       </TableCell>
-                      <TableCell>
-                        {contract ? (
-                          isSinDefinir ? (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                              {contract.name} ⚠
-                            </span>
-                          ) : (
-                            <span className="text-sm">{contract.name}</span>
-                          )
-                        ) : (
-                          <span className="text-muted-foreground">&mdash;</span>
-                        )}
+                      <TableCell
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Select
+                          value={emp.contract_type_id ?? undefined}
+                          onValueChange={(v) => handleContractChange(emp.id, v)}
+                        >
+                          <SelectTrigger
+                            className={
+                              isSinDefinir
+                                ? "h-7 px-2 py-0 text-xs border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 w-auto min-w-[130px]"
+                                : "h-7 px-2 py-0 text-xs border-transparent hover:border-input hover:bg-muted w-auto min-w-[130px]"
+                            }
+                          >
+                            <SelectValue placeholder="—" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {contracts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
                         <StatusBadge isActive={emp.is_active} />
@@ -798,6 +866,19 @@ export default function EmployeesPage() {
                             onClick={() => openEditDialog(emp)}
                           >
                             <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={
+                              emp.is_demo
+                                ? "Eliminar permanentemente"
+                                : "Desactivar empleado"
+                            }
+                            disabled={emp.id === currentProfile?.id}
+                            onClick={() => setDeleting(emp as Profile)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1587,6 +1668,26 @@ export default function EmployeesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ================================================================== */}
+      {/* DELETE / DEACTIVATE DIALOG                                         */}
+      {/* ================================================================== */}
+      <DeleteDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+        title={
+          deleting?.is_demo
+            ? `¿Eliminar a "${deleting.first_name} ${deleting.last_name}"?`
+            : `¿Desactivar a "${deleting?.first_name ?? ""} ${deleting?.last_name ?? ""}"?`
+        }
+        description={
+          deleting?.is_demo
+            ? "Este empleado demo y todos sus turnos asignados serán eliminados permanentemente. Esta acción no se puede deshacer."
+            : "El empleado quedará inactivo pero su historial (turnos, horas trabajadas, estadísticas de equidad) se preservará. Puedes reactivarlo luego editándolo."
+        }
+      />
 
       {/* ================================================================== */}
       {/* EMPLOYEE EQUITY SIDE SHEET                                         */}
