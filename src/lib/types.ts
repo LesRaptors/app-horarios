@@ -54,6 +54,7 @@ export interface Profile {
   max_hours_per_week: number;
   is_active: boolean;
   is_demo: boolean;
+  contract_type_id: string;
   created_at: string;
   updated_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +69,7 @@ export interface ShiftTemplate {
   start_time: string;
   end_time: string;
   break_minutes: number;
+  is_night: boolean;
   color: string;
   location_id: string;
   created_at: string;
@@ -101,6 +103,11 @@ export interface ScheduleEntry {
   end_time: string;
   shift_template_id: string | null;
   notes: string | null;
+  exceeds_caps: CapExcessKind[];
+  overtime_status: OvertimeStatus;
+  overtime_reviewed_by: string | null;
+  overtime_reviewed_at: string | null;
+  overtime_note: string | null;
   created_at: string;
   updated_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,10 +202,73 @@ export interface LaborConstraints {
   maxConsecutiveDays: number;
 }
 
+// Contract types (per-type caps for the equity model)
+export interface ContractType {
+  id: string;
+  name: string;
+  description: string | null;
+  max_sundays_per_quarter: number;
+  max_holidays_per_quarter: number;
+  target_saturdays_per_month: number | null;
+  target_nights_per_month: number | null;
+  target_hours_per_week: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Holidays (Colombia nacional + per-sede overrides)
+export interface HolidayDate {
+  id: string;
+  date: string; // YYYY-MM-DD
+  name: string;
+  location_id: string | null;
+  created_at: string;
+}
+
+// Materialized rollup per employee per month
+export interface EmployeeEquityRollup {
+  employee_id: string;
+  year: number;
+  month: number; // 1-12
+  sundays_worked: number;
+  saturdays_worked: number;
+  nights_worked: number;
+  holidays_worked: number;
+  total_hours: number;
+  updated_at: string;
+}
+
+// Scoring weights (stored as JSONB in app_settings)
+export interface ScoringWeights {
+  sunday_penalty: number;
+  saturday_penalty: number;
+  night_penalty: number;
+  holiday_penalty: number;
+  block_continuation_bonus: number;
+  fragmentation_penalty: number;
+  clean_restart_bonus: number;
+  position_primary_bonus: number;
+  position_secondary_bonus: number;
+  hour_deficit_multiplier: number;
+  shift_deficit_multiplier: number;
+}
+
+// Overtime workflow state on schedule_entries
+export type OvertimeStatus = "none" | "pending" | "approved" | "rejected";
+
+export type CapExcessKind =
+  | "weekly_hours"
+  | "consecutive_days"
+  | "sundays_quarter"
+  | "holidays_quarter"
+  | "night_limit";
+
 // Auto-gen warnings are structured so the UI can group them by cause.
 export type AutoGenWarning =
-  | { kind: "no_employees_in_position"; positionId: string; date: string; shiftTemplateId: string }
-  | { kind: "no_available_employee"; positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "no_employees_in_position";  positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "no_available_employee";      positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "no_safe_candidate";          positionId: string; date: string; shiftTemplateId: string }
+  | { kind: "overtime_assigned";          positionId: string; date: string; shiftTemplateId: string; employeeId: string; caps: CapExcessKind[] }
   | { kind: "no_templates_selected" }
   | { kind: "no_employees_selected" };
 
