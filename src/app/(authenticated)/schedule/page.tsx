@@ -21,6 +21,10 @@ import type {
   Schedule,
   ScheduleEntry,
   ScheduleStatus,
+  ContractType,
+  HolidayDate,
+  EmployeeEquityRollup,
+  ScoringWeights,
 } from "@/lib/types";
 
 export default function SchedulePage() {
@@ -39,6 +43,12 @@ export default function SchedulePage() {
   const [employees, setEmployees] = useState<Profile[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
+
+  // Equity model data sources
+  const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
+  const [holidays, setHolidays] = useState<HolidayDate[]>([]);
+  const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
+  const [scoringWeights, setScoringWeights] = useState<ScoringWeights | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -140,6 +150,38 @@ export default function SchedulePage() {
       fetchScheduleData();
     }
   }, [fetchScheduleData, selectedLocationId]);
+
+  // Fetch equity model data (contract types, holidays, rollups, weights)
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    (async () => {
+      const [
+        { data: cts },
+        { data: hols },
+        { data: rolls },
+        { data: weights },
+      ] = await Promise.all([
+        supabase.from("contract_types").select("*"),
+        supabase
+          .from("holidays")
+          .select("*")
+          .or(`location_id.is.null,location_id.eq.${selectedLocationId}`),
+        supabase
+          .from("employee_equity_rollups")
+          .select("*")
+          .gte("year", year - 1),
+        supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "scoring_weights")
+          .maybeSingle(),
+      ]);
+      setContractTypes((cts ?? []) as ContractType[]);
+      setHolidays((hols ?? []) as HolidayDate[]);
+      setRollups((rolls ?? []) as EmployeeEquityRollup[]);
+      setScoringWeights((weights?.value as ScoringWeights | null) ?? null);
+    })();
+  }, [supabase, selectedLocationId, year]);
 
   // Navigation
   function handlePrevMonth() {
@@ -469,6 +511,10 @@ export default function SchedulePage() {
           month={month}
           year={year}
           locationName={locations.find((l) => l.id === selectedLocationId)?.name ?? ""}
+          contractTypes={contractTypes}
+          holidays={holidays}
+          rollups={rollups}
+          scoringWeights={scoringWeights}
           onGenerated={fetchScheduleData}
         />
       )}
