@@ -1,0 +1,179 @@
+import { describe, it, expect } from "vitest";
+import { generateSchedule } from "./schedule-generator";
+import type {
+  AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
+  LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
+} from "./types";
+
+const defaultConstraints: LaborConstraints = {
+  maxHoursPerWeek: 40, maxHoursPerDay: 10,
+  minRestHoursBetweenShifts: 12, maxConsecutiveDays: 6,
+};
+
+const defaultWeights: ScoringWeights = {
+  sunday_penalty: 20, saturday_penalty: 15, night_penalty: 12, holiday_penalty: 18,
+  block_continuation_bonus: 15, fragmentation_penalty: 25, clean_restart_bonus: 5,
+  position_primary_bonus: 100, position_secondary_bonus: 30,
+  hour_deficit_multiplier: 10, shift_deficit_multiplier: 5,
+};
+
+const fullTime: ContractType = {
+  id: "ct-full", name: "Full-time", description: null,
+  max_sundays_per_quarter: 6, max_holidays_per_quarter: 3,
+  target_saturdays_per_month: 2, target_nights_per_month: 4, target_hours_per_week: 40,
+  created_at: "", updated_at: "",
+};
+
+function makeEmployee(overrides: Partial<ProfileWithPositions> = {}): ProfileWithPositions {
+  return {
+    id: "e1", first_name: "T", last_name: "U", email: "t@t.com", phone: null,
+    role: "employee", position_id: "pos-1", location_id: "loc-1",
+    max_hours_per_week: 40, is_active: true, is_demo: false,
+    contract_type_id: "ct-full", created_at: "", updated_at: "",
+    secondary_positions: [],
+    ...overrides,
+  };
+}
+
+function makeTemplate(overrides: Partial<ShiftTemplate> = {}): ShiftTemplate {
+  return {
+    id: "tpl-morn", name: "Morning",
+    start_time: "09:00:00", end_time: "17:00:00",
+    break_minutes: 0, color: "#000", location_id: "loc-1",
+    is_night: false, created_at: "",
+    ...overrides,
+  };
+}
+
+// Build an excludeDates array covering all of April 2026 EXCEPT the given date.
+function excludeAllExcept(targetDate: string): string[] {
+  const result: string[] = [];
+  for (let i = 1; i <= 30; i++) {
+    const d = `2026-04-${String(i).padStart(2, "0")}`;
+    if (d !== targetDate) result.push(d);
+  }
+  return result;
+}
+
+function baseConfig(overrides: Partial<AutoGenConfig> = {}): AutoGenConfig {
+  return {
+    scheduleId: "sch-1", locationId: "loc-1",
+    month: 3, year: 2026, // April 2026 (month 0-indexed)
+    shiftTemplateIds: ["tpl-morn"],
+    positionIds: ["pos-1"], excludeDates: [],
+    employeeIds: ["e1", "e2", "e3"],
+    useDemandRequirements: false,
+    ...overrides,
+  };
+}
+
+describe("generateSchedule — empty history", () => {
+  it("picks a candidate for a Sunday slot, no overtime", () => {
+    const employees = [
+      makeEmployee({ id: "e1" }),
+      makeEmployee({ id: "e2" }),
+      makeEmployee({ id: "e3" }),
+    ];
+    const config = baseConfig({ excludeDates: excludeAllExcept("2026-04-05") /* Sunday */ });
+
+    const result = generateSchedule(
+      config, employees, [makeTemplate()], [], [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].overtime_status).toBe("none");
+    expect(result.entries[0].exceeds_caps).toEqual([]);
+  });
+});
+
+describe("generateSchedule — sunday hard cap reached", () => {
+  it("assigns with overtime_status=pending when employee at cap", () => {
+    const employees = [makeEmployee({ id: "e1" })];
+    // e1 already did 6 sundays in Q2 2026 (April)
+    const rollups: EmployeeEquityRollup[] = [
+      { employee_id: "e1", year: 2026, month: 4,
+        sundays_worked: 6, saturdays_worked: 0, nights_worked: 0,
+        holidays_worked: 0, total_hours: 0, updated_at: "" },
+    ];
+    const config = baseConfig({
+      employeeIds: ["e1"],
+      excludeDates: excludeAllExcept("2026-04-12") /* Sunday */,
+    });
+
+    const result = generateSchedule(
+      config, employees, [makeTemplate()], [], [],
+      defaultConstraints, [], rollups, [], [fullTime], defaultWeights,
+    );
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].overtime_status).toBe("pending");
+    expect(result.entries[0].exceeds_caps).toContain("sundays_quarter");
+  });
+});
+
+describe("generateSchedule — block packing", () => {
+  it("prefers continuing a work block (gap 1) over fragmenting (gap 2)", () => {
+    const employees = [makeEmployee({ id: "e1" }), makeEmployee({ id: "e2" })];
+    // e1 worked yesterday (2026-04-06), e2 worked 2 days ago (2026-04-05)
+    // Slot today is 2026-04-07 — e1 should win via continuation bonus
+    const existing: ScheduleEntry[] = [
+      { id: "x1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-06", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+      { id: "x2", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
+        date: "2026-04-05", start_time: "09:00:00", end_time: "17:00:00",
+        shift_template_id: "tpl-morn", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+    ];
+    const config = baseConfig({
+      employeeIds: ["e1", "e2"],
+      excludeDates: excludeAllExcept("2026-04-07"),
+    });
+
+    const result = generateSchedule(
+      config, employees, [makeTemplate()], existing, [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].employee_id).toBe("e1");
+  });
+});
+
+describe("generateSchedule — 24h rest after night", () => {
+  it("rejects candidate who worked a night shift <24h before this slot", () => {
+    const employees = [makeEmployee({ id: "e1" })];
+    const morning = makeTemplate({ id: "tpl-morn", is_night: false });
+    const night = makeTemplate({
+      id: "tpl-night", name: "Night",
+      start_time: "22:00:00", end_time: "06:00:00", is_night: true,
+    });
+    // e1 worked night ending 06:00 on 2026-04-07; trying 09:00 same day — only 3h rest
+    const existing: ScheduleEntry[] = [
+      { id: "n1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-06", start_time: "22:00:00", end_time: "06:00:00",
+        shift_template_id: "tpl-night", notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+    ];
+    const config = baseConfig({
+      employeeIds: ["e1"],
+      excludeDates: excludeAllExcept("2026-04-07"),
+    });
+
+    const result = generateSchedule(
+      config, employees, [morning, night], existing, [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    expect(result.entries).toHaveLength(0);
+    expect(result.warnings.some((w) => w.kind === "no_safe_candidate")).toBe(true);
+  });
+});
