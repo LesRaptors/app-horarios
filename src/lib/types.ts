@@ -266,7 +266,6 @@ export type CapExcessKind =
 // Auto-gen warnings are structured so the UI can group them by cause.
 export type AutoGenWarning =
   | { kind: "no_employees_in_position";  positionId: string; date: string; shiftTemplateId: string }
-  | { kind: "no_available_employee";      positionId: string; date: string; shiftTemplateId: string }
   | { kind: "no_safe_candidate";          positionId: string; date: string; shiftTemplateId: string }
   | { kind: "overtime_assigned";          positionId: string; date: string; shiftTemplateId: string; employeeId: string; caps: CapExcessKind[] }
   | { kind: "no_templates_selected" }

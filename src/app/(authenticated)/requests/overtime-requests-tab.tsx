@@ -27,9 +27,11 @@ export function OvertimeRequestsTab() {
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
+    // schedules!inner ensures the row is only returned if the parent schedule
+    // is visible under RLS — which for managers means "their sede only".
     const { data } = await supabase
       .from("schedule_entries")
-      .select("*, employee:profiles(*), template:shift_templates(*)")
+      .select("*, employee:profiles(*), template:shift_templates(*), schedule:schedules!inner(id, location_id)")
       .eq("overtime_status", "pending")
       .order("date");
     setRows((data ?? []) as unknown as OvertimeRow[]);
