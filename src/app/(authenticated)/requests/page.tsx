@@ -3,6 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimeOffTab } from "@/components/requests/time-off-tab";
 import { SwapTab } from "@/components/requests/swap-tab";
+import { OvertimeRequestsTab } from "./overtime-requests-tab";
 
 export default function RequestsPage() {
   return (
@@ -18,12 +19,16 @@ export default function RequestsPage() {
         <TabsList>
           <TabsTrigger value="time-off">Días libres</TabsTrigger>
           <TabsTrigger value="swaps">Intercambios</TabsTrigger>
+          <TabsTrigger value="horas-extra">Horas extra</TabsTrigger>
         </TabsList>
         <TabsContent value="time-off" className="mt-4">
           <TimeOffTab />
         </TabsContent>
         <TabsContent value="swaps" className="mt-4">
           <SwapTab />
+        </TabsContent>
+        <TabsContent value="horas-extra" className="mt-4">
+          <OvertimeRequestsTab />
         </TabsContent>
       </Tabs>
     </div>
