@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEquityRollups } from "@/hooks/use-equity-rollups";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { getMonthDates, formatDateISO, buildEntryMap, translateDbError } from "@/lib/utils";
@@ -23,7 +24,6 @@ import type {
   ScheduleStatus,
   ContractType,
   HolidayDate,
-  EmployeeEquityRollup,
   ScoringWeights,
 } from "@/lib/types";
 
@@ -47,7 +47,7 @@ export default function SchedulePage() {
   // Equity model data sources
   const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
   const [holidays, setHolidays] = useState<HolidayDate[]>([]);
-  const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
+  const rollups = useEquityRollups(year - 1);
   const [scoringWeights, setScoringWeights] = useState<ScoringWeights | null>(null);
 
   // UI state
@@ -152,27 +152,17 @@ export default function SchedulePage() {
     }
   }, [fetchScheduleData, selectedLocationId]);
 
-  // Fetch equity model data (contract types, holidays, rollups, weights)
+  // Fetch equity model data (contract types, holidays, weights). Rollups
+  // are loaded and kept in sync via useEquityRollups above.
   useEffect(() => {
     if (!selectedLocationId) return;
     (async () => {
-      const [
-        { data: cts },
-        { data: hols },
-        { data: rolls },
-        { data: weights },
-      ] = await Promise.all([
+      const [{ data: cts }, { data: hols }, { data: weights }] = await Promise.all([
         supabase.from("contract_types").select("*"),
         supabase
           .from("holidays")
           .select("*")
           .or(`location_id.is.null,location_id.eq.${selectedLocationId}`),
-        // Rolling 3-month window never crosses more than one year boundary,
-        // so fetching from (current_year - 1) onward is always sufficient.
-        supabase
-          .from("employee_equity_rollups")
-          .select("*")
-          .gte("year", year - 1),
         supabase
           .from("app_settings")
           .select("value")
@@ -181,10 +171,9 @@ export default function SchedulePage() {
       ]);
       setContractTypes((cts ?? []) as ContractType[]);
       setHolidays((hols ?? []) as HolidayDate[]);
-      setRollups((rolls ?? []) as EmployeeEquityRollup[]);
       setScoringWeights((weights?.value as ScoringWeights | null) ?? null);
     })();
-  }, [supabase, selectedLocationId, year]);
+  }, [supabase, selectedLocationId]);
 
   // Navigation
   function handlePrevMonth() {

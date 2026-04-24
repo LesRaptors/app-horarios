@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEquityRollups } from "@/hooks/use-equity-rollups";
 import { translateDbError } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +51,6 @@ import type {
   Position,
   UserRole,
   ContractType,
-  EmployeeEquityRollup,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ export default function EmployeesPage() {
 
   // ---- Contracts + equity rollups + side panel ------------------------------
   const [contracts, setContracts] = useState<ContractType[]>([]);
-  const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
+  const rollups = useEquityRollups();
   const [panelEmp, setPanelEmp] = useState<Profile | null>(null);
 
   // --------------------------------------------------------------------------
@@ -268,21 +268,6 @@ export default function EmployeesPage() {
     (async () => {
       const { data } = await supabase.from("contract_types").select("*");
       setContracts((data ?? []) as ContractType[]);
-    })();
-  }, [supabase]);
-
-  // Fetch equity rollups covering at least the last 3 months
-  useEffect(() => {
-    (async () => {
-      const now = new Date();
-      const y = now.getFullYear();
-      // Rolling 3-month window never crosses more than one year boundary,
-      // so fetching from (current_year - 1) onward is always sufficient.
-      const { data } = await supabase
-        .from("employee_equity_rollups")
-        .select("*")
-        .gte("year", y - 1);
-      setRollups((data ?? []) as EmployeeEquityRollup[]);
     })();
   }, [supabase]);
 
