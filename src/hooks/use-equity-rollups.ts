@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import type { EmployeeEquityRollup } from "@/lib/types";
 
 /**
@@ -13,10 +14,16 @@ import type { EmployeeEquityRollup } from "@/lib/types";
  */
 export function useEquityRollups(minYear?: number) {
   const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
+  const { user } = useAuth();
   const supabase = createClient();
   const effectiveMinYear = minYear ?? new Date().getFullYear() - 1;
 
   useEffect(() => {
+    // Wait for auth before subscribing — supabase realtime pins the JWT
+    // at channel creation time, and rollups RLS rejects anon, so an
+    // unauthenticated channel would silently never fire.
+    if (!user) return;
+
     let cancelled = false;
 
     (async () => {
@@ -60,7 +67,7 @@ export function useEquityRollups(minYear?: number) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [supabase, effectiveMinYear]);
+  }, [supabase, effectiveMinYear, user]);
 
   return rollups;
 }
