@@ -132,7 +132,7 @@ export default function SchedulePage() {
       if (scheduleData) {
         const { data: entryData } = await supabase
           .from("schedule_entries")
-          .select("*, employee:profiles(id, first_name, last_name), position:positions(*), shift_template:shift_templates(*)")
+          .select("*, employee:profiles!schedule_entries_employee_id_fkey(id, first_name, last_name), position:positions(*), shift_template:shift_templates(*)")
           .eq("schedule_id", scheduleData.id)
           .neq("overtime_status", "rejected");
         setEntries((entryData as ScheduleEntry[]) || []);

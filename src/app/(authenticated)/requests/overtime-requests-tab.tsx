@@ -31,7 +31,7 @@ export function OvertimeRequestsTab() {
     // is visible under RLS — which for managers means "their sede only".
     const { data } = await supabase
       .from("schedule_entries")
-      .select("*, employee:profiles(*), template:shift_templates(*), schedule:schedules!inner(id, location_id)")
+      .select("*, employee:profiles!schedule_entries_employee_id_fkey(*), template:shift_templates(*), schedule:schedules!inner(id, location_id)")
       .eq("overtime_status", "pending")
       .order("date");
     setRows((data ?? []) as unknown as OvertimeRow[]);
