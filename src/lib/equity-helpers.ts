@@ -166,3 +166,18 @@ export function requiredSlots(
   }
   return total;
 }
+
+export type SoftTargetColor = "green" | "yellow" | "red";
+
+export function softTargetColor(
+  value: number,
+  target: number
+): SoftTargetColor {
+  const lo20 = target * 0.8;
+  const hi20 = target * 1.2;
+  const lo50 = target * 0.5;
+  const hi50 = target * 1.5;
+  if (value >= lo20 && value <= hi20) return "green";
+  if (value >= lo50 && value <= hi50) return "yellow";
+  return "red";
+}

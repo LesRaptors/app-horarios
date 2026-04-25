@@ -14,6 +14,7 @@ import {
   coverageColor,
   enumerateMonthRange,
   requiredSlots,
+  softTargetColor,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -271,5 +272,29 @@ describe("requiredSlots", () => {
 
   it("empty dates → 0", () => {
     expect(requiredSlots(reqs, [])).toBe(0);
+  });
+});
+
+describe("softTargetColor", () => {
+  it("value at target → green", () => {
+    expect(softTargetColor(4, 4)).toBe("green");
+  });
+
+  it("value within ±20% → green (boundaries)", () => {
+    expect(softTargetColor(3.2, 4)).toBe("green"); // 0.8×
+    expect(softTargetColor(4.8, 4)).toBe("green"); // 1.2×
+  });
+
+  it("just outside ±20% but within ±50% → yellow", () => {
+    expect(softTargetColor(2, 4)).toBe("yellow");   // 0.5×
+    expect(softTargetColor(6, 4)).toBe("yellow");   // 1.5×
+    expect(softTargetColor(3.1, 4)).toBe("yellow"); // < 0.8×
+    expect(softTargetColor(4.9, 4)).toBe("yellow"); // > 1.2×
+  });
+
+  it("outside ±50% → red", () => {
+    expect(softTargetColor(1, 4)).toBe("red");      // 0.25×
+    expect(softTargetColor(7, 4)).toBe("red");      // 1.75×
+    expect(softTargetColor(0, 4)).toBe("red");
   });
 });
