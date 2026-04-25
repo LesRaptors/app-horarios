@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Calendar,
+  BarChart3,
   Users,
   MapPin,
   Building2,
@@ -43,6 +44,7 @@ type NavItem = {
 const topNavigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "employee"] },
   { name: "Horarios", href: "/schedule", icon: Calendar, roles: ["admin", "manager", "employee"] },
+  { name: "Equidad", href: "/equidad", icon: BarChart3, roles: ["admin", "manager"] },
   { name: "Empleados", href: "/employees", icon: Users, roles: ["admin", "manager"] },
   { name: "Solicitudes", href: "/requests", icon: FileText, roles: ["admin", "manager", "employee"] },
   { name: "Notificaciones", href: "/notifications", icon: Bell, roles: ["admin", "manager", "employee"] },
