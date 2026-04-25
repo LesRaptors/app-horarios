@@ -158,14 +158,11 @@ Columns: Empleado, Turnos, D, S, N, F, Horas.
 For each column:
 - Compute `μ` (mean) and `σ` (stdDev) over the values present in this sede tab.
 - Per-cell `z = (value - μ) / σ`; if `σ = 0`, force green for all cells in that column.
-- Bands (helper `zScoreColor`):
+- Bands (helper `zScoreColor`), symmetric:
   - `z ≥ 1.5` → red (sobrecargado)
-  - `0.5 ≤ z < 1.5` → yellow (algo desviado)
-  - `-0.5 < z < 0.5` → green (≈ promedio)
-  - `-1.5 < z ≤ -0.5` → green (treated same as ≈, by design — only flag overload, not underload as alarm)
-  - `z ≤ -1.5` → blue (subcargado, informativo)
-
-The asymmetric "underload is informational" choice keeps the visual focus on overload (the actionable case for an admin).
+  - `0.5 ≤ |z| < 1.5` → yellow (algo desviado, en cualquier dirección)
+  - `|z| < 0.5` → green (≈ promedio)
+  - `z ≤ -1.5` → blue (subcargado)
 
 ### 6.3 Click en row
 
@@ -309,7 +306,7 @@ Explicitly deferred:
 
 **No DB migrations.**
 
-**Code files to create (5):**
+**Code files to create (6):**
 - `src/app/(authenticated)/equidad/page.tsx`
 - `src/components/equidad/period-range-picker.tsx`
 - `src/components/equidad/coverage-section.tsx`
