@@ -12,6 +12,7 @@ import {
   meanStdDev,
   zScoreColor,
   coverageColor,
+  enumerateMonthRange,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -207,5 +208,38 @@ describe("coverageColor", () => {
   it("< 80 → red", () => {
     expect(coverageColor(0)).toBe("red");
     expect(coverageColor(79.99)).toBe("red");
+  });
+});
+
+describe("enumerateMonthRange", () => {
+  it("same month → single entry", () => {
+    expect(enumerateMonthRange("2026-04", "2026-04")).toEqual([
+      { year: 2026, month: 4 },
+    ]);
+  });
+
+  it("Apr-Jun 2026 → 3 entries", () => {
+    expect(enumerateMonthRange("2026-04", "2026-06")).toEqual([
+      { year: 2026, month: 4 },
+      { year: 2026, month: 5 },
+      { year: 2026, month: 6 },
+    ]);
+  });
+
+  it("crosses year boundary", () => {
+    expect(enumerateMonthRange("2026-11", "2027-02")).toEqual([
+      { year: 2026, month: 11 },
+      { year: 2026, month: 12 },
+      { year: 2027, month: 1 },
+      { year: 2027, month: 2 },
+    ]);
+  });
+
+  it("start > end → swap silently", () => {
+    expect(enumerateMonthRange("2026-06", "2026-04")).toEqual([
+      { year: 2026, month: 4 },
+      { year: 2026, month: 5 },
+      { year: 2026, month: 6 },
+    ]);
   });
 });

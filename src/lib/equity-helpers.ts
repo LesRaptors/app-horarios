@@ -129,3 +129,26 @@ export function coverageColor(percent: number): CoverageColor {
   if (percent >= 80) return "yellow";
   return "red";
 }
+
+export function enumerateMonthRange(
+  startYM: string,
+  endYM: string
+): Array<{ year: number; month: number }> {
+  const [sy, sm] = startYM.split("-").map(Number);
+  const [ey, em] = endYM.split("-").map(Number);
+  let a = { y: sy, m: sm };
+  let b = { y: ey, m: em };
+  if (a.y > b.y || (a.y === b.y && a.m > b.m)) [a, b] = [b, a];
+  const out: Array<{ year: number; month: number }> = [];
+  let y = a.y;
+  let m = a.m;
+  while (y < b.y || (y === b.y && m <= b.m)) {
+    out.push({ year: y, month: m });
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+  }
+  return out;
+}
