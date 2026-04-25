@@ -11,6 +11,7 @@ import {
   daysBetween,
   meanStdDev,
   zScoreColor,
+  coverageColor,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -188,5 +189,23 @@ describe("zScoreColor", () => {
   it("z ≤ -1.5 → blue", () => {
     expect(zScoreColor(2, 5, 2)).toBe("blue");
     expect(zScoreColor(-10, 5, 2)).toBe("blue");
+  });
+});
+
+describe("coverageColor", () => {
+  it("≥ 95 → green", () => {
+    expect(coverageColor(95)).toBe("green");
+    expect(coverageColor(100)).toBe("green");
+    expect(coverageColor(120)).toBe("green");
+  });
+
+  it("80 ≤ x < 95 → yellow", () => {
+    expect(coverageColor(80)).toBe("yellow");
+    expect(coverageColor(94.99)).toBe("yellow");
+  });
+
+  it("< 80 → red", () => {
+    expect(coverageColor(0)).toBe("red");
+    expect(coverageColor(79.99)).toBe("red");
   });
 });

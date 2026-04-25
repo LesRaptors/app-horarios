@@ -121,3 +121,11 @@ export function zScoreColor(
   if (Math.abs(z) >= 0.5) return "yellow";
   return "green";
 }
+
+export type CoverageColor = "red" | "yellow" | "green";
+
+export function coverageColor(percent: number): CoverageColor {
+  if (percent >= 95) return "green";
+  if (percent >= 80) return "yellow";
+  return "red";
+}
