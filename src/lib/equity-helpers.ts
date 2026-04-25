@@ -98,3 +98,11 @@ export function daysBetween(fromStr: string, toStr: string): number {
   const to = new Date(toStr + "T00:00:00").getTime();
   return Math.round((to - from) / 86_400_000);
 }
+
+export function meanStdDev(values: number[]): { mean: number; stdDev: number } {
+  if (values.length === 0) return { mean: 0, stdDev: 0 };
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance =
+    values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length;
+  return { mean, stdDev: Math.sqrt(variance) };
+}

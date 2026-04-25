@@ -9,6 +9,7 @@ import {
   suggestIsNight,
   dayOfWeek,
   daysBetween,
+  meanStdDev,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -139,5 +140,25 @@ describe("daysBetween", () => {
     expect(daysBetween("2026-04-01", "2026-04-05")).toBe(4);
     expect(daysBetween("2026-04-05", "2026-04-01")).toBe(-4);
     expect(daysBetween("2026-04-05", "2026-04-05")).toBe(0);
+  });
+});
+
+describe("meanStdDev", () => {
+  it("empty array → mean=0, stdDev=0", () => {
+    expect(meanStdDev([])).toEqual({ mean: 0, stdDev: 0 });
+  });
+
+  it("single value → mean=value, stdDev=0", () => {
+    expect(meanStdDev([5])).toEqual({ mean: 5, stdDev: 0 });
+  });
+
+  it("uniform values → stdDev=0", () => {
+    expect(meanStdDev([3, 3, 3, 3])).toEqual({ mean: 3, stdDev: 0 });
+  });
+
+  it("[2,4,4,4,5,5,7,9] → mean=5, stdDev=2 (population)", () => {
+    const r = meanStdDev([2, 4, 4, 4, 5, 5, 7, 9]);
+    expect(r.mean).toBe(5);
+    expect(r.stdDev).toBe(2);
   });
 });
