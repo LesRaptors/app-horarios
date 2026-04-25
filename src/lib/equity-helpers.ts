@@ -106,3 +106,18 @@ export function meanStdDev(values: number[]): { mean: number; stdDev: number } {
     values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length;
   return { mean, stdDev: Math.sqrt(variance) };
 }
+
+export type ZScoreColor = "blue" | "green" | "yellow" | "red";
+
+export function zScoreColor(
+  value: number,
+  mean: number,
+  stdDev: number
+): ZScoreColor {
+  if (stdDev === 0) return "green";
+  const z = (value - mean) / stdDev;
+  if (z >= 1.5) return "red";
+  if (z <= -1.5) return "blue";
+  if (Math.abs(z) >= 0.5) return "yellow";
+  return "green";
+}

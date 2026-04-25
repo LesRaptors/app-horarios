@@ -10,6 +10,7 @@ import {
   dayOfWeek,
   daysBetween,
   meanStdDev,
+  zScoreColor,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -160,5 +161,32 @@ describe("meanStdDev", () => {
     const r = meanStdDev([2, 4, 4, 4, 5, 5, 7, 9]);
     expect(r.mean).toBe(5);
     expect(r.stdDev).toBe(2);
+  });
+});
+
+describe("zScoreColor", () => {
+  it("σ=0 → green (cannot deviate)", () => {
+    expect(zScoreColor(5, 5, 0)).toBe("green");
+    expect(zScoreColor(99, 5, 0)).toBe("green");
+  });
+
+  it("|z| < 0.5 → green", () => {
+    expect(zScoreColor(5.9, 5, 2)).toBe("green");
+    expect(zScoreColor(4.1, 5, 2)).toBe("green");
+  });
+
+  it("0.5 ≤ |z| < 1.5 → yellow (either side)", () => {
+    expect(zScoreColor(7, 5, 2)).toBe("yellow");
+    expect(zScoreColor(3, 5, 2)).toBe("yellow");
+  });
+
+  it("z ≥ 1.5 → red", () => {
+    expect(zScoreColor(8, 5, 2)).toBe("red");
+    expect(zScoreColor(20, 5, 2)).toBe("red");
+  });
+
+  it("z ≤ -1.5 → blue", () => {
+    expect(zScoreColor(2, 5, 2)).toBe("blue");
+    expect(zScoreColor(-10, 5, 2)).toBe("blue");
   });
 });
