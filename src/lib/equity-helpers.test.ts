@@ -13,6 +13,7 @@ import {
   zScoreColor,
   coverageColor,
   enumerateMonthRange,
+  requiredSlots,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -241,5 +242,34 @@ describe("enumerateMonthRange", () => {
       { year: 2026, month: 5 },
       { year: 2026, month: 6 },
     ]);
+  });
+});
+
+describe("requiredSlots", () => {
+  const reqs = [
+    { day_of_week: 1, required_count: 2 },
+    { day_of_week: 1, required_count: 1 },
+    { day_of_week: 6, required_count: 1 },
+  ] as { day_of_week: number; required_count: number }[];
+
+  it("a single Monday in the date list contributes 3", () => {
+    expect(requiredSlots(reqs, ["2026-04-06"])).toBe(3);
+  });
+
+  it("a Saturday contributes 1", () => {
+    expect(requiredSlots(reqs, ["2026-04-04"])).toBe(1);
+  });
+
+  it("a Tuesday contributes 0 (no req for that DOW)", () => {
+    expect(requiredSlots(reqs, ["2026-04-07"])).toBe(0);
+  });
+
+  it("multiple Mondays add up: 4 Mondays × 3 = 12", () => {
+    const mondays = ["2026-04-06", "2026-04-13", "2026-04-20", "2026-04-27"];
+    expect(requiredSlots(reqs, mondays)).toBe(12);
+  });
+
+  it("empty dates → 0", () => {
+    expect(requiredSlots(reqs, [])).toBe(0);
   });
 });

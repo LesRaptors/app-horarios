@@ -152,3 +152,17 @@ export function enumerateMonthRange(
   }
   return out;
 }
+
+export function requiredSlots(
+  reqs: Array<{ day_of_week: number; required_count: number }>,
+  dateStrs: string[]
+): number {
+  let total = 0;
+  for (const ds of dateStrs) {
+    const dow = dayOfWeek(ds);
+    for (const r of reqs) {
+      if (r.day_of_week === dow) total += r.required_count;
+    }
+  }
+  return total;
+}
