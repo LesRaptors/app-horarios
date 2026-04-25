@@ -9,7 +9,7 @@ interface Props {
   onChange: (next: { start: string; end: string }) => void;
 }
 
-function currentMonthValue(): string {
+export function currentMonthValue(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }

@@ -10,17 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { PeriodRangePicker } from "@/components/equidad/period-range-picker";
+import { PeriodRangePicker, currentMonthValue } from "@/components/equidad/period-range-picker";
 import { CoverageSection } from "@/components/equidad/coverage-section";
 import { EquityLeaderboard } from "@/components/equidad/equity-leaderboard";
 import { EmployeeEquityPanel } from "@/components/schedule/employee-equity-panel";
 import { createClient } from "@/lib/supabase/client";
 import type { ContractType, Position, Profile, EmployeeEquityRollup } from "@/lib/types";
-
-function currentMonthValue(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export default function EquidadPage() {
   const router = useRouter();

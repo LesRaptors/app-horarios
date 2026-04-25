@@ -207,7 +207,8 @@ export function useEquidadDashboard(
         const entriesRes = await supabase
           .from("schedule_entries")
           .select("id, schedule_id, employee_id, date, shift_template_id, position_id")
-          .in("schedule_id", scheduleIds);
+          .in("schedule_id", scheduleIds)
+          .neq("overtime_status", "rejected");
         if (cancelled) return;
         setScheduleEntries(
           (entriesRes.data ?? []) as Array<{
