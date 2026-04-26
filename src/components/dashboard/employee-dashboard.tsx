@@ -84,6 +84,7 @@ export function EmployeeDashboard() {
             rollups={rollups}
             currentYear={currentYear}
             currentMonth={currentMonth}
+            showHeading={false}
           />
         </CardContent>
       </Card>

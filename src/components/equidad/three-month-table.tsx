@@ -8,12 +8,13 @@ interface Props {
   rollups: EmployeeEquityRollup[]; // already filtered to one employee
   currentYear: number;
   currentMonth: number; // 1-12
+  showHeading?: boolean; // default true; pass false when wrapped by an outer card title
 }
 
 const monthName = (m: number) =>
   ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][m - 1];
 
-export function ThreeMonthTable({ rollups, currentYear, currentMonth }: Props) {
+export function ThreeMonthTable({ rollups, currentYear, currentMonth, showHeading = true }: Props) {
   const window3 = useMemo(
     () => getRollingWindow(currentYear, currentMonth, 3),
     [currentYear, currentMonth]
@@ -34,7 +35,9 @@ export function ThreeMonthTable({ rollups, currentYear, currentMonth }: Props) {
 
   return (
     <div>
-      <p className="text-xs font-medium mb-1">Equidad — últimos 3 meses</p>
+      {showHeading && (
+        <p className="text-xs font-medium mb-1">Equidad — últimos 3 meses</p>
+      )}
       <table className="w-full text-xs">
         <thead>
           <tr className="text-muted-foreground">
