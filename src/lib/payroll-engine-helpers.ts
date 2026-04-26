@@ -40,3 +40,25 @@ export function getArlRate(class_: number | null): number {
 export function isExonerationApplicable(monthlySalary: number, smmlv: number): boolean {
   return monthlySalary < 10 * smmlv;
 }
+
+import type { TaxPersonalDeduction } from "./types";
+
+export function applyDayProration(monthlyAmount: number, workedDays: number): number {
+  if (workedDays <= 0) return 0;
+  if (workedDays >= 30) return Math.round(monthlyAmount);
+  return Math.round((monthlyAmount * workedDays) / 30);
+}
+
+export function getCurrentTaxDeductions(
+  history: TaxPersonalDeduction[],
+  employeeId: string,
+  date: string
+): TaxPersonalDeduction | null {
+  for (const r of history) {
+    if (r.employee_id !== employeeId) continue;
+    if (r.effective_from > date) continue;
+    if (r.effective_to !== null && r.effective_to < date) continue;
+    return r;
+  }
+  return null;
+}

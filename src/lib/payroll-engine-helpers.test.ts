@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable } from "./payroll-engine-helpers";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions } from "./payroll-engine-helpers";
+import type { TaxPersonalDeduction } from "./types";
 
 describe("isIncomeForConcept", () => {
   it.each([
@@ -62,5 +63,43 @@ describe("isExonerationApplicable", () => {
   it("salary ≥ 10×SMMLV → false", () => {
     expect(isExonerationApplicable(10 * SMMLV, SMMLV)).toBe(false);
     expect(isExonerationApplicable(20 * SMMLV, SMMLV)).toBe(false);
+  });
+});
+
+describe("applyDayProration", () => {
+  it("30 days → full amount", () => {
+    expect(applyDayProration(3_000_000, 30)).toBe(3_000_000);
+  });
+  it("15 days → half", () => {
+    expect(applyDayProration(3_000_000, 15)).toBe(1_500_000);
+  });
+  it("0 days → 0", () => {
+    expect(applyDayProration(3_000_000, 0)).toBe(0);
+  });
+  it("8 days → 8/30", () => {
+    expect(applyDayProration(3_000_000, 8)).toBe(800_000);
+  });
+});
+
+const mkTax = (overrides: Partial<TaxPersonalDeduction>): TaxPersonalDeduction => ({
+  id: "x", employee_id: "emp1",
+  dependents_count: 0, mortgage_interest_monthly: 0,
+  prepaid_health_monthly: 0, voluntary_pension_monthly: 0, afc_monthly: 0,
+  effective_from: "2026-01-01", effective_to: null,
+  created_by: null, created_at: "2026-01-01T00:00:00Z",
+  ...overrides,
+});
+
+describe("getCurrentTaxDeductions", () => {
+  it("empty → null", () => {
+    expect(getCurrentTaxDeductions([], "emp1", "2026-04-15")).toBeNull();
+  });
+  it("matches employee + date", () => {
+    const h = [
+      mkTax({ id: "a", effective_from: "2026-01-01", effective_to: "2026-03-31" }),
+      mkTax({ id: "b", effective_from: "2026-04-01", effective_to: null }),
+    ];
+    expect(getCurrentTaxDeductions(h, "emp1", "2026-04-15")?.id).toBe("b");
+    expect(getCurrentTaxDeductions(h, "emp1", "2026-02-15")?.id).toBe("a");
   });
 });
