@@ -337,5 +337,112 @@ export interface PayrollSettings {
   night_start_hour: number;
   sunday_surcharge_pct: number;
   holiday_surcharge_pct: number;
+  uvt: number;
   updated_at: string;
+}
+
+// ----------------------------------------------------------------------------
+// Payroll engine (sub-spec 2)
+// ----------------------------------------------------------------------------
+
+export type PaymentFrequency = "mensual" | "quincenal";
+export type PayrollPeriodStatus = "draft" | "approved" | "paid";
+
+export type PayrollConceptType =
+  | "salary" | "transport"
+  | "surcharge_night" | "surcharge_sunday" | "surcharge_holiday"
+  | "overtime_day" | "overtime_night"
+  | "bonus_salary" | "bonus_non_salary"
+  | "vacation_pay" | "prima" | "cesantias_interest"
+  | "health_employee" | "pension_employee" | "solidarity_pension"
+  | "income_tax" | "embargo" | "libranza"
+  | "voluntary_pension" | "afc" | "union_fee" | "other_deduction";
+
+export type ProvisionConcept = "cesantias" | "cesantias_interest" | "prima" | "vacaciones";
+
+export type AbsenceType =
+  | "sick_eps" | "sick_arl" | "maternity" | "paternity"
+  | "vacation" | "paid_leave" | "unpaid_leave" | "suspension";
+
+export type AbsencePayer = "employer" | "eps" | "arl" | "none";
+
+export interface PayrollPeriod {
+  id: string;
+  period_start: string;
+  period_end: string;
+  frequency: PaymentFrequency;
+  status: PayrollPeriodStatus;
+  approved_at: string | null;
+  approved_by: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  created_at: string;
+}
+
+export interface PayrollEntry {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  concept_type: PayrollConceptType;
+  is_income: boolean;
+  base: number | null;
+  rate: number | null;
+  amount: number;
+  description: string | null;
+  is_manual_override: boolean;
+  created_at: string;
+}
+
+export interface PayrollProvision {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  concept: ProvisionConcept;
+  base: number;
+  rate: number;
+  amount: number;
+  accumulated_ytd: number;
+  created_at: string;
+}
+
+export interface PayrollEmployerCost {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  health_employer: number;
+  pension_employer: number;
+  arl_employer: number;
+  parafiscales_caja: number;
+  parafiscales_sena: number;
+  parafiscales_icbf: number;
+  total: number;
+  created_at: string;
+}
+
+export interface AbsenceRecord {
+  id: string;
+  employee_id: string;
+  start_date: string;
+  end_date: string;
+  type: AbsenceType;
+  paid_pct: number;
+  payer: AbsencePayer;
+  notes: string | null;
+  source_request_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface TaxPersonalDeduction {
+  id: string;
+  employee_id: string;
+  dependents_count: number;
+  mortgage_interest_monthly: number;
+  prepaid_health_monthly: number;
+  voluntary_pension_monthly: number;
+  afc_monthly: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_by: string | null;
+  created_at: string;
 }
