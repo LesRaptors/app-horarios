@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCOP, parseCOP, getCurrentSalary, getSettingsForDate } from "./payroll-helpers";
+import { formatCOP, parseCOP, getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payroll-helpers";
 import type { SalaryHistory, PayrollSettings } from "./types";
 
 describe("formatCOP", () => {
@@ -97,5 +97,20 @@ describe("getSettingsForDate", () => {
   });
   it("empty settings → null", () => {
     expect(getSettingsForDate([], "2026-04-15")).toBeNull();
+  });
+});
+
+describe("computeHourlyRate", () => {
+  it("$2.800.000 / 220 → 12727 (rounded)", () => {
+    expect(computeHourlyRate(2_800_000, 220)).toBe(12727);
+  });
+  it("$2.800.000 / 210 → 13333 (rounded)", () => {
+    expect(computeHourlyRate(2_800_000, 210)).toBe(13333);
+  });
+  it("salary 0 → 0", () => {
+    expect(computeHourlyRate(0, 220)).toBe(0);
+  });
+  it("divisor 0 → 0 (defensive)", () => {
+    expect(computeHourlyRate(2_800_000, 0)).toBe(0);
   });
 });
