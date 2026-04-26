@@ -25,7 +25,10 @@ export function calculateDuration(
 }
 
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString("es-ES", {
+  // Append T00:00:00 to bare YYYY-MM-DD so JS parses it as local time, not UTC.
+  // Otherwise users in negative TZs (e.g. Colombia UTC-5) see the previous day.
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00` : date;
+  return new Date(iso).toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "short",
     year: "numeric",

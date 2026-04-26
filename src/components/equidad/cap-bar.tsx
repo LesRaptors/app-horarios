@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 
 interface Props {
   label: string;
@@ -16,7 +16,7 @@ export function CapBar({ label, value, max }: Props) {
       <div className="flex justify-between">
         <span>{label}</span>
         <span className={overCap ? "text-red-600 font-medium" : ""}>
-          {value}/{max} {overCap && "⚠"}
+          {value}/{max} {overCap && <AlertTriangle className="inline h-3 w-3 ml-1" />}
           {!overCap && value === max && (
             <Check className="inline h-3 w-3 text-emerald-600 ml-1" />
           )}
