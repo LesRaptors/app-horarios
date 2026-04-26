@@ -181,3 +181,26 @@ export function softTargetColor(
   if (value >= lo50 && value <= hi50) return "yellow";
   return "red";
 }
+
+function toISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function startOfWeekISO(date: Date): string {
+  const dow = date.getDay();
+  const offsetToMonday = dow === 0 ? -6 : 1 - dow;
+  const start = new Date(date);
+  start.setDate(date.getDate() + offsetToMonday);
+  return toISO(start);
+}
+
+export function endOfWeekISO(date: Date): string {
+  const dow = date.getDay();
+  const offsetToSunday = dow === 0 ? 0 : 7 - dow;
+  const end = new Date(date);
+  end.setDate(date.getDate() + offsetToSunday);
+  return toISO(end);
+}

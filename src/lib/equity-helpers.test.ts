@@ -15,6 +15,8 @@ import {
   enumerateMonthRange,
   requiredSlots,
   softTargetColor,
+  startOfWeekISO,
+  endOfWeekISO,
 } from "./equity-helpers";
 import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
 
@@ -296,5 +298,31 @@ describe("softTargetColor", () => {
     expect(softTargetColor(1, 4)).toBe("red");      // 0.25×
     expect(softTargetColor(7, 4)).toBe("red");      // 1.75×
     expect(softTargetColor(0, 4)).toBe("red");
+  });
+});
+
+describe("startOfWeekISO / endOfWeekISO (Monday → Sunday)", () => {
+  it("a Monday returns itself as start, +6 as end", () => {
+    const d = new Date("2026-04-06T12:00:00");
+    expect(startOfWeekISO(d)).toBe("2026-04-06");
+    expect(endOfWeekISO(d)).toBe("2026-04-12");
+  });
+
+  it("a Sunday rolls back to last Monday and ends on itself", () => {
+    const d = new Date("2026-04-12T12:00:00");
+    expect(startOfWeekISO(d)).toBe("2026-04-06");
+    expect(endOfWeekISO(d)).toBe("2026-04-12");
+  });
+
+  it("a Wednesday picks Monday-of-week and Sunday-of-week", () => {
+    const d = new Date("2026-04-08T12:00:00");
+    expect(startOfWeekISO(d)).toBe("2026-04-06");
+    expect(endOfWeekISO(d)).toBe("2026-04-12");
+  });
+
+  it("crosses month boundary", () => {
+    const d = new Date("2026-04-30T12:00:00");
+    expect(startOfWeekISO(d)).toBe("2026-04-27");
+    expect(endOfWeekISO(d)).toBe("2026-05-03");
   });
 });
