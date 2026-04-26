@@ -45,6 +45,7 @@ export function SalaryCell({
   const [draft, setDraft] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const committingRef = useRef(false);
 
   useEffect(() => {
     if (editing) {
@@ -67,46 +68,52 @@ export function SalaryCell({
   })();
 
   async function commit() {
-    const parsed = parseCOP(draft);
-    if (parsed === null) {
-      toast.error("Monto inválido");
+    if (committingRef.current) return;
+    committingRef.current = true;
+    try {
+      const parsed = parseCOP(draft);
+      if (parsed === null) {
+        toast.error("Monto inválido");
+        setEditing(false);
+        return;
+      }
+      if (!settingsToday) {
+        toast.error("No hay configuración de nómina para hoy");
+        setEditing(false);
+        return;
+      }
+      const isIntegral = current?.is_integral_salary ?? false;
+      const v = validateSalary(parsed, settingsToday.smmlv, isIntegral);
+      if (!v.ok) {
+        toast.error(v.error ?? "Salario inválido");
+        setEditing(false);
+        return;
+      }
+      if (parsed === current?.monthly_salary) {
+        setEditing(false);
+        return;
+      }
+      setSaving(true);
+      const { error } = await supabase.from("salary_history").insert({
+        employee_id: employeeId,
+        monthly_salary: parsed,
+        is_integral_salary: isIntegral,
+        transport_aux_override: current?.transport_aux_override ?? null,
+        change_reason: "Edición rápida",
+        effective_from: today,
+        created_by: user?.id ?? null,
+      });
+      setSaving(false);
       setEditing(false);
-      return;
+      if (error) {
+        toast.error(`No se pudo guardar: ${error.message}`);
+        return;
+      }
+      toast.success("Salario actualizado");
+      onSaved();
+    } finally {
+      committingRef.current = false;
     }
-    if (!settingsToday) {
-      toast.error("No hay configuración de nómina para hoy");
-      setEditing(false);
-      return;
-    }
-    const isIntegral = current?.is_integral_salary ?? false;
-    const v = validateSalary(parsed, settingsToday.smmlv, isIntegral);
-    if (!v.ok) {
-      toast.error(v.error ?? "Salario inválido");
-      setEditing(false);
-      return;
-    }
-    if (parsed === current?.monthly_salary) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from("salary_history").insert({
-      employee_id: employeeId,
-      monthly_salary: parsed,
-      is_integral_salary: isIntegral,
-      transport_aux_override: current?.transport_aux_override ?? null,
-      change_reason: "Edición rápida",
-      effective_from: today,
-      created_by: user?.id ?? null,
-    });
-    setSaving(false);
-    setEditing(false);
-    if (error) {
-      toast.error(`No se pudo guardar: ${error.message}`);
-      return;
-    }
-    toast.success("Salario actualizado");
-    onSaved();
   }
 
   if (editing && canEdit) {

@@ -242,12 +242,12 @@ export default function EmployeesPage() {
 
   const fetchSalaryData = useCallback(async () => {
     const [shRes, saRes, psRes, afRes] = await Promise.all([
-      supabase.from("salary_history").select("*").order("effective_from", { ascending: false }),
+      supabase.from("salary_history").select("*, creator:profiles!salary_history_created_by_fkey(first_name,last_name)").order("effective_from", { ascending: false }),
       supabase.from("salary_adjustments").select("*").order("payment_date", { ascending: false }),
       supabase.from("payroll_settings").select("*").order("period_start", { ascending: true }),
       supabase.from("app_settings").select("value").eq("key", "app_flags").maybeSingle(),
     ]);
-    setSalaryHistory((shRes.data ?? []) as SalaryHistory[]);
+    setSalaryHistory((shRes.data ?? []) as unknown as SalaryHistory[]);
     setSalaryAdjustments((saRes.data ?? []) as SalaryAdjustment[]);
     setPayrollSettings((psRes.data ?? []) as PayrollSettings[]);
     if (afRes.data?.value && typeof afRes.data.value === "object") {

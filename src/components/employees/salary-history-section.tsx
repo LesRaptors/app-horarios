@@ -7,9 +7,13 @@ import { formatCOP } from "@/lib/payroll-helpers";
 import { SalaryChangeForm } from "./salary-change-form";
 import type { SalaryHistory, PayrollSettings } from "@/lib/types";
 
+type SalaryHistoryWithCreator = SalaryHistory & {
+  creator?: { first_name: string; last_name: string } | null;
+};
+
 interface Props {
   employeeId: string;
-  history: SalaryHistory[];
+  history: SalaryHistoryWithCreator[];
   payrollSettings: PayrollSettings[];
   canEdit: boolean;
   onChanged: () => void;
@@ -54,6 +58,11 @@ export function SalaryHistorySection({
               </div>
               <div className="text-muted-foreground">{fmtRange(h.effective_from, h.effective_to)}</div>
               {h.change_reason && <div className="italic">{h.change_reason}</div>}
+              {h.creator && (
+                <div className="text-muted-foreground">
+                  por {h.creator.first_name} {h.creator.last_name}
+                </div>
+              )}
             </li>
           ))}
         </ul>
