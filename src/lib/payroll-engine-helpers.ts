@@ -80,3 +80,66 @@ export function classifyHour(
   );
   return { isNight, isSunday, isHoliday };
 }
+
+export function aplicarTablaRetencion(baseDepurada: number, uvt: number): number {
+  const baseUvt = baseDepurada / uvt;
+  if (baseUvt <= 95) return 0;
+  if (baseUvt <= 150) {
+    return Math.round((baseUvt - 95) * 0.19 * uvt);
+  }
+  if (baseUvt <= 360) {
+    const acc = (150 - 95) * 0.19;
+    return Math.round((acc + (baseUvt - 150) * 0.28) * uvt);
+  }
+  if (baseUvt <= 640) {
+    const acc = (150 - 95) * 0.19 + (360 - 150) * 0.28;
+    return Math.round((acc + (baseUvt - 360) * 0.33) * uvt);
+  }
+  if (baseUvt <= 945) {
+    const acc = (150 - 95) * 0.19 + (360 - 150) * 0.28 + (640 - 360) * 0.33;
+    return Math.round((acc + (baseUvt - 640) * 0.35) * uvt);
+  }
+  if (baseUvt <= 2300) {
+    const acc = (150 - 95) * 0.19 + (360 - 150) * 0.28 + (640 - 360) * 0.33 + (945 - 640) * 0.35;
+    return Math.round((acc + (baseUvt - 945) * 0.37) * uvt);
+  }
+  const acc = (150 - 95) * 0.19 + (360 - 150) * 0.28 + (640 - 360) * 0.33 + (945 - 640) * 0.35 + (2300 - 945) * 0.37;
+  return Math.round((acc + (baseUvt - 2300) * 0.39) * uvt);
+}
+
+export interface DepurarRetencionInput {
+  grossIncome: number;
+  mandatorySS: number;
+  dependents: number;
+  mortgageInterest: number;
+  prepaidHealth: number;
+  voluntaryPension: number;
+  afc: number;
+  uvt: number;
+}
+
+export function depurarBaseRetencion(input: DepurarRetencionInput): number {
+  const { grossIncome, mandatorySS, dependents, mortgageInterest,
+          prepaidHealth, voluntaryPension, afc, uvt } = input;
+  if (grossIncome <= 0) return 0;
+
+  // 1. Restar aportes obligatorios SS.
+  let base = grossIncome - mandatorySS;
+
+  // 2. Restar deducciones (con topes en UVT).
+  const dependentsCap = Math.min(grossIncome * 0.10, 32 * uvt);
+  const dependentsDed = dependents > 0 ? dependentsCap : 0;
+  const mortgageCap = Math.min(mortgageInterest, 100 * uvt);
+  const prepaidCap = Math.min(prepaidHealth, 16 * uvt);
+  base -= dependentsDed + mortgageCap + prepaidCap;
+
+  // 3. Restar rentas exentas (AFC + voluntary AFP, tope 30% del bruto).
+  const exentaCap = Math.min(voluntaryPension + afc, grossIncome * 0.30);
+  base -= exentaCap;
+
+  // 4. Restar 25% renta exenta laboral con tope 240 UVT/mes.
+  const laboralExenta = Math.min(base * 0.25, 240 * uvt);
+  base -= laboralExenta;
+
+  return Math.max(0, base);
+}

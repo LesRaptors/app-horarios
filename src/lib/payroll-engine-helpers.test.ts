@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour } from "./payroll-engine-helpers";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour, aplicarTablaRetencion, depurarBaseRetencion } from "./payroll-engine-helpers";
 import type { TaxPersonalDeduction, HolidayDate, PayrollSettings } from "./types";
 
 describe("isIncomeForConcept", () => {
@@ -149,5 +149,47 @@ describe("classifyHour", () => {
     } as HolidayDate];
     expect(classifyHour("2026-04-15", 14, hols, settings, "loc1").isHoliday).toBe(true);
     expect(classifyHour("2026-04-15", 14, hols, settings, "loc2").isHoliday).toBe(false);
+  });
+});
+
+const UVT = 52374;
+
+describe("aplicarTablaRetencion", () => {
+  it("base ≤ 95 UVT → 0", () => {
+    expect(aplicarTablaRetencion(94 * UVT, UVT)).toBe(0);
+    expect(aplicarTablaRetencion(95 * UVT, UVT)).toBe(0);
+  });
+  it("100 UVT → (100-95) × 19% × UVT", () => {
+    const expected = Math.round((100 - 95) * 0.19 * UVT);
+    expect(aplicarTablaRetencion(100 * UVT, UVT)).toBe(expected);
+  });
+  it("200 UVT → tarifa 28% tramo", () => {
+    // (200-150)*28% + (150-95)*19% = 14 + 10.45 = 24.45 UVT
+    const expected = Math.round(((200 - 150) * 0.28 + (150 - 95) * 0.19) * UVT);
+    expect(aplicarTablaRetencion(200 * UVT, UVT)).toBe(expected);
+  });
+});
+
+describe("depurarBaseRetencion", () => {
+  it("base ingreso 5M, sin deducciones → resta SS empleado (8%)", () => {
+    const r = depurarBaseRetencion({
+      grossIncome: 5_000_000,
+      mandatorySS: 400_000,
+      dependents: 0,
+      mortgageInterest: 0,
+      prepaidHealth: 0,
+      voluntaryPension: 0,
+      afc: 0,
+      uvt: UVT,
+    });
+    expect(r).toBeGreaterThan(0);
+    expect(r).toBeLessThan(5_000_000);
+  });
+  it("returns ≥ 0", () => {
+    expect(depurarBaseRetencion({
+      grossIncome: 0, mandatorySS: 0, dependents: 0,
+      mortgageInterest: 0, prepaidHealth: 0,
+      voluntaryPension: 0, afc: 0, uvt: UVT,
+    })).toBe(0);
   });
 });
