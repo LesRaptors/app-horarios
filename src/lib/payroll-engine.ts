@@ -281,6 +281,24 @@ export function computeTransportAux(
 // Orchestrator — computePayroll (skeleton wiring stages 1-3)
 // ---------------------------------------------------------------------------
 
+/**
+ * Top-level pure payroll computation entry point.
+ *
+ * Current implementation (tasks 11-13): wires stages 1-3 only.
+ * Subsequent tasks will extend with surcharges (4), overtime (5),
+ * adjustments (6), IBC (7), deductions (8), provisions + employer cost (9).
+ *
+ * Contract:
+ * - `errors[]` → hard problems that block period approval.
+ * - `warnings[]` → soft messages surfaced in the UI but don't block.
+ * - `provisions` and `employer_cost` are zero-valued stubs until task 14.
+ */
+
+/** Helper: check whether an entry represents an integral salary. */
+export function entryIsIntegral(entry: ComputedEntry): boolean {
+  return entry.concept_type === "salary" && entry.description === "salario integral";
+}
+
 const ZERO_EMPLOYER_COST: ComputedEmployerCost = {
   health_employer: 0,
   pension_employer: 0,
