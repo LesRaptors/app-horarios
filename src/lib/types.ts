@@ -297,3 +297,45 @@ export interface AutoGenResult {
   warnings: AutoGenWarning[];
   stats: Record<string, { shifts: number; hours: number }>;
 }
+
+// ----------------------------------------------------------------------------
+// Payroll (sub-spec 1)
+// ----------------------------------------------------------------------------
+
+export interface SalaryHistory {
+  id: string;
+  employee_id: string;
+  monthly_salary: number;
+  is_integral_salary: boolean;
+  transport_aux_override: boolean | null;
+  change_reason: string | null;
+  effective_from: string; // YYYY-MM-DD
+  effective_to: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface SalaryAdjustment {
+  id: string;
+  employee_id: string;
+  payment_date: string; // YYYY-MM-DD
+  concept_label: string;
+  amount: number;
+  is_salary_component: boolean;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface PayrollSettings {
+  id: string;
+  period_start: string; // YYYY-MM-DD
+  period_end: string | null;
+  smmlv: number;
+  aux_transport: number;
+  hourly_divisor: number;
+  night_start_hour: number;
+  sunday_surcharge_pct: number;
+  holiday_surcharge_pct: number;
+  updated_at: string;
+}
