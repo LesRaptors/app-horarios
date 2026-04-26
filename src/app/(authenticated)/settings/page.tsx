@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/hooks/use-auth";
 import { LaborConstraintsForm } from "@/components/settings/labor-constraints-form";
+import { SalariesVisibilityToggle } from "@/components/settings/salaries-visibility-toggle";
 import { Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -35,6 +36,7 @@ export default function SettingsPage() {
       </div>
 
       <LaborConstraintsForm />
+      <SalariesVisibilityToggle />
     </div>
   );
 }
