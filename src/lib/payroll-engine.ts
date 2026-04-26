@@ -183,6 +183,16 @@ export function computeWorkedDays(input: PayrollComputeInput): WorkedDaysResult 
 // Stage 2 — computeBaseSalary
 // ---------------------------------------------------------------------------
 
+/**
+ * Look up the vigente salary for the period and emit a `salary` ComputedEntry
+ * prorated by worked days (convention 30).
+ *
+ * Integral salary gets `description='salario integral'` so downstream stages
+ * know to use 70% × monthly_salary for IBC.
+ *
+ * Returns an empty entry list + an error string when no salary is found
+ * (this blocks the `approve` action on the period).
+ */
 export function computeBaseSalary(
   input: PayrollComputeInput,
   workedDays: WorkedDaysResult
@@ -217,6 +227,16 @@ export function computeBaseSalary(
 // Stage 3 — computeTransportAux
 // ---------------------------------------------------------------------------
 
+/**
+ * Emit the `transport` (auxilio de transporte) ComputedEntry when applicable.
+ *
+ * Rules (in priority order):
+ * 1. `transport_aux_override === false` → never emit.
+ * 2. `transport_aux_override === true`  → always emit.
+ * 3. `null` (auto)                      → emit only when `monthly_salary ≤ 2×SMMLV`.
+ *
+ * Amount is prorated using the same worked-days convention as salary.
+ */
 export function computeTransportAux(
   input: PayrollComputeInput,
   workedDays: WorkedDaysResult,
