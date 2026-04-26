@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCOP, parseCOP, getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payroll-helpers";
+import { formatCOP, parseCOP, getCurrentSalary, getSettingsForDate, computeHourlyRate, validateSalary } from "./payroll-helpers";
 import type { SalaryHistory, PayrollSettings } from "./types";
 
 describe("formatCOP", () => {
@@ -112,5 +112,38 @@ describe("computeHourlyRate", () => {
   });
   it("divisor 0 → 0 (defensive)", () => {
     expect(computeHourlyRate(2_800_000, 0)).toBe(0);
+  });
+});
+
+const SMMLV = 1_750_905;
+
+describe("validateSalary", () => {
+  it("≥ SMMLV non-integral → ok", () => {
+    const r = validateSalary(2_000_000, SMMLV, false);
+    expect(r.ok).toBe(true);
+    expect(r.error).toBeUndefined();
+    expect(r.warning).toBeUndefined();
+  });
+  it("< SMMLV non-integral → error", () => {
+    const r = validateSalary(1_500_000, SMMLV, false);
+    expect(r.ok).toBe(false);
+    expect(r.error).toBeDefined();
+  });
+  it("< SMMLV integral → ok (integral can be any)", () => {
+    const r = validateSalary(1_500_000, SMMLV, true);
+    expect(r.ok).toBe(true);
+  });
+  it("integral but < 13×SMMLV → ok with warning", () => {
+    const r = validateSalary(15_000_000, SMMLV, true);
+    expect(r.ok).toBe(true);
+    expect(r.warning).toBeDefined();
+  });
+  it("integral and ≥ 13×SMMLV → ok no warning", () => {
+    const r = validateSalary(23_000_000, SMMLV, true);
+    expect(r.ok).toBe(true);
+    expect(r.warning).toBeUndefined();
+  });
+  it("at exactly SMMLV non-integral → ok", () => {
+    expect(validateSalary(SMMLV, SMMLV, false).ok).toBe(true);
   });
 });

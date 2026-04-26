@@ -78,3 +78,4 @@ export function validateSalary(
   }
   return { ok: true };
 }
+
