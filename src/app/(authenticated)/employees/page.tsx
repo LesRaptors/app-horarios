@@ -40,6 +40,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { EmployeeEquityPanel } from "@/components/schedule/employee-equity-panel";
+import { SalaryCell } from "@/components/employees/salary-cell";
+import { SalaryHistorySection } from "@/components/employees/salary-history-section";
+import { SalaryAdjustmentsSection } from "@/components/employees/salary-adjustments-section";
 import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
@@ -51,6 +54,9 @@ import type {
   Position,
   UserRole,
   ContractType,
+  SalaryHistory,
+  SalaryAdjustment,
+  PayrollSettings,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -225,6 +231,36 @@ export default function EmployeesPage() {
   const [contracts, setContracts] = useState<ContractType[]>([]);
   const rollups = useEquityRollups();
   const [panelEmp, setPanelEmp] = useState<Profile | null>(null);
+
+  // ---- Salary / payroll state -----------------------------------------------
+  const [salaryHistory, setSalaryHistory] = useState<SalaryHistory[]>([]);
+  const [salaryAdjustments, setSalaryAdjustments] = useState<SalaryAdjustment[]>([]);
+  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings[]>([]);
+  const [appFlags, setAppFlags] = useState<{ managers_can_see_salaries: boolean }>({
+    managers_can_see_salaries: false,
+  });
+
+  const fetchSalaryData = useCallback(async () => {
+    const [shRes, saRes, psRes, afRes] = await Promise.all([
+      supabase.from("salary_history").select("*").order("effective_from", { ascending: false }),
+      supabase.from("salary_adjustments").select("*").order("payment_date", { ascending: false }),
+      supabase.from("payroll_settings").select("*").order("period_start", { ascending: true }),
+      supabase.from("app_settings").select("value").eq("key", "app_flags").maybeSingle(),
+    ]);
+    setSalaryHistory((shRes.data ?? []) as SalaryHistory[]);
+    setSalaryAdjustments((saRes.data ?? []) as SalaryAdjustment[]);
+    setPayrollSettings((psRes.data ?? []) as PayrollSettings[]);
+    if (afRes.data?.value && typeof afRes.data.value === "object") {
+      const v = afRes.data.value as Record<string, unknown>;
+      setAppFlags({
+        managers_can_see_salaries: v.managers_can_see_salaries === true,
+      });
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchSalaryData();
+  }, [fetchSalaryData]);
 
   // --------------------------------------------------------------------------
   // Fetch all data
@@ -653,6 +689,14 @@ export default function EmployeesPage() {
   }
 
   // --------------------------------------------------------------------------
+  // Salary permission flags
+  // --------------------------------------------------------------------------
+  const canEditSalary = currentProfile?.role === "admin";
+  const managerCanSee =
+    currentProfile?.role === "manager" && appFlags.managers_can_see_salaries;
+  const canReadAnySalary = canEditSalary || managerCanSee;
+
+  // --------------------------------------------------------------------------
   // RENDER
   // --------------------------------------------------------------------------
   return (
@@ -754,6 +798,7 @@ export default function EmployeesPage() {
                   <TableHead>Posición</TableHead>
                   <TableHead>Sede</TableHead>
                   <TableHead>Contrato</TableHead>
+                  <TableHead>Salario</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -810,6 +855,16 @@ export default function EmployeesPage() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <SalaryCell
+                          employeeId={emp.id}
+                          history={salaryHistory.filter((s) => s.employee_id === emp.id)}
+                          payrollSettings={payrollSettings}
+                          canEdit={canEditSalary}
+                          canRead={canReadAnySalary}
+                          onSaved={fetchSalaryData}
+                        />
                       </TableCell>
                       <TableCell>
                         <StatusBadge isActive={emp.is_active} />
@@ -1701,6 +1756,21 @@ export default function EmployeesPage() {
                 currentYear={new Date().getFullYear()}
                 currentMonth={new Date().getMonth() + 1}
               />
+              <div className="mt-6 space-y-6">
+                <SalaryHistorySection
+                  employeeId={panelEmp.id}
+                  history={salaryHistory.filter((s) => s.employee_id === panelEmp.id)}
+                  payrollSettings={payrollSettings}
+                  canEdit={canEditSalary}
+                  onChanged={fetchSalaryData}
+                />
+                <SalaryAdjustmentsSection
+                  employeeId={panelEmp.id}
+                  adjustments={salaryAdjustments.filter((a) => a.employee_id === panelEmp.id)}
+                  canEdit={canEditSalary}
+                  onChanged={fetchSalaryData}
+                />
+              </div>
             </div>
           )}
         </SheetContent>
