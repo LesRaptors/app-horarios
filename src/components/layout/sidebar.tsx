@@ -21,6 +21,7 @@ import {
   CalendarDays,
   ChevronDown,
   LogOut,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -48,6 +49,10 @@ const topNavigation: NavItem[] = [
   { name: "Empleados", href: "/employees", icon: Users, roles: ["admin", "manager"] },
   { name: "Solicitudes", href: "/requests", icon: FileText, roles: ["admin", "manager", "employee"] },
   { name: "Notificaciones", href: "/notifications", icon: Bell, roles: ["admin", "manager", "employee"] },
+];
+
+const payrollNavigation: NavItem[] = [
+  { name: "Configuración", href: "/nomina/configuracion", icon: Wallet, roles: ["admin"] },
 ];
 
 const configNavigation: NavItem[] = [
@@ -82,6 +87,20 @@ export function Sidebar() {
     if (configActive) setConfigOpen(true);
   }, [configActive]);
 
+  const filteredPayroll = payrollNavigation.filter(
+    (item) => profile && item.roles.includes(profile.role as Role)
+  );
+
+  const payrollActive = filteredPayroll.some((item) =>
+    pathname.startsWith(item.href)
+  );
+
+  const [payrollOpen, setPayrollOpen] = useState(payrollActive);
+
+  useEffect(() => {
+    if (payrollActive) setPayrollOpen(true);
+  }, [payrollActive]);
+
   const renderLink = (item: NavItem) => {
     const isActive = pathname.startsWith(item.href);
     return (
@@ -112,6 +131,32 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {filteredTop.map(renderLink)}
+
+        {filteredPayroll.length > 0 && (
+          <>
+            <div className="my-2 border-t" />
+            <Collapsible open={payrollOpen} onOpenChange={setPayrollOpen}>
+              <CollapsibleTrigger
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <Wallet className="h-4 w-4" />
+                <span className="flex-1 text-left">Nómina</span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    payrollOpen && "rotate-180"
+                  )}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1 space-y-1 pl-3">
+                {filteredPayroll.map(renderLink)}
+              </CollapsibleContent>
+            </Collapsible>
+          </>
+        )}
 
         {filteredConfig.length > 0 && (
           <>
