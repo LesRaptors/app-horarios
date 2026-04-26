@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { Calendar, Users, Clock, FileText, Loader2 } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/constants";
+import { EmployeeDashboard } from "@/components/dashboard/employee-dashboard";
 import { formatTime, formatDate } from "@/lib/utils";
 
 interface UpcomingShift {
@@ -147,6 +148,10 @@ export default function DashboardPage() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (profile?.role === "employee") {
+    return <EmployeeDashboard />;
   }
 
   return (
