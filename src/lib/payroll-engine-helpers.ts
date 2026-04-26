@@ -22,3 +22,21 @@ export function getSolidarityRate(ibc: number, smmlv: number): number {
   if (ratio < 20) return 0.018;
   return 0.02;
 }
+
+export function getArlRate(class_: number | null): number {
+  switch (class_) {
+    case 1:
+    case null:
+    case undefined:
+      return 0.00522;
+    case 2: return 0.01044;
+    case 3: return 0.02436;
+    case 4: return 0.04350;
+    case 5: return 0.06960;
+    default: return 0.00522;
+  }
+}
+
+export function isExonerationApplicable(monthlySalary: number, smmlv: number): boolean {
+  return monthlySalary < 10 * smmlv;
+}

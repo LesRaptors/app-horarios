@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate } from "./payroll-engine-helpers";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable } from "./payroll-engine-helpers";
 
 describe("isIncomeForConcept", () => {
   it.each([
@@ -39,5 +39,28 @@ describe("getSolidarityRate", () => {
   it("≥ 20 SMMLV → 0.02", () => {
     expect(getSolidarityRate(20 * SMMLV, SMMLV)).toBe(0.02);
     expect(getSolidarityRate(25 * SMMLV, SMMLV)).toBe(0.02);
+  });
+});
+
+describe("getArlRate", () => {
+  it.each([
+    [null, 0.00522],
+    [1, 0.00522],
+    [2, 0.01044],
+    [3, 0.02436],
+    [4, 0.04350],
+    [5, 0.06960],
+  ])("class %s → %f", (cls, expected) => {
+    expect(getArlRate(cls as number | null)).toBeCloseTo(expected, 5);
+  });
+});
+
+describe("isExonerationApplicable", () => {
+  it("salary < 10×SMMLV → true", () => {
+    expect(isExonerationApplicable(5_000_000, SMMLV)).toBe(true);
+  });
+  it("salary ≥ 10×SMMLV → false", () => {
+    expect(isExonerationApplicable(10 * SMMLV, SMMLV)).toBe(false);
+    expect(isExonerationApplicable(20 * SMMLV, SMMLV)).toBe(false);
   });
 });
