@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions } from "./payroll-engine-helpers";
-import type { TaxPersonalDeduction } from "./types";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour } from "./payroll-engine-helpers";
+import type { TaxPersonalDeduction, HolidayDate, PayrollSettings } from "./types";
 
 describe("isIncomeForConcept", () => {
   it.each([
@@ -101,5 +101,53 @@ describe("getCurrentTaxDeductions", () => {
     ];
     expect(getCurrentTaxDeductions(h, "emp1", "2026-04-15")?.id).toBe("b");
     expect(getCurrentTaxDeductions(h, "emp1", "2026-02-15")?.id).toBe("a");
+  });
+});
+
+const settings: PayrollSettings = {
+  id: "s1", period_start: "2026-01-01", period_end: null,
+  smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220,
+  night_start_hour: 19, sunday_surcharge_pct: 0.8, holiday_surcharge_pct: 0.8,
+  uvt: 52374, updated_at: "2026-01-01",
+} as PayrollSettings & { uvt: number };
+
+describe("classifyHour", () => {
+  it("Monday 14:00 → all false", () => {
+    // 2026-04-06 is Monday
+    expect(classifyHour("2026-04-06", 14, [], settings, "loc1"))
+      .toEqual({ isNight: false, isSunday: false, isHoliday: false });
+  });
+  it("Monday 20:00 → night only", () => {
+    expect(classifyHour("2026-04-06", 20, [], settings, "loc1"))
+      .toEqual({ isNight: true, isSunday: false, isHoliday: false });
+  });
+  it("Monday 04:00 → night only", () => {
+    expect(classifyHour("2026-04-06", 4, [], settings, "loc1"))
+      .toEqual({ isNight: true, isSunday: false, isHoliday: false });
+  });
+  it("Sunday 14:00 → sunday only", () => {
+    // 2026-04-05 is Sunday
+    expect(classifyHour("2026-04-05", 14, [], settings, "loc1"))
+      .toEqual({ isNight: false, isSunday: true, isHoliday: false });
+  });
+  it("Sunday 22:00 → night and sunday", () => {
+    expect(classifyHour("2026-04-05", 22, [], settings, "loc1"))
+      .toEqual({ isNight: true, isSunday: true, isHoliday: false });
+  });
+  it("Holiday Tuesday → holiday only", () => {
+    const hols: HolidayDate[] = [{
+      id: "h1", date: "2026-05-01", name: "Día del Trabajo",
+      location_id: null, created_at: "2026-01-01",
+    } as HolidayDate];
+    expect(classifyHour("2026-05-01", 14, hols, settings, "loc1"))
+      .toEqual({ isNight: false, isSunday: false, isHoliday: true });
+  });
+  it("Holiday with location_id matches employee location", () => {
+    const hols: HolidayDate[] = [{
+      id: "h2", date: "2026-04-15", name: "Aniversario sede",
+      location_id: "loc1", created_at: "2026-01-01",
+    } as HolidayDate];
+    expect(classifyHour("2026-04-15", 14, hols, settings, "loc1").isHoliday).toBe(true);
+    expect(classifyHour("2026-04-15", 14, hols, settings, "loc2").isHoliday).toBe(false);
   });
 });

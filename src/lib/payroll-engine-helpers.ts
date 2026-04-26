@@ -62,3 +62,21 @@ export function getCurrentTaxDeductions(
   }
   return null;
 }
+
+import type { HolidayDate, PayrollSettings } from "./types";
+
+export function classifyHour(
+  date: string,
+  hourOfDay: number,
+  holidays: HolidayDate[],
+  settings: PayrollSettings,
+  locationId: string
+): { isNight: boolean; isSunday: boolean; isHoliday: boolean } {
+  const dow = new Date(date + "T00:00:00").getDay();
+  const isSunday = dow === 0;
+  const isNight = hourOfDay >= settings.night_start_hour || hourOfDay < 6;
+  const isHoliday = holidays.some(
+    (h) => h.date === date && (h.location_id === null || h.location_id === locationId)
+  );
+  return { isNight, isSunday, isHoliday };
+}
