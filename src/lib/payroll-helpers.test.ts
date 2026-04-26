@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { formatCOP, parseCOP, getCurrentSalary } from "./payroll-helpers";
-import type { SalaryHistory } from "./types";
+import { formatCOP, parseCOP, getCurrentSalary, getSettingsForDate } from "./payroll-helpers";
+import type { SalaryHistory, PayrollSettings } from "./types";
 
 describe("formatCOP", () => {
   it("formats integer COP with dot thousands", () => {
@@ -73,5 +73,29 @@ describe("getCurrentSalary", () => {
       mkSal({ id: "b", employee_id: "emp2" }),
     ];
     expect(getCurrentSalary(h, "emp2", "2026-04-15")?.id).toBe("b");
+  });
+});
+
+const settings2026: PayrollSettings[] = [
+  { id: "p1", period_start: "2026-01-01", period_end: "2026-06-30", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.8, holiday_surcharge_pct: 0.8, updated_at: "2026-01-01" },
+  { id: "p2", period_start: "2026-07-01", period_end: "2026-07-14", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, updated_at: "2026-01-01" },
+  { id: "p3", period_start: "2026-07-15", period_end: null, smmlv: 1750905, aux_transport: 249095, hourly_divisor: 210, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, updated_at: "2026-01-01" },
+];
+
+describe("getSettingsForDate", () => {
+  it("April 15 → first sub-period", () => {
+    expect(getSettingsForDate(settings2026, "2026-04-15")?.id).toBe("p1");
+  });
+  it("July 10 → second sub-period", () => {
+    expect(getSettingsForDate(settings2026, "2026-07-10")?.id).toBe("p2");
+  });
+  it("August 1 → third (open-ended)", () => {
+    expect(getSettingsForDate(settings2026, "2026-08-01")?.id).toBe("p3");
+  });
+  it("date before any period → null", () => {
+    expect(getSettingsForDate(settings2026, "2025-12-31")).toBeNull();
+  });
+  it("empty settings → null", () => {
+    expect(getSettingsForDate([], "2026-04-15")).toBeNull();
   });
 });
