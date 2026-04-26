@@ -283,6 +283,45 @@ export type Database = {
           },
         ]
       }
+      payroll_settings: {
+        Row: {
+          aux_transport: number
+          holiday_surcharge_pct: number
+          hourly_divisor: number
+          id: string
+          night_start_hour: number
+          period_end: string | null
+          period_start: string
+          smmlv: number
+          sunday_surcharge_pct: number
+          updated_at: string
+        }
+        Insert: {
+          aux_transport: number
+          holiday_surcharge_pct: number
+          hourly_divisor: number
+          id?: string
+          night_start_hour: number
+          period_end?: string | null
+          period_start: string
+          smmlv: number
+          sunday_surcharge_pct: number
+          updated_at?: string
+        }
+        Update: {
+          aux_transport?: number
+          holiday_surcharge_pct?: number
+          hourly_divisor?: number
+          id?: string
+          night_start_hour?: number
+          period_end?: string | null
+          period_start?: string
+          smmlv?: number
+          sunday_surcharge_pct?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           color: string
@@ -387,6 +426,111 @@ export type Database = {
             columns: ["position_id"]
             isOneToOne: false
             referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salary_adjustments: {
+        Row: {
+          amount: number
+          concept_label: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          employee_id: string
+          id: string
+          is_salary_component: boolean
+          payment_date: string
+        }
+        Insert: {
+          amount: number
+          concept_label: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id: string
+          id?: string
+          is_salary_component: boolean
+          payment_date: string
+        }
+        Update: {
+          amount?: number
+          concept_label?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string
+          id?: string
+          is_salary_component?: boolean
+          payment_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_adjustments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salary_history: {
+        Row: {
+          change_reason: string | null
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          is_integral_salary: boolean
+          monthly_salary: number
+          transport_aux_override: boolean | null
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+          is_integral_salary?: boolean
+          monthly_salary: number
+          transport_aux_override?: boolean | null
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+          is_integral_salary?: boolean
+          monthly_salary?: number
+          transport_aux_override?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
