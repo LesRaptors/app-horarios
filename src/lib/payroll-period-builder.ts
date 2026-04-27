@@ -62,15 +62,13 @@ export async function assemblePayrollPeriod(
       .from("profiles")
       .select("*")
       .in("id", employeeIds)
-      .eq("is_active", true)
-      .eq("is_demo", false);
+      .eq("is_active", true);
     employees = data ?? [];
   } else {
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("is_active", true)
-      .eq("is_demo", false)
       .or("is_terminated.is.null,is_terminated.eq.false");
     employees = data ?? [];
   }
@@ -148,18 +146,6 @@ export async function assemblePayrollPeriod(
   const periodYear = parseInt(periodStart.slice(0, 4), 10);
 
   // 3. Fetch ytd provisions before this period for all employees
-  const ytdRes = await supabase
-    .from("payroll_provisions")
-    .select("employee_id, concept, amount")
-    .in("employee_id", allEmployeeIds)
-    .lt(
-      "payroll_period_id",
-      // We join to payroll_periods to filter by year + approved status
-      // Simpler: fetch via the period's created_at or use a sub-select.
-      // Instead, fetch all provisions for the year from approved/paid periods before this one.
-      ""
-    );
-  // Override: fetch ytd via a separate structured query
   const ytdProvisionsMap: Record<string, { cesantias: number; cesantias_interest: number; prima: number; vacaciones: number }> = {};
 
   // Fetch all payroll_provisions for these employees for this year from periods with status approved/paid
