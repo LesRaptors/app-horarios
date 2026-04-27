@@ -16,6 +16,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { computePayroll } from "@/lib/payroll-engine";
+import type { ComputedEntry } from "@/lib/payroll-engine";
 import type {
   Profile,
   SalaryHistory,
@@ -53,6 +54,54 @@ export async function assemblePayrollPeriod(
 
   const warnings: string[] = [];
   const errors: string[] = [];
+
+  // 0. Read payment_mode from app_flags (cached for the whole period build)
+  const { data: flagsRow } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "app_flags")
+    .maybeSingle();
+
+  const paymentMode: "independent" | "advance_settlement" =
+    ((flagsRow?.value as Record<string, unknown>)?.payment_mode as string) === "advance_settlement"
+      ? "advance_settlement"
+      : "independent";
+
+  // Detect structural Q1 advance: advance_settlement + quincenal + 01-to-15 window
+  const isQ1Advance =
+    paymentMode === "advance_settlement" &&
+    frequency === "quincenal" &&
+    periodStart.endsWith("-01") &&
+    periodEnd.endsWith("-15");
+
+  // Detect structural Q2 settlement: advance_settlement + quincenal + 16-to-EOM window
+  const isQ2Settlement =
+    paymentMode === "advance_settlement" &&
+    frequency === "quincenal" &&
+    periodStart.endsWith("-16");
+
+  // If this is a Q1 advance period, mark it on payroll_periods immediately (once, not per employee)
+  if (isQ1Advance) {
+    await supabase
+      .from("payroll_periods")
+      .update({ is_advance: true })
+      .eq("id", periodId);
+  }
+
+  // Hoist Q1 period ID lookup for Q2 settlement (doesn't depend on individual employee)
+  let q1PeriodId: string | null = null;
+  if (isQ2Settlement) {
+    const monthStart = periodStart.slice(0, 7) + "-01";
+    const q1End = periodStart.slice(0, 7) + "-15";
+    const { data: q1PeriodRow } = await supabase
+      .from("payroll_periods")
+      .select("id")
+      .eq("period_start", monthStart)
+      .eq("period_end", q1End)
+      .eq("is_advance", true)
+      .maybeSingle();
+    q1PeriodId = q1PeriodRow?.id ?? null;
+  }
 
   // 1. Resolve employee list
   let employees: (Profile & { hire_date: string | null; termination_date: string | null; arl_risk_class: number | null })[] = [];
@@ -207,6 +256,7 @@ export async function assemblePayrollPeriod(
   const entriesInsert: object[] = [];
   const provisionsInsert: object[] = [];
   const employerCostInsert: object[] = [];
+  let anyAdvanceWarning = false;
 
   for (const employee of employees) {
     const empEntries = scheduleEntries.filter((e) => e.employee_id === employee.id);
@@ -232,9 +282,21 @@ export async function assemblePayrollPeriod(
       vacaciones: 0,
     };
 
+    // Q2 settlement: fetch Q1 advance entries for this employee
+    let q1AdvanceEntries: ComputedEntry[] | undefined;
+    if (isQ2Settlement && q1PeriodId) {
+      const { data: q1Rows } = await supabase
+        .from("payroll_entries")
+        .select("concept_type, amount, is_income, base, rate, description")
+        .eq("payroll_period_id", q1PeriodId)
+        .eq("employee_id", employee.id)
+        .in("concept_type", ["salary", "transport"]);
+      q1AdvanceEntries = (q1Rows ?? []) as ComputedEntry[];
+    }
+
     const output = computePayroll({
       employee,
-      period: { start: periodStart, end: periodEnd, frequency },
+      period: { start: periodStart, end: periodEnd, frequency, paymentMode },
       salaryHistory: empSalaryHistory,
       scheduleEntries: empEntries,
       shiftTemplates,
@@ -244,6 +306,7 @@ export async function assemblePayrollPeriod(
       taxDeductions: empTaxDeductions,
       settings: payrollSettings,
       ytdProvisionsBefore: ytdBefore,
+      q1AdvanceEntries,
     });
 
     if (output.warnings.length > 0) {
@@ -251,6 +314,11 @@ export async function assemblePayrollPeriod(
     }
     if (output.errors.length > 0) {
       errors.push(...output.errors.map((e) => `[${employee.first_name} ${employee.last_name}] ${e}`));
+    }
+
+    // Track if engine flagged this as a Q1 advance (belt-and-suspenders for the is_advance DB flag)
+    if (!anyAdvanceWarning && output.warnings.some((w) => w.includes("Anticipo de Q1"))) {
+      anyAdvanceWarning = true;
     }
 
     // Collect entries
@@ -304,6 +372,15 @@ export async function assemblePayrollPeriod(
   }
   if (employerCostInsert.length > 0) {
     await supabase.from("payroll_employer_cost").insert(employerCostInsert);
+  }
+
+  // 7. Belt-and-suspenders: if engine reported "Anticipo de Q1" but structural detection
+  //    didn't catch it (e.g., non-standard date), mark the period as advance now.
+  if (anyAdvanceWarning && !isQ1Advance) {
+    await supabase
+      .from("payroll_periods")
+      .update({ is_advance: true })
+      .eq("id", periodId);
   }
 
   return { employeesProcessed: employees.length, warnings, errors };
