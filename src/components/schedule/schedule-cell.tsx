@@ -34,6 +34,15 @@ function ScheduleCellInner({ entry, canEdit, onClick }: ScheduleCellProps) {
           const isCap =
             entry.exceeds_caps.includes("sundays_quarter") ||
             entry.exceeds_caps.includes("holidays_quarter");
+          const reasons: string[] = [];
+          if (entry.exceeds_caps.includes("weekly_hours")) reasons.push("Horas de la semana");
+          if (entry.exceeds_caps.includes("consecutive_days")) reasons.push("Días consecutivos");
+          if (entry.exceeds_caps.includes("night_limit")) reasons.push("Turnos nocturnos");
+          if (entry.exceeds_caps.includes("sundays_quarter")) reasons.push("Domingos del trimestre");
+          if (entry.exceeds_caps.includes("holidays_quarter")) reasons.push("Festivos del trimestre");
+          const tooltip = reasons.length > 0
+            ? `Excede: ${reasons.join(", ")} — pendiente de aprobación`
+            : "Hora extra — pendiente de aprobación";
           return (
             <>
               <div
@@ -45,7 +54,7 @@ function ScheduleCellInner({ entry, canEdit, onClick }: ScheduleCellProps) {
                 className={`absolute -top-1 -right-1 flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold shadow-sm ${
                   isCap ? "bg-red-500 text-white" : "bg-amber-500 text-white"
                 }`}
-                title={isCap ? "Excede cap del trimestre — pendiente de aprobación" : "Hora extra — pendiente de aprobación"}
+                title={tooltip}
               >
                 {isCap ? (
                   <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
