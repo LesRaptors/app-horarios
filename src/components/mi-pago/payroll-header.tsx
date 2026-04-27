@@ -48,7 +48,7 @@ function periodLabel(p: PayrollPeriod): string {
 
 function modeLabel(p: PayrollPeriod): string {
   if (p.is_advance) return "Anticipo Q1";
-  return "Liquidacion";
+  return "Liquidación";
 }
 
 export function PayrollHeader({

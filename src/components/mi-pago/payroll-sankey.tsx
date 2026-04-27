@@ -189,7 +189,7 @@ export function PayrollSankey({ data, height = 400, onNodeClick }: Props) {
         ref={svgRef}
         width="100%"
         height={height}
-        aria-label="Diagrama Sankey de distribucion del pago"
+        aria-label="Diagrama Sankey de distribución del pago"
         role="img"
         className="text-foreground"
       />

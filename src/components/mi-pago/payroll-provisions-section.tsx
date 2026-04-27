@@ -29,14 +29,14 @@ export function PayrollProvisionsSection({ provisions, ytdSummary }: Props) {
   const cards: ProvisionCard[] = [
     {
       concept: "cesantias",
-      label: "Cesantias",
+      label: "Cesantías",
       thisPeriod: byConceptThisPeriod("cesantias"),
       ytd: ytdSummary.cesantiasYtd,
       paymentNote: "Se consignan al fondo en febrero",
     },
     {
       concept: "cesantias_interest",
-      label: "Intereses cesantias",
+      label: "Intereses cesantías",
       thisPeriod: byConceptThisPeriod("cesantias_interest"),
       ytd: ytdSummary.cesantiasInterestYtd,
       paymentNote: "Se pagan en febrero",
@@ -68,7 +68,7 @@ export function PayrollProvisionsSection({ provisions, ytdSummary }: Props) {
         </CardTitle>
         <p className="text-sm text-muted-foreground">
           Estos valores no entran a tu cuenta este mes — la empresa los guarda y
-          te los paga despues.
+          te los paga después.
         </p>
       </CardHeader>
       <CardContent>

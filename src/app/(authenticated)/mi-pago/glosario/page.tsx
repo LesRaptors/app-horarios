@@ -20,7 +20,7 @@ const CONCEPTS: ConceptDef[] = [
   {
     id: "salary",
     title: "Salario base",
-    body: `Es el valor pactado en tu contrato de trabajo. En Colombia se calcula sobre 30 días al mes, independientemente de que el mes tenga 28, 29, 30 o 31 días. Sobre el salario base se calculan todos los aportes a seguridad social y prestaciones sociales. El salario mínimo mensual legal vigente (SMMLV) para 2026 es $1.423.500.`,
+    body: `Es el valor pactado en tu contrato de trabajo. En Colombia se calcula sobre 30 días al mes, independientemente de que el mes tenga 28, 29, 30 o 31 días. Sobre el salario base se calculan todos los aportes a seguridad social y prestaciones sociales. El salario mínimo mensual legal vigente (SMMLV) para 2026 es $1.750.905.`,
   },
   {
     id: "transport",
