@@ -11,6 +11,7 @@ import { CapBar } from "@/components/equidad/cap-bar";
 import { EmployeeKpiCards } from "./employee-kpi-cards";
 import { MonthlyTargets } from "./monthly-targets";
 import { UpcomingShiftsList } from "./upcoming-shifts-list";
+import { PayrollCard } from "./payroll-card";
 
 const monthName = (m: number) =>
   ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][m - 1];
@@ -64,6 +65,8 @@ export function EmployeeDashboard() {
           {ROLE_LABELS[profile.role]} — Panel personal
         </p>
       </div>
+
+      <PayrollCard />
 
       <EmployeeKpiCards
         profile={profile}

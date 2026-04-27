@@ -64,7 +64,7 @@ export function PayrollSankey({ data, height = 400, onNodeClick }: Props) {
 
     const sankeyNodes: D3Node[] = data.nodes.map((n) => ({ ...n }));
     const nodeIndex = new Map(sankeyNodes.map((n, i) => [n.id, i]));
-    const sankeyLinks: D3Link[] = data.links
+    const sankeyLinks: D3Link[] = (data.links
       .filter(
         (l) =>
           nodeIndex.has(l.source) &&
@@ -72,10 +72,10 @@ export function PayrollSankey({ data, height = 400, onNodeClick }: Props) {
           l.value > 0
       )
       .map((l) => ({
-        source: nodeIndex.get(l.source) as number,
-        target: nodeIndex.get(l.target) as number,
+        source: nodeIndex.get(l.source) as unknown as D3Node,
+        target: nodeIndex.get(l.target) as unknown as D3Node,
         value: l.value,
-      }));
+      })) as unknown) as D3Link[];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sankeyLayout = (sankey as any)()
