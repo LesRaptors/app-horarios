@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { StaffingMatrix } from "@/components/staffing/staffing-matrix";
-import type { Location, Position, ShiftTemplate } from "@/lib/types";
+import type { Location } from "@/lib/types";
 
 export default function StaffingPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -20,8 +20,6 @@ export default function StaffingPage() {
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const fetchLocations = useCallback(async () => {
@@ -35,31 +33,10 @@ export default function StaffingPage() {
     setLoadingData(false);
   }, [supabase, selectedLocationId]);
 
-  const fetchLocationData = useCallback(async () => {
-    if (!selectedLocationId) return;
-
-    const [posRes, stRes] = await Promise.all([
-      supabase.from("positions").select("*, department:departments(location_id)").order("name"),
-      supabase.from("shift_templates").select("*").eq("location_id", selectedLocationId).order("name"),
-    ]);
-
-    // Filter positions to those belonging to departments in this location
-    const allPositions = (posRes.data ?? []) as (Position & { department: { location_id: string } | null })[];
-    const locationPositions = allPositions.filter(
-      (p) => p.department?.location_id === selectedLocationId
-    );
-    setPositions(locationPositions);
-    setShiftTemplates((stRes.data ?? []) as ShiftTemplate[]);
-  }, [supabase, selectedLocationId]);
-
   useEffect(() => {
     if (!authLoading && profile) fetchLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, profile]);
-
-  useEffect(() => {
-    if (selectedLocationId) fetchLocationData();
-  }, [selectedLocationId, fetchLocationData]);
 
   if (authLoading) {
     return (
@@ -111,8 +88,6 @@ export default function StaffingPage() {
         <StaffingMatrix
           key={selectedLocationId}
           locationId={selectedLocationId}
-          positions={positions}
-          shiftTemplates={shiftTemplates}
         />
       ) : (
         <p className="text-muted-foreground">Selecciona una sede para configurar las necesidades.</p>

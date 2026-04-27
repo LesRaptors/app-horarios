@@ -1,248 +1,193 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { translateDbError } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Save } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { DAY_OF_WEEK_SHORT, WEEKDAYS_DISPLAY_ORDER } from "@/lib/constants";
-import type {
-  Position,
-  ShiftTemplate,
-  StaffingRequirement,
-} from "@/lib/types";
+import { Loader2, Save } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useStaffingMatrix } from "@/hooks/use-staffing-matrix";
+import {
+  replicateAcrossDays,
+  replicateShiftToShift,
+  parseCellKey,
+  type CellKey,
+} from "@/lib/staffing-helpers";
+import { StaffingTabByShift } from "@/components/staffing/staffing-tab-by-shift";
+import { StaffingTabByPosition } from "@/components/staffing/staffing-tab-by-position";
+import { StaffingTabHeatmap } from "@/components/staffing/staffing-tab-heatmap";
 
 interface StaffingMatrixProps {
   locationId: string;
-  positions: Position[];
-  shiftTemplates: ShiftTemplate[];
 }
 
-// key: "positionId_shiftTemplateId_dayOfWeek" -> required_count
-type RequirementMap = Record<string, number>;
-
-function makeKey(positionId: string, shiftTemplateId: string, dayOfWeek: number) {
-  return `${positionId}_${shiftTemplateId}_${dayOfWeek}`;
-}
-
-export function StaffingMatrix({
-  locationId,
-  positions,
-  shiftTemplates,
-}: StaffingMatrixProps) {
+export function StaffingMatrix({ locationId }: StaffingMatrixProps) {
   const supabase = createClient();
-  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState<Record<CellKey, number>>({});
+  const [activeTab, setActiveTab] = useState<"shift" | "position" | "heatmap">("shift");
   const [saving, setSaving] = useState(false);
-  const [requirements, setRequirements] = useState<RequirementMap>({});
-  const [originalRequirements, setOriginalRequirements] = useState<RequirementMap>({});
 
-  const fetchRequirements = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("staffing_requirements")
-      .select("*")
-      .eq("location_id", locationId);
+  const { loading, positions, shiftTemplates, persisted, capacity, recentCoverage, refetch } =
+    useStaffingMatrix(locationId);
 
-    if (error) {
-      toast.error(translateDbError(error.message, "Error al cargar necesidades"));
-      setLoading(false);
-      return;
-    }
-
-    const map: RequirementMap = {};
-    for (const req of (data as StaffingRequirement[]) || []) {
-      const key = makeKey(req.position_id, req.shift_template_id, req.day_of_week);
-      map[key] = req.required_count;
-    }
-    setRequirements(map);
-    setOriginalRequirements(map);
-    setLoading(false);
-  }, [supabase, locationId]);
-
-  useEffect(() => {
-    if (locationId) fetchRequirements();
-  }, [locationId, fetchRequirements]);
-
-  function handleChange(positionId: string, shiftTemplateId: string, dayOfWeek: number, value: string) {
-    const num = Math.max(0, parseInt(value) || 0);
-    const key = makeKey(positionId, shiftTemplateId, dayOfWeek);
-    setRequirements((prev) => ({ ...prev, [key]: num }));
+  function onCellChange(key: CellKey, value: number) {
+    setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  const hasChanges = JSON.stringify(requirements) !== JSON.stringify(originalRequirements);
+  function onReplicateAcrossDays(
+    sourceDay: number,
+    targetDays: number[],
+    scope: { positionIds: string[]; shiftTemplateIds: string[] }
+  ) {
+    const desired = { ...persisted, ...draft };
+    const next = replicateAcrossDays(desired, sourceDay, targetDays, scope);
+    const newDraft: Record<CellKey, number> = {};
+    for (const [key, value] of Object.entries(next)) {
+      if (persisted[key] !== value) newDraft[key] = value;
+    }
+    setDraft(newDraft);
+  }
+
+  function onReplicateShiftToShift(
+    sourceShiftId: string,
+    targetShiftId: string,
+    scope: { positionIds: string[] }
+  ) {
+    const desired = { ...persisted, ...draft };
+    const next = replicateShiftToShift(desired, sourceShiftId, targetShiftId, scope);
+    const newDraft: Record<CellKey, number> = {};
+    for (const [key, value] of Object.entries(next)) {
+      if (persisted[key] !== value) newDraft[key] = value;
+    }
+    setDraft(newDraft);
+  }
 
   async function handleSave() {
     setSaving(true);
+    const desired = { ...persisted, ...draft };
+    const rows = Object.entries(desired)
+      .filter(([, v]) => v > 0)
+      .map(([key, value]) => ({ ...parseCellKey(key), required_count: value }));
 
-    // Collect all non-zero requirements to upsert
-    const rows: {
-      location_id: string;
-      position_id: string;
-      shift_template_id: string;
-      day_of_week: number;
-      required_count: number;
-    }[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("save_staffing_diff", {
+      p_location_id: locationId,
+      p_rows: rows,
+    });
 
-    for (const template of shiftTemplates) {
-      for (const pos of positions) {
-        for (const dow of WEEKDAYS_DISPLAY_ORDER) {
-          const key = makeKey(pos.id, template.id, dow);
-          const count = requirements[key] ?? 0;
-          rows.push({
-            location_id: locationId,
-            position_id: pos.id,
-            shift_template_id: template.id,
-            day_of_week: dow,
-            required_count: count,
-          });
-        }
-      }
+    if (error) {
+      toast.error("Error al guardar: " + error.message);
+    } else {
+      const result = data as { inserted: number; updated: number; deleted: number } | null;
+      const parts: string[] = [];
+      if (result?.inserted) parts.push(`${result.inserted} nuevas`);
+      if (result?.updated) parts.push(`${result.updated} modificadas`);
+      if (result?.deleted) parts.push(`${result.deleted} borradas`);
+      const summary = parts.length > 0 ? parts.join(", ") : "sin cambios netos";
+      toast.success(`Necesidades guardadas — ${summary}`);
+      refetch();
+      setDraft({});
     }
-
-    // Delete existing and insert all (simpler than upsert per row)
-    const { error: delError } = await supabase
-      .from("staffing_requirements")
-      .delete()
-      .eq("location_id", locationId);
-
-    if (delError) {
-      toast.error(translateDbError(delError.message, "Error al guardar"));
-      setSaving(false);
-      return;
-    }
-
-    // Only insert rows with count > 0
-    const toInsert = rows.filter((r) => r.required_count > 0);
-    if (toInsert.length > 0) {
-      const { error: insError } = await supabase
-        .from("staffing_requirements")
-        .insert(toInsert);
-
-      if (insError) {
-        toast.error(translateDbError(insError.message, "Error al guardar"));
-        setSaving(false);
-        return;
-      }
-    }
-
-    toast.success("Necesidades de personal guardadas");
-    setOriginalRequirements({ ...requirements });
     setSaving(false);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+  function handleDiscard() {
+    const count = Object.keys(draft).length;
+    if (count === 0) return;
+    if (window.confirm(`Tienes ${count} cambios sin guardar — ¿descartar?`)) {
+      setDraft({});
+    }
   }
 
-  if (shiftTemplates.length === 0) {
-    return (
-      <p className="text-muted-foreground py-8 text-center">
-        No hay plantillas de turno para esta sede. Crea plantillas en la seccion de Turnos.
-      </p>
-    );
-  }
-
-  if (positions.length === 0) {
-    return (
-      <p className="text-muted-foreground py-8 text-center">
-        No hay posiciones definidas. Crea posiciones en la seccion de Posiciones.
-      </p>
-    );
-  }
+  const draftCount = Object.keys(draft).length;
 
   return (
-    <div className="space-y-6">
-      {shiftTemplates.map((template) => (
-        <Card key={template.id}>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span
-                className="inline-block h-3 w-3 rounded-full"
-                style={{ backgroundColor: template.color }}
-              />
-              {template.name}
-              <span className="text-sm font-normal text-muted-foreground">
-                ({template.start_time.slice(0, 5)} - {template.end_time.slice(0, 5)})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground">
-                      Posición
-                    </th>
-                    {WEEKDAYS_DISPLAY_ORDER.map((dow) => (
-                      <th
-                        key={dow}
-                        className={`text-center py-2 px-1 font-medium text-muted-foreground min-w-[3.5rem] ${
-                          dow === 0 || dow === 6 ? "text-red-500" : ""
-                        }`}
-                      >
-                        {DAY_OF_WEEK_SHORT[dow]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map((pos) => (
-                    <tr key={pos.id} className="border-t">
-                      <td className="py-2 pr-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: pos.color }}
-                          />
-                          <span className="text-sm">{pos.name}</span>
-                        </div>
-                      </td>
-                      {WEEKDAYS_DISPLAY_ORDER.map((dow) => {
-                        const key = makeKey(pos.id, template.id, dow);
-                        const value = requirements[key] ?? 0;
-                        return (
-                          <td key={dow} className="py-2 px-1 text-center">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={99}
-                              value={value}
-                              onChange={(e) =>
-                                handleChange(pos.id, template.id, dow, e.target.value)
-                              }
-                              className="h-8 w-14 text-center mx-auto [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {/* Save button */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving || !hasChanges}>
-          {saving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Guardar necesidades
-        </Button>
+    <div className="space-y-4">
+      {/* Header sticky con conteo + botones */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-2 flex items-center justify-between border-b">
+        {draftCount > 0 ? (
+          <Badge variant="default" className="gap-1">
+            <span className="font-mono">{draftCount}</span>
+            <span>cambios sin guardar</span>
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">Sin cambios pendientes</span>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={handleDiscard}
+            disabled={draftCount === 0}
+          >
+            Descartar
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving || draftCount === 0}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Guardar cambios
+          </Button>
+        </div>
       </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+          <TabsList>
+            <TabsTrigger value="shift">Por turno</TabsTrigger>
+            <TabsTrigger value="position">Por posición</TabsTrigger>
+            <TabsTrigger value="heatmap">Heatmap demanda</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="shift">
+            <StaffingTabByShift
+              positions={positions}
+              shiftTemplates={shiftTemplates}
+              persisted={persisted}
+              draft={draft}
+              capacity={capacity}
+              recentCoverage={recentCoverage}
+              onCellChange={onCellChange}
+              onReplicateAcrossDays={onReplicateAcrossDays}
+              onReplicateShiftToShift={onReplicateShiftToShift}
+            />
+          </TabsContent>
+
+          <TabsContent value="position">
+            <StaffingTabByPosition
+              positions={positions}
+              shiftTemplates={shiftTemplates}
+              persisted={persisted}
+              draft={draft}
+              capacity={capacity}
+              recentCoverage={recentCoverage}
+              onCellChange={onCellChange}
+              onReplicateAcrossDays={onReplicateAcrossDays}
+              onReplicateShiftToShift={onReplicateShiftToShift}
+            />
+          </TabsContent>
+
+          <TabsContent value="heatmap">
+            <StaffingTabHeatmap
+              positions={positions}
+              shiftTemplates={shiftTemplates}
+              persisted={persisted}
+              draft={draft}
+              capacity={capacity}
+              onCellChange={onCellChange}
+            />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
