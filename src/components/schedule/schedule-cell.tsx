@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Plus, Check } from "lucide-react";
+import { Plus, Check, AlertTriangle, Clock } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import type { ScheduleEntry } from "@/lib/types";
 
@@ -30,24 +30,33 @@ function ScheduleCellInner({ entry, canEdit, onClick }: ScheduleCellProps) {
         {entry.position && (
           <div className="truncate opacity-90">{entry.position.name}</div>
         )}
-        {entry && entry.overtime_status === "pending" && (
-          <>
-            <div
-              className={`absolute inset-0 border-2 border-dashed rounded pointer-events-none ${
-                entry.exceeds_caps.includes("sundays_quarter") ||
-                entry.exceeds_caps.includes("holidays_quarter")
-                  ? "border-red-400"
-                  : "border-amber-400"
-              }`}
-            />
-            <div className="absolute top-0 right-0 text-[9px] px-1 bg-white/80 rounded-bl font-medium">
-              {entry.exceeds_caps.includes("sundays_quarter") ||
-               entry.exceeds_caps.includes("holidays_quarter")
-                ? "⚠ cap"
-                : "⏱ extra"}
-            </div>
-          </>
-        )}
+        {entry && entry.overtime_status === "pending" && (() => {
+          const isCap =
+            entry.exceeds_caps.includes("sundays_quarter") ||
+            entry.exceeds_caps.includes("holidays_quarter");
+          return (
+            <>
+              <div
+                className={`absolute inset-0 border-2 border-dashed rounded pointer-events-none ${
+                  isCap ? "border-red-500" : "border-amber-500"
+                }`}
+              />
+              <div
+                className={`absolute -top-1 -right-1 flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold shadow-sm ${
+                  isCap ? "bg-red-500 text-white" : "bg-amber-500 text-white"
+                }`}
+                title={isCap ? "Excede cap del trimestre — pendiente de aprobación" : "Hora extra — pendiente de aprobación"}
+              >
+                {isCap ? (
+                  <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+                ) : (
+                  <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+                )}
+                <span>{isCap ? "Cap" : "Extra"}</span>
+              </div>
+            </>
+          );
+        })()}
         {entry && entry.overtime_status === "approved" && (
           <Check className="absolute top-0 right-0 h-3 w-3 text-emerald-600" />
         )}

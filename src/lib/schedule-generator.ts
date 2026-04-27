@@ -56,10 +56,15 @@ function calcDurationHours(start: string, end: string, breakMin: number): number
   return (totalMin - breakMin) / 60;
 }
 
+// ISO 8601 week-of-year: semana empieza lunes, año-semana único.
+// Devuelve year*100 + weekNumber (ej. 202615) para evitar colisiones cross-year.
 function getISOWeekNumber(dateStr: string): number {
-  const d = new Date(dateStr + "T00:00:00");
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  return Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+  const d = new Date(dateStr + "T00:00:00Z");
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return d.getUTCFullYear() * 100 + weekNum;
 }
 
 function requiredRestHours(lastShiftWasNight: boolean, constraints: LaborConstraints): number {
