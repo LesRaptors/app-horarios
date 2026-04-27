@@ -21,7 +21,16 @@ import type {
 } from "./types";
 
 import { getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payroll-helpers";
-import { applyDayProration, isIncomeForConcept, classifyHour } from "./payroll-engine-helpers";
+import {
+  applyDayProration,
+  isIncomeForConcept,
+  classifyHour,
+  getSolidarityRate,
+  getArlRate,
+  isExonerationApplicable,
+  depurarBaseRetencion,
+  aplicarTablaRetencion,
+} from "./payroll-engine-helpers";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -501,6 +510,58 @@ export function computeAdjustments(input: PayrollComputeInput): ComputedEntry[] 
       amount: adj.amount,
       description: adj.concept_label,
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Stage 7 — computeIBC
+// ---------------------------------------------------------------------------
+
+/** Concept types that count toward IBC (exclude transport and bonus_non_salary). */
+const IBC_INCOME_CONCEPTS = new Set([
+  "salary",
+  "surcharge_night",
+  "surcharge_sunday",
+  "surcharge_holiday",
+  "overtime_day",
+  "overtime_night",
+  "bonus_salary",
+]);
+
+/**
+ * Compute the Ingreso Base de Cotización (IBC) for the period.
+ *
+ * Normal employee: IBC = sum of salary + surcharges + overtime + bonus_salary.
+ * Integral salary: IBC = 70% × monthly_salary (prorated by worked days).
+ * Caps: IBC ∈ [SMMLV, 25 × SMMLV].
+ */
+export function computeIBC(input: PayrollComputeInput, allEntries: ComputedEntry[]): number {
+  const { employee, period, salaryHistory, settings } = input;
+
+  const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
+  const cfg = getSettingsForDate(settings, period.start);
+
+  const smmlv = cfg?.smmlv ?? 1_750_905;
+
+  const salaryEntry = allEntries.find((e) => e.concept_type === "salary");
+  const isIntegral = salaryEntry?.description === "salario integral";
+
+  let ibc: number;
+
+  if (isIntegral && sal) {
+    // IBC = 70% × monthly_salary prorated by same days ratio as salary entry
+    const days = salaryEntry ? Math.round((salaryEntry.amount / sal.monthly_salary) * 30) : 30;
+    ibc = Math.round(0.70 * sal.monthly_salary * days / 30);
+  } else {
+    // Normal: sum of IBC-eligible income entries
+    ibc = allEntries
+      .filter((e) => IBC_INCOME_CONCEPTS.has(e.concept_type))
+      .reduce((sum, e) => sum + e.amount, 0);
+  }
+
+  // Caps: [SMMLV, 25 × SMMLV]
+  ibc = Math.max(smmlv, Math.min(25 * smmlv, ibc));
+
+  return ibc;
 }
 
 // ---------------------------------------------------------------------------

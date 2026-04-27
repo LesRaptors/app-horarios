@@ -6,11 +6,13 @@ import {
   computeSurcharges,
   computeOvertime,
   computeAdjustments,
+  computeIBC,
   computePayroll,
 } from "./payroll-engine";
 import type {
   PayrollComputeInput,
   WorkedDaysResult,
+  ComputedEntry,
 } from "./payroll-engine";
 import type {
   Profile,
@@ -708,5 +710,94 @@ describe("computePayroll orchestrator (stages 4-6)", () => {
     const bonus = result.entries.find((e) => e.concept_type === "bonus_salary");
     expect(bonus).toBeDefined();
     expect(bonus!.amount).toBe(300_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 7 — computeIBC
+// ---------------------------------------------------------------------------
+
+describe("computeIBC", () => {
+  const SMMLV_VAL = 1_750_905;
+
+  function makeSalaryEntry(amount: number, isIntegral = false): ComputedEntry {
+    return {
+      concept_type: "salary",
+      is_income: true,
+      base: null,
+      rate: null,
+      amount,
+      description: isIntegral ? "salario integral" : null,
+    };
+  }
+
+  it("empleado normal: salary=$2.8M + recargos=$200K + overtime=$100K + transport=$249K → IBC=$3.1M (transport excluido)", () => {
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(2_800_000),
+      { concept_type: "transport", is_income: true, base: null, rate: null, amount: 249_095, description: null },
+      { concept_type: "surcharge_night", is_income: true, base: null, rate: null, amount: 200_000, description: null },
+      { concept_type: "overtime_day", is_income: true, base: null, rate: null, amount: 100_000, description: null },
+    ];
+    const input = mkInput();
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(3_100_000);
+  });
+
+  it("empleado integral $30M, 30 días → IBC = 70% × $30M = $21M", () => {
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(30_000_000, true),
+    ];
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: 30_000_000, is_integral_salary: true })],
+    });
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(Math.round(0.70 * 30_000_000));
+  });
+
+  it("empleado integral $30M, 15 días → IBC = 70% × $30M × 15/30 = $10.5M", () => {
+    const proratedAmount = Math.round(30_000_000 * 15 / 30);
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(proratedAmount, true),
+    ];
+    const input = mkInput({
+      period: { start: "2026-03-01", end: "2026-03-15", frequency: "quincenal" },
+      salaryHistory: [mkSalary({ monthly_salary: 30_000_000, is_integral_salary: true })],
+    });
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(Math.round(0.70 * 30_000_000 * 15 / 30));
+  });
+
+  it("IBC < SMMLV → cap a SMMLV", () => {
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(500_000),
+    ];
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: 500_000 })],
+    });
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(SMMLV_VAL);
+  });
+
+  it("IBC > 25 × SMMLV → cap a 25 × SMMLV", () => {
+    const hugeSalary = 60_000_000;
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(hugeSalary),
+    ];
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: hugeSalary })],
+    });
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(25 * SMMLV_VAL);
+  });
+
+  it("bonus_salary incluido en IBC, bonus_non_salary excluido", () => {
+    const entries: ComputedEntry[] = [
+      makeSalaryEntry(2_800_000),
+      { concept_type: "bonus_salary", is_income: true, base: null, rate: null, amount: 100_000, description: null },
+      { concept_type: "bonus_non_salary", is_income: true, base: null, rate: null, amount: 500_000, description: null },
+    ];
+    const input = mkInput();
+    const ibc = computeIBC(input, entries);
+    expect(ibc).toBe(2_900_000);
   });
 });
