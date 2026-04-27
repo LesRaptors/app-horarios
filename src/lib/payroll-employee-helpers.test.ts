@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { aggregateEntriesForSankey } from "./payroll-employee-helpers";
-import type { PayrollEntry } from "./types";
+import { aggregateEntriesForSankey, computeNetToBank, computeYtdSummary } from "./payroll-employee-helpers";
+import type { PayrollEntry, PayrollProvision } from "./types";
 
 const mkEntry = (
   concept_type: string,
@@ -67,5 +67,81 @@ describe("aggregateEntriesForSankey", () => {
     const r = aggregateEntriesForSankey([], 0);
     expect(r.nodes).toHaveLength(0);
     expect(r.links).toHaveLength(0);
+  });
+});
+
+describe("computeNetToBank", () => {
+  it("devengado − deducciones", () => {
+    const entries = [
+      mkEntry("salary", 2_800_000, true),
+      mkEntry("transport", 249_095, true),
+      mkEntry("health_employee", 112_000, false),
+      mkEntry("pension_employee", 112_000, false),
+    ];
+    expect(computeNetToBank(entries)).toBe(2_825_095);
+  });
+
+  it("with retención", () => {
+    const entries = [
+      mkEntry("salary", 5_000_000, true),
+      mkEntry("health_employee", 200_000, false),
+      mkEntry("pension_employee", 200_000, false),
+      mkEntry("income_tax", 100_000, false),
+    ];
+    expect(computeNetToBank(entries)).toBe(4_500_000);
+  });
+
+  it("empty → 0", () => {
+    expect(computeNetToBank([])).toBe(0);
+  });
+});
+
+const mkProvision = (
+  concept: PayrollProvision["concept"],
+  amount: number,
+  ytd: number
+): PayrollProvision => ({
+  id: concept,
+  payroll_period_id: "p1",
+  employee_id: "e1",
+  concept,
+  base: amount,
+  rate: 0.0833,
+  amount,
+  accumulated_ytd: ytd,
+  created_at: "2026-04-01T00:00:00Z",
+});
+
+describe("computeYtdSummary", () => {
+  it("aggregates entries + uses last accumulated_ytd from provisions", () => {
+    const entries = [
+      mkEntry("salary", 2_800_000, true),
+      mkEntry("transport", 249_095, true),
+      mkEntry("health_employee", 112_000, false),
+      mkEntry("pension_employee", 112_000, false),
+    ];
+    const provisions = [
+      mkProvision("cesantias", 253_990, 1_080_000),
+      mkProvision("cesantias_interest", 2_540, 12_500),
+      mkProvision("prima", 253_990, 1_080_000),
+      mkProvision("vacaciones", 116_760, 469_000),
+    ];
+
+    const r = computeYtdSummary(entries, provisions, 2026);
+    expect(r.devengado).toBe(3_049_095);
+    expect(r.deducciones).toBe(224_000);
+    expect(r.neto).toBe(2_825_095);
+    expect(r.cesantiasYtd).toBe(1_080_000);
+    expect(r.primaYtd).toBe(1_080_000);
+    expect(r.vacacionesYtd).toBe(469_000);
+    expect(r.cesantiasInterestYtd).toBe(12_500);
+  });
+
+  it("empty → all zeros", () => {
+    const r = computeYtdSummary([], [], 2026);
+    expect(r.devengado).toBe(0);
+    expect(r.deducciones).toBe(0);
+    expect(r.neto).toBe(0);
+    expect(r.cesantiasYtd).toBe(0);
   });
 });
