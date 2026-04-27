@@ -374,13 +374,115 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator — computePayroll (stages 1-4)
+// Stage 5 — computeOvertime
+// ---------------------------------------------------------------------------
+
+/**
+ * Process approved overtime entries. Each hour classified as night → overtime_night
+ * (75%), day → overtime_day (25%). Additionally, if the hour falls on a sunday or
+ * holiday, the corresponding surcharge is also emitted (research §4.1 d — recargos
+ * suman aritméticamente).
+ *
+ * Stage 4 is guaranteed not to double-count because it skips approved entries.
+ */
+export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
+  const { employee, period, scheduleEntries, holidays, settings, salaryHistory } = input;
+
+  const approvedEntries = scheduleEntries.filter((e) => e.overtime_status === "approved");
+  if (approvedEntries.length === 0) return [];
+
+  let otDayHours = 0;
+  let otNightHours = 0;
+  let otSundayHours = 0;
+  let otHolidayHours = 0;
+
+  for (const entry of approvedEntries) {
+    const cfg = getSettingsForDate(settings, entry.date);
+    if (!cfg) continue;
+
+    const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
+
+    for (const { date: hourDate, hour } of hours) {
+      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
+        hourDate,
+        hour,
+        holidays,
+        cfg,
+        employee.location_id ?? ""
+      );
+      if (isNight) {
+        otNightHours += 1;
+      } else {
+        otDayHours += 1;
+      }
+      if (isSunday) otSundayHours += 1;
+      if (isHol) otHolidayHours += 1;
+    }
+  }
+
+  const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
+  const cfg = getSettingsForDate(settings, period.start);
+  if (!sal || !cfg) return [];
+
+  const valorHora = computeHourlyRate(sal.monthly_salary, cfg.hourly_divisor);
+  const entries: ComputedEntry[] = [];
+
+  if (otDayHours > 0) {
+    entries.push({
+      concept_type: "overtime_day",
+      is_income: isIncomeForConcept("overtime_day"),
+      base: valorHora,
+      rate: 0.25,
+      amount: Math.round(otDayHours * valorHora * 0.25),
+      description: `Hora extra diurna (${otDayHours}h)`,
+    });
+  }
+
+  if (otNightHours > 0) {
+    entries.push({
+      concept_type: "overtime_night",
+      is_income: isIncomeForConcept("overtime_night"),
+      base: valorHora,
+      rate: 0.75,
+      amount: Math.round(otNightHours * valorHora * 0.75),
+      description: `Hora extra nocturna (${otNightHours}h)`,
+    });
+  }
+
+  // Recargos adicionales por extras dominicales/festivas (suman aritméticamente)
+  if (otSundayHours > 0) {
+    entries.push({
+      concept_type: "surcharge_sunday",
+      is_income: isIncomeForConcept("surcharge_sunday"),
+      base: valorHora,
+      rate: cfg.sunday_surcharge_pct,
+      amount: Math.round(otSundayHours * valorHora * cfg.sunday_surcharge_pct),
+      description: `Recargo dominical en hora extra (${otSundayHours}h)`,
+    });
+  }
+
+  if (otHolidayHours > 0) {
+    entries.push({
+      concept_type: "surcharge_holiday",
+      is_income: isIncomeForConcept("surcharge_holiday"),
+      base: valorHora,
+      rate: cfg.holiday_surcharge_pct,
+      amount: Math.round(otHolidayHours * valorHora * cfg.holiday_surcharge_pct),
+      description: `Recargo festivo en hora extra (${otHolidayHours}h)`,
+    });
+  }
+
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator — computePayroll (stages 1-5)
 // ---------------------------------------------------------------------------
 
 /**
  * Top-level pure payroll computation entry point.
  *
- * Stages 1-4 wired. Stages 5-9 pending later tasks.
+ * Stages 1-5 wired. Stages 6-9 pending later tasks.
  *
  * Contract:
  * - `errors[]` → hard problems that block period approval.
@@ -423,10 +525,14 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
   // Stage 4 — surcharges for ordinary (non-overtime) entries
   const surchargeEntries = computeSurcharges(input);
 
+  // Stage 5 — overtime entries (approved overtime_status only)
+  const overtimeEntries = computeOvertime(input);
+
   const entries: ComputedEntry[] = [
     ...salaryEntries,
     ...(transportEntry ? [transportEntry] : []),
     ...surchargeEntries,
+    ...overtimeEntries,
   ];
 
   return {

@@ -4,6 +4,7 @@ import {
   computeBaseSalary,
   computeTransportAux,
   computeSurcharges,
+  computeOvertime,
   computePayroll,
 } from "./payroll-engine";
 import type {
@@ -517,5 +518,81 @@ describe("computeSurcharges", () => {
     });
     const entries = computeSurcharges(input);
     expect(entries).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 5 — computeOvertime
+// ---------------------------------------------------------------------------
+
+describe("computeOvertime", () => {
+  it("sin entries con overtime_status='approved' → vacio", () => {
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-02", start_time: "21:00", end_time: "05:00", overtime_status: "none" })],
+    });
+    const entries = computeOvertime(input);
+    expect(entries).toHaveLength(0);
+  });
+
+  it("lunes 18:00-20:00 overtime_status='approved', night_start=19: 1h diurna + 1h nocturna", () => {
+    // 18:00-20:00 = 2h; 18:00-19:00 diurna (overtime_day), 19:00-20:00 nocturna (overtime_night)
+    const input = mkInput({
+      scheduleEntries: [mkEntry({
+        date: "2026-03-02", // Monday
+        start_time: "18:00",
+        end_time: "20:00",
+        overtime_status: "approved",
+      })],
+      settings: [settingsNight19],
+    });
+    const entries = computeOvertime(input);
+    const dayOT = entries.find((e) => e.concept_type === "overtime_day");
+    const nightOT = entries.find((e) => e.concept_type === "overtime_night");
+    expect(dayOT).toBeDefined();
+    expect(dayOT!.amount).toBe(Math.round(1 * VH * 0.25));
+    expect(nightOT).toBeDefined();
+    expect(nightOT!.amount).toBe(Math.round(1 * VH * 0.75));
+  });
+
+  it("domingo 14:00-18:00 overtime_status='approved' (4h diurnas): overtime_day + surcharge_sunday emitidos", () => {
+    // 2026-03-01 Sunday, 14:00-18:00 = 4h, diurnas (night_start=21 → not night)
+    const input = mkInput({
+      scheduleEntries: [mkEntry({
+        date: "2026-03-01", // Sunday
+        start_time: "14:00",
+        end_time: "18:00",
+        overtime_status: "approved",
+      })],
+      settings: [settingsNight21],
+    });
+    const entries = computeOvertime(input);
+    const dayOT = entries.find((e) => e.concept_type === "overtime_day");
+    const sundayRec = entries.find((e) => e.concept_type === "surcharge_sunday");
+    expect(dayOT).toBeDefined();
+    expect(dayOT!.amount).toBe(Math.round(4 * VH * 0.25));
+    expect(sundayRec).toBeDefined();
+    expect(sundayRec!.amount).toBe(Math.round(4 * VH * 0.8));
+  });
+
+  it("festivo overtime 4h diurnas → overtime_day + surcharge_holiday", () => {
+    // 2026-05-01 festivo Friday, 09:00-13:00 = 4h diurnas overtime
+    const input = mkInput({
+      period: { start: "2026-05-01", end: "2026-05-31", frequency: "mensual" },
+      scheduleEntries: [mkEntry({
+        date: "2026-05-01",
+        start_time: "09:00",
+        end_time: "13:00",
+        overtime_status: "approved",
+      })],
+      holidays: [mayo1Holiday],
+      settings: [settingsNight21],
+    });
+    const entries = computeOvertime(input);
+    const dayOT = entries.find((e) => e.concept_type === "overtime_day");
+    const holRec = entries.find((e) => e.concept_type === "surcharge_holiday");
+    expect(dayOT).toBeDefined();
+    expect(dayOT!.amount).toBe(Math.round(4 * VH * 0.25));
+    expect(holRec).toBeDefined();
+    expect(holRec!.amount).toBe(Math.round(4 * VH * 0.8));
   });
 });
