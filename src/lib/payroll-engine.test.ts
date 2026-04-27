@@ -1074,3 +1074,115 @@ describe("computePayroll E2E — $2.8M fixture (research §9)", () => {
     expect(result.warnings).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 20 — Multi-period split
+// ---------------------------------------------------------------------------
+
+describe("computePayroll multi-period split", () => {
+  // Two payroll settings: p2 covers up to Jul 14, p3 starts Jul 15 (divisor changes)
+  const settingsP2: PayrollSettings = {
+    id: "p2",
+    period_start: "2026-01-01",
+    period_end: "2026-07-14",
+    smmlv: SMMLV,
+    aux_transport: AUX_TRANSPORT,
+    hourly_divisor: 220,
+    night_start_hour: 21,
+    sunday_surcharge_pct: 0.9,
+    holiday_surcharge_pct: 0.9,
+    uvt: 52374,
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+  const settingsP3: PayrollSettings = {
+    id: "p3",
+    period_start: "2026-07-15",
+    period_end: null,
+    smmlv: SMMLV,
+    aux_transport: AUX_TRANSPORT,
+    hourly_divisor: 210,
+    night_start_hour: 21,
+    sunday_surcharge_pct: 0.9,
+    holiday_surcharge_pct: 0.9,
+    uvt: 52374,
+    updated_at: "2026-07-15T00:00:00Z",
+  };
+
+  it("período jul 2026: 1h dominical el 5-jul (div=220) + 1h dominical el 19-jul (div=210) → surcharge_sunday = suma de ambos valores horarios", () => {
+    // 2026-07-05 = Sunday (verified: Jan 1 = Thu, day 186: (4+185)%7=0=Sun)
+    // 2026-07-19 = Sunday (day 200: (4+199)%7=0=Sun)
+    const sundayBefore = mkEntry({ date: "2026-07-05", start_time: "09:00", end_time: "10:00", overtime_status: "none" });
+    const sundayAfter = mkEntry({ date: "2026-07-19", start_time: "09:00", end_time: "10:00", overtime_status: "none" });
+
+    const salary = 3_000_000;
+    const vhP2 = Math.round(salary / 220);
+    const vhP3 = Math.round(salary / 210);
+
+    const input: PayrollComputeInput = {
+      employee: { ...baseProfile },
+      period: { start: "2026-07-01", end: "2026-07-31", frequency: "mensual" },
+      salaryHistory: [mkSalary({ monthly_salary: salary })],
+      scheduleEntries: [sundayBefore, sundayAfter],
+      shiftTemplates: [],
+      holidays: [],
+      absences: [],
+      adjustments: [],
+      taxDeductions: null,
+      settings: [settingsP2, settingsP3],
+      ytdProvisionsBefore: { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 },
+    };
+
+    const result = computePayroll(input);
+    expect(result.errors).toHaveLength(0);
+
+    // surcharge_sunday = 1h×vhP2×0.9 + 1h×vhP3×0.9 (two different hourly rates)
+    const sundayRec = result.entries
+      .filter((e) => e.concept_type === "surcharge_sunday")
+      .reduce((s, e) => s + e.amount, 0);
+    const expectedSunday = Math.round(1 * vhP2 * 0.9) + Math.round(1 * vhP3 * 0.9);
+    expect(sundayRec).toBe(expectedSunday);
+
+    // Salary covers the full 30-day convention period (not double-counted)
+    const salaryEntry = result.entries.find((e) => e.concept_type === "salary");
+    expect(salaryEntry!.amount).toBe(salary);
+  });
+
+  it("divisores de p2 y p3 son distintos → VH distintos en surcharges", () => {
+    const salary = 3_000_000;
+    const vhP2 = Math.round(salary / 220);
+    const vhP3 = Math.round(salary / 210);
+    expect(vhP2).not.toBe(vhP3);
+    expect(vhP3).toBeGreaterThan(vhP2);
+  });
+
+  it("stages 7-9 (IBC, deductions, provisions) corren UNA vez sobre el total combinado", () => {
+    const sundayBefore = mkEntry({ date: "2026-07-05", start_time: "09:00", end_time: "10:00", overtime_status: "none" });
+    const sundayAfter = mkEntry({ date: "2026-07-19", start_time: "09:00", end_time: "10:00", overtime_status: "none" });
+    const salary = 3_000_000;
+
+    const input: PayrollComputeInput = {
+      employee: { ...baseProfile },
+      period: { start: "2026-07-01", end: "2026-07-31", frequency: "mensual" },
+      salaryHistory: [mkSalary({ monthly_salary: salary })],
+      scheduleEntries: [sundayBefore, sundayAfter],
+      shiftTemplates: [],
+      holidays: [],
+      absences: [],
+      adjustments: [],
+      taxDeductions: null,
+      settings: [settingsP2, settingsP3],
+      ytdProvisionsBefore: { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 },
+    };
+
+    const result = computePayroll(input);
+
+    // Provisions run once (not duplicated per sub-period)
+    const cesantias = result.provisions.find((p) => p.concept === "cesantias");
+    expect(cesantias).toBeDefined();
+    expect(cesantias!.amount).toBeGreaterThan(0);
+
+    // Exactly one health_employee deduction (not duplicated per sub-period)
+    const healthEntries = result.entries.filter((e) => e.concept_type === "health_employee");
+    expect(healthEntries).toHaveLength(1);
+  });
+});

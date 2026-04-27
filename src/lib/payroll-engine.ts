@@ -781,32 +781,143 @@ export function entryIsIntegral(entry: ComputedEntry): boolean {
   return entry.concept_type === "salary" && entry.description === "salario integral";
 }
 
+/**
+ * Detect whether the period crosses a settings boundary.
+ * Returns an array of sub-period {start, end} ranges if it does, otherwise null.
+ */
+function splitPeriodBySettings(
+  settings: PayrollSettings[],
+  periodStart: string,
+  periodEnd: string
+): Array<{ start: string; end: string }> | null {
+  const boundaries: string[] = settings
+    .map((s) => s.period_start)
+    .filter((d) => d > periodStart && d <= periodEnd)
+    .sort();
+
+  if (boundaries.length === 0) return null;
+
+  const subPeriods: Array<{ start: string; end: string }> = [];
+  let cursor = periodStart;
+  for (const boundary of boundaries) {
+    const dayBefore = isoDateMinusOneDay(boundary);
+    subPeriods.push({ start: cursor, end: dayBefore });
+    cursor = boundary;
+  }
+  subPeriods.push({ start: cursor, end: periodEnd });
+
+  return subPeriods;
+}
+
+/** Return YYYY-MM-DD string for the day before the given date string. */
+function isoDateMinusOneDay(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const ms = Date.UTC(y, m - 1, d) - 86_400_000;
+  const dt = new Date(ms);
+  const yr = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dy = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yr}-${mo}-${dy}`;
+}
+
+/** Merge duplicate concept_type entries by summing amounts (for multi-period aggregation). */
+function mergeEntriesByConcept(entries: ComputedEntry[]): ComputedEntry[] {
+  const map = new Map<string, ComputedEntry>();
+  for (const e of entries) {
+    const existing = map.get(e.concept_type);
+    if (!existing) {
+      map.set(e.concept_type, { ...e });
+    } else {
+      existing.amount += e.amount;
+    }
+  }
+  return Array.from(map.values());
+}
+
 export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Stages 1-6
-  const workedDays = computeWorkedDays(input);
+  // Detect multi-period split (§4.2)
+  const subPeriods = splitPeriodBySettings(input.settings, input.period.start, input.period.end);
 
-  const { entries: salaryEntries, errors: salaryErrors } = computeBaseSalary(input, workedDays);
-  errors.push(...salaryErrors);
+  let incomeEntries: ComputedEntry[];
 
-  const baseSalaryEntry = salaryEntries[0] ?? null;
-  const transportEntry = baseSalaryEntry
-    ? computeTransportAux(input, workedDays, baseSalaryEntry)
-    : null;
+  if (subPeriods) {
+    // Multi-period split:
+    // - Stages 1-3 (salary, transport) run ONCE on the full period
+    // - Stages 4-5 (surcharges, overtime) run per sub-period with per-sub-period settings
+    // - Stage 6 (adjustments) run per sub-period by payment_date
+    const allSubEntries: ComputedEntry[] = [];
 
-  const surchargeEntries = computeSurcharges(input);
-  const overtimeEntries = computeOvertime(input);
-  const adjustmentEntries = computeAdjustments(input);
+    // Stages 1-3: full period
+    const workedDays = computeWorkedDays(input);
+    const { entries: salaryEntries, errors: salaryErrors } = computeBaseSalary(input, workedDays);
+    errors.push(...salaryErrors);
 
-  const incomeEntries: ComputedEntry[] = [
-    ...salaryEntries,
-    ...(transportEntry ? [transportEntry] : []),
-    ...surchargeEntries,
-    ...overtimeEntries,
-    ...adjustmentEntries,
-  ];
+    const baseSalaryEntry = salaryEntries[0] ?? null;
+    const transportEntry = baseSalaryEntry
+      ? computeTransportAux(input, workedDays, baseSalaryEntry)
+      : null;
+
+    allSubEntries.push(...salaryEntries);
+    if (transportEntry) allSubEntries.push(transportEntry);
+
+    // Stages 4-6: per sub-period
+    for (const sub of subPeriods) {
+      const subInput: PayrollComputeInput = {
+        ...input,
+        period: { ...input.period, start: sub.start, end: sub.end },
+        scheduleEntries: input.scheduleEntries.filter(
+          (e) => e.date >= sub.start && e.date <= sub.end
+        ),
+        adjustments: input.adjustments.filter(
+          (a) => a.payment_date >= sub.start && a.payment_date <= sub.end
+        ),
+        absences: input.absences.filter(
+          (a) => a.start_date <= sub.end && a.end_date >= sub.start
+        ),
+      };
+
+      const surchargeE = computeSurcharges(subInput);
+      const overtimeE = computeOvertime(subInput);
+      const adjustE = computeAdjustments(subInput);
+
+      allSubEntries.push(...surchargeE, ...overtimeE, ...adjustE);
+    }
+
+    // Salary and transport stay as single entries; merge surcharges/overtime/adjustments
+    const salaryAndTransport = allSubEntries.filter(
+      (e) => e.concept_type === "salary" || e.concept_type === "transport"
+    );
+    const rest = allSubEntries.filter(
+      (e) => e.concept_type !== "salary" && e.concept_type !== "transport"
+    );
+    incomeEntries = [...salaryAndTransport, ...mergeEntriesByConcept(rest)];
+  } else {
+    // Single period — stages 1-6 run normally
+    const workedDays = computeWorkedDays(input);
+
+    const { entries: salaryEntries, errors: salaryErrors } = computeBaseSalary(input, workedDays);
+    errors.push(...salaryErrors);
+
+    const baseSalaryEntry = salaryEntries[0] ?? null;
+    const transportEntry = baseSalaryEntry
+      ? computeTransportAux(input, workedDays, baseSalaryEntry)
+      : null;
+
+    const surchargeEntries = computeSurcharges(input);
+    const overtimeEntries = computeOvertime(input);
+    const adjustmentEntries = computeAdjustments(input);
+
+    incomeEntries = [
+      ...salaryEntries,
+      ...(transportEntry ? [transportEntry] : []),
+      ...surchargeEntries,
+      ...overtimeEntries,
+      ...adjustmentEntries,
+    ];
+  }
 
   // Stage 7 — IBC (once on combined entries)
   const ibc = incomeEntries.length > 0 ? computeIBC(input, incomeEntries) : 0;
@@ -820,7 +931,7 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
     ? computeEmployeeDeductions(input, ibc, totalDevengado)
     : [];
 
-  // Stage 9 — Provisions + employer cost
+  // Stage 9 — Provisions + employer cost (once on combined totals)
   const { provisions, employer_cost } = incomeEntries.length > 0 && ibc > 0
     ? computeProvisionsAndEmployerCost(input, ibc, incomeEntries, input.ytdProvisionsBefore)
     : {
