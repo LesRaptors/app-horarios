@@ -31,3 +31,14 @@ volumes/
 
 # Claude
 .claude/
+
+# Agent skills cache (from superpowers / claude plugins)
+.agents/
+skills-lock.json
+
+# Next.js / TypeScript build artifacts
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Plan-related work-in-progress documents not meant for repo
+docs/superpowers/plans/2026-04-03-full-optimization.md
