@@ -20,8 +20,8 @@ import type {
   ProvisionConcept,
 } from "./types";
 
-import { getCurrentSalary, getSettingsForDate } from "./payroll-helpers";
-import { applyDayProration, isIncomeForConcept } from "./payroll-engine-helpers";
+import { getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payroll-helpers";
+import { applyDayProration, isIncomeForConcept, classifyHour } from "./payroll-engine-helpers";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -278,20 +278,114 @@ export function computeTransportAux(
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator — computePayroll (skeleton wiring stages 1-3)
+// Stage 4 — computeSurcharges
+// ---------------------------------------------------------------------------
+
+/**
+ * Decompose every non-overtime schedule_entry into hours and accumulate
+ * surcharges for night (35%), sunday (sunday_surcharge_pct), and holiday
+ * (holiday_surcharge_pct). Recargos add arithmetically per research §3.3.
+ *
+ * Returns up to 3 ComputedEntry rows (one per surcharge type, if > 0).
+ * Skips entries with overtime_status='approved' (handled by stage 5).
+ *
+ * Uses the salary and settings vigentes at each entry's date. The final
+ * amounts are computed using the salary vigente at period.start (spec
+ * does not require per-hour salary-change splits within an entry; that is
+ * the §4.2 multi-period split concern which operates at a higher level).
+ */
+export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
+  const { employee, scheduleEntries, holidays, settings, salaryHistory, period } = input;
+
+  if (scheduleEntries.length === 0) return [];
+
+  let nightHours = 0;
+  let sundayHours = 0;
+  let holidayHours = 0;
+
+  for (const entry of scheduleEntries) {
+    // Stage 4 only processes non-overtime entries
+    if (entry.overtime_status === "approved") continue;
+
+    const cfg = getSettingsForDate(settings, entry.date);
+    if (!cfg) continue;
+
+    const sal = getCurrentSalary(salaryHistory, employee.id, entry.date);
+    if (!sal) continue;
+
+    const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
+
+    for (const { date: hourDate, hour } of hours) {
+      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
+        hourDate,
+        hour,
+        holidays,
+        cfg,
+        employee.location_id ?? ""
+      );
+      if (isNight) nightHours += 1;
+      if (isSunday) sundayHours += 1;
+      if (isHol) holidayHours += 1;
+    }
+  }
+
+  // Use salary/settings vigentes at period.start for the aggregate amount
+  const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
+  const cfg = getSettingsForDate(settings, period.start);
+  if (!sal || !cfg) return [];
+
+  const valorHora = computeHourlyRate(sal.monthly_salary, cfg.hourly_divisor);
+  const entries: ComputedEntry[] = [];
+
+  if (nightHours > 0) {
+    entries.push({
+      concept_type: "surcharge_night",
+      is_income: isIncomeForConcept("surcharge_night"),
+      base: valorHora,
+      rate: 0.35,
+      amount: Math.round(nightHours * valorHora * 0.35),
+      description: `Recargo nocturno (${nightHours}h)`,
+    });
+  }
+
+  if (sundayHours > 0) {
+    entries.push({
+      concept_type: "surcharge_sunday",
+      is_income: isIncomeForConcept("surcharge_sunday"),
+      base: valorHora,
+      rate: cfg.sunday_surcharge_pct,
+      amount: Math.round(sundayHours * valorHora * cfg.sunday_surcharge_pct),
+      description: `Recargo dominical (${sundayHours}h)`,
+    });
+  }
+
+  if (holidayHours > 0) {
+    entries.push({
+      concept_type: "surcharge_holiday",
+      is_income: isIncomeForConcept("surcharge_holiday"),
+      base: valorHora,
+      rate: cfg.holiday_surcharge_pct,
+      amount: Math.round(holidayHours * valorHora * cfg.holiday_surcharge_pct),
+      description: `Recargo festivo (${holidayHours}h)`,
+    });
+  }
+
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator — computePayroll (stages 1-4)
 // ---------------------------------------------------------------------------
 
 /**
  * Top-level pure payroll computation entry point.
  *
- * Current implementation (tasks 11-13): wires stages 1-3 only.
- * Subsequent tasks will extend with surcharges (4), overtime (5),
- * adjustments (6), IBC (7), deductions (8), provisions + employer cost (9).
+ * Stages 1-4 wired. Stages 5-9 pending later tasks.
  *
  * Contract:
  * - `errors[]` → hard problems that block period approval.
  * - `warnings[]` → soft messages surfaced in the UI but don't block.
- * - `provisions` and `employer_cost` are zero-valued stubs until task 14.
+ * - `provisions` and `employer_cost` are zero-valued stubs until tasks 17-18.
  */
 
 /** Helper: check whether an entry represents an integral salary. */
@@ -326,9 +420,13 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
     ? computeTransportAux(input, workedDays, baseSalaryEntry)
     : null;
 
+  // Stage 4 — surcharges for ordinary (non-overtime) entries
+  const surchargeEntries = computeSurcharges(input);
+
   const entries: ComputedEntry[] = [
     ...salaryEntries,
     ...(transportEntry ? [transportEntry] : []),
+    ...surchargeEntries,
   ];
 
   return {
@@ -380,4 +478,53 @@ function daysBetweenInclusive(start: DateParts, end: DateParts): number {
     Date.UTC(dp.year, dp.month - 1, dp.day);
   const ms = toMs(end) - toMs(start);
   return Math.round(ms / 86_400_000) + 1;
+}
+
+/**
+ * Decompose a schedule_entry's time range into individual whole-hours,
+ * each tagged with its calendar date. Handles midnight crossings.
+ *
+ * start_time and end_time are HH:MM strings. If end_time ≤ start_time the
+ * shift crosses midnight and the date increments for hours after 00:00.
+ *
+ * Returns an array of { date: YYYY-MM-DD, hour: number (0–23) } for each
+ * starting hour of the shift (e.g. a 3-hour shift 21:00–00:00 yields
+ * hours 21, 22, 23 on the entry date).
+ */
+function decomposeEntryIntoHours(
+  date: string,
+  startTime: string,
+  endTime: string
+): { date: string; hour: number }[] {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+
+  // Convert to minutes since start-of-day
+  const startMinutes = sh * 60 + (sm ?? 0);
+  let endMinutes = eh * 60 + (em ?? 0);
+
+  // Midnight crossing: end is on the next day
+  if (endMinutes <= startMinutes) {
+    endMinutes += 24 * 60;
+  }
+
+  const result: { date: string; hour: number }[] = [];
+  const dp = parseDate(date);
+  const baseMs = Date.UTC(dp.year, dp.month - 1, dp.day);
+
+  let cursor = startMinutes;
+  while (cursor < endMinutes) {
+    const hourOfDay = Math.floor(cursor / 60) % 24;
+    // Which calendar date does this hour fall on?
+    const dayOffset = Math.floor(cursor / (24 * 60));
+    const msForDay = baseMs + dayOffset * 86_400_000;
+    const d = new Date(msForDay);
+    const y = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dy = String(d.getUTCDate()).padStart(2, "0");
+    result.push({ date: `${y}-${mo}-${dy}`, hour: hourOfDay });
+    cursor += 60;
+  }
+
+  return result;
 }

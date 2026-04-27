@@ -3,6 +3,7 @@ import {
   computeWorkedDays,
   computeBaseSalary,
   computeTransportAux,
+  computeSurcharges,
   computePayroll,
 } from "./payroll-engine";
 import type {
@@ -339,7 +340,7 @@ describe("computeTransportAux", () => {
 // Orchestrator stub — computePayroll (Tasks 11-13 validation)
 // ---------------------------------------------------------------------------
 
-describe("computePayroll orchestrator", () => {
+describe("computePayroll orchestrator (stages 1-3)", () => {
   it("full month, $2.8M normal salary → has salary entry, has transport entry, no errors", () => {
     const result = computePayroll(mkInput());
     expect(result.errors).toHaveLength(0);
@@ -371,5 +372,150 @@ describe("computePayroll orchestrator", () => {
     expect(result.provisions).toEqual([]);
     expect(result.employer_cost.total).toBe(0);
     expect(result.warnings).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Shared helpers for stages 4-5-6 tests
+// ---------------------------------------------------------------------------
+
+// $2.8M salary, hourly_divisor=220 → VH = round(2800000/220) = 12727
+const VH = Math.round(2_800_000 / 220); // 12727
+
+// Build a minimal ScheduleEntry for test purposes
+function mkEntry(overrides: {
+  date: string;
+  start_time: string;
+  end_time: string;
+  overtime_status?: "none" | "pending" | "approved" | "rejected";
+}): ScheduleEntry {
+  return {
+    id: "entry1",
+    schedule_id: "sched1",
+    employee_id: "emp1",
+    position_id: "pos1",
+    date: overrides.date,
+    start_time: overrides.start_time,
+    end_time: overrides.end_time,
+    shift_template_id: null,
+    notes: null,
+    exceeds_caps: [],
+    overtime_status: overrides.overtime_status ?? "none",
+    overtime_reviewed_by: null,
+    overtime_reviewed_at: null,
+    overtime_note: null,
+    created_at: "2026-03-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
+  };
+}
+
+// Mayo 1 2026 — Dia del trabajo (festivo nacional)
+const mayo1Holiday: HolidayDate = {
+  id: "h1",
+  date: "2026-05-01",
+  name: "Dia del trabajo",
+  location_id: null,
+  created_at: "2026-01-01T00:00:00Z",
+};
+
+// Settings with night_start=21 (default)
+const settingsNight21 = baseSettings; // night_start_hour: 21
+
+// Settings with night_start=19 (Ley 2466 style)
+const settingsNight19: PayrollSettings = {
+  ...baseSettings,
+  id: "s2",
+  night_start_hour: 19,
+};
+
+// ---------------------------------------------------------------------------
+// Stage 4 — computeSurcharges
+// ---------------------------------------------------------------------------
+
+describe("computeSurcharges", () => {
+  it("lunes 14:00-18:00 (4h diurnas, no holiday) → 0 recargos", () => {
+    // 2026-03-02 is a Monday
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-02", start_time: "14:00", end_time: "18:00" })],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    expect(entries).toHaveLength(0);
+  });
+
+  it("lunes 21:00-05:00 (8h nocturnas con night_start=21) → surcharge_night = 8 × VH × 0.35", () => {
+    // 2026-03-02 is Monday; 21:00-05:00 = 8h, all night (21:00 is exactly night_start, 00:00-05:00 also night)
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-02", start_time: "21:00", end_time: "05:00" })],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    const night = entries.find((e) => e.concept_type === "surcharge_night");
+    expect(night).toBeDefined();
+    expect(night!.amount).toBe(Math.round(8 * VH * 0.35));
+    expect(entries.filter((e) => e.concept_type === "surcharge_sunday")).toHaveLength(0);
+    expect(entries.filter((e) => e.concept_type === "surcharge_holiday")).toHaveLength(0);
+  });
+
+  it("lunes 19:00-23:00 con night_start=19 → 4h nocturnas", () => {
+    // 2026-03-02 Monday, 19:00-23:00 = 4h, all night because night_start=19
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-02", start_time: "19:00", end_time: "23:00" })],
+      settings: [settingsNight19],
+    });
+    const entries = computeSurcharges(input);
+    const night = entries.find((e) => e.concept_type === "surcharge_night");
+    expect(night).toBeDefined();
+    expect(night!.amount).toBe(Math.round(4 * VH * 0.35));
+  });
+
+  it("domingo 14:00-22:00 sunday_pct=0.8 night_start=19: surcharge_sunday=8h×VH×0.8, surcharge_night=3h×VH×0.35", () => {
+    // 2026-03-01 is a Sunday; 14:00-22:00=8h; night hours: 19:00-22:00=3h
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-01", start_time: "14:00", end_time: "22:00" })],
+      settings: [settingsNight19],
+    });
+    const entries = computeSurcharges(input);
+    const sunday = entries.find((e) => e.concept_type === "surcharge_sunday");
+    const night = entries.find((e) => e.concept_type === "surcharge_night");
+    expect(sunday).toBeDefined();
+    expect(sunday!.amount).toBe(Math.round(8 * VH * 0.8));
+    expect(night).toBeDefined();
+    expect(night!.amount).toBe(Math.round(3 * VH * 0.35));
+  });
+
+  it("festivo Mayo 1 (viernes) 09:00-17:00 → surcharge_holiday = 8 × VH × 0.8", () => {
+    // 2026-05-01 is Friday (dia del trabajo)
+    const input = mkInput({
+      period: { start: "2026-05-01", end: "2026-05-31", frequency: "mensual" },
+      scheduleEntries: [mkEntry({ date: "2026-05-01", start_time: "09:00", end_time: "17:00" })],
+      holidays: [mayo1Holiday],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    const holiday = entries.find((e) => e.concept_type === "surcharge_holiday");
+    expect(holiday).toBeDefined();
+    expect(holiday!.amount).toBe(Math.round(8 * VH * 0.8));
+  });
+
+  it("sin schedule_entries → entries vacio", () => {
+    const input = mkInput({ scheduleEntries: [] });
+    const entries = computeSurcharges(input);
+    expect(entries).toHaveLength(0);
+  });
+
+  it("schedule_entry con overtime_status='approved' → ignorado por stage 4", () => {
+    // 2026-03-02 Monday night shift, but approved overtime → stage 4 skips it
+    const input = mkInput({
+      scheduleEntries: [mkEntry({
+        date: "2026-03-02",
+        start_time: "21:00",
+        end_time: "05:00",
+        overtime_status: "approved",
+      })],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    expect(entries).toHaveLength(0);
   });
 });
