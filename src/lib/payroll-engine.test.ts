@@ -7,6 +7,7 @@ import {
   computeOvertime,
   computeAdjustments,
   computeIBC,
+  computeEmployeeDeductions,
   computePayroll,
 } from "./payroll-engine";
 import type {
@@ -799,5 +800,103 @@ describe("computeIBC", () => {
     const input = mkInput();
     const ibc = computeIBC(input, entries);
     expect(ibc).toBe(2_900_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 8 — computeEmployeeDeductions
+// ---------------------------------------------------------------------------
+
+describe("computeEmployeeDeductions", () => {
+  it("salary $2.8M + recargos, devengado ~$3.39M → base depurada < 95 UVT → income_tax = 0", () => {
+    const ibc = 3_100_000;
+    const totalDevengado = 3_390_000;
+    const input = mkInput({ taxDeductions: null });
+    const deductions = computeEmployeeDeductions(input, ibc, totalDevengado);
+
+    const health = deductions.find((e) => e.concept_type === "health_employee");
+    const pension = deductions.find((e) => e.concept_type === "pension_employee");
+    const incTax = deductions.find((e) => e.concept_type === "income_tax");
+
+    expect(health).toBeDefined();
+    expect(health!.amount).toBe(Math.round(ibc * 0.04));
+    expect(pension).toBeDefined();
+    expect(pension!.amount).toBe(Math.round(ibc * 0.04));
+    const taxAmt = incTax?.amount ?? 0;
+    expect(taxAmt).toBe(0);
+  });
+
+  it("salario $8M, sin extras → income_tax > 0", () => {
+    const ibc = 8_000_000;
+    const totalDevengado = 8_000_000;
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: 8_000_000 })],
+      taxDeductions: null,
+    });
+    const deductions = computeEmployeeDeductions(input, ibc, totalDevengado);
+    const incTax = deductions.find((e) => e.concept_type === "income_tax");
+    expect(incTax).toBeDefined();
+    expect(incTax!.amount).toBeGreaterThan(0);
+  });
+
+  it("salario $12M → income_tax alto (> 0, escalón > 95 UVT)", () => {
+    const ibc = 12_000_000;
+    const totalDevengado = 12_000_000;
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: 12_000_000 })],
+      taxDeductions: null,
+    });
+    const deductions = computeEmployeeDeductions(input, ibc, totalDevengado);
+    const incTax = deductions.find((e) => e.concept_type === "income_tax");
+    expect(incTax).toBeDefined();
+    expect(incTax!.amount).toBeGreaterThan(0);
+
+    const health = deductions.find((e) => e.concept_type === "health_employee");
+    const pension = deductions.find((e) => e.concept_type === "pension_employee");
+    expect(health!.amount).toBe(Math.round(ibc * 0.04));
+    expect(pension!.amount).toBe(Math.round(ibc * 0.04));
+  });
+
+  it("IBC = 4 × SMMLV → solidarity_pension = ibc × 0.01", () => {
+    const ibc = 4 * SMMLV;
+    const input = mkInput();
+    const deductions = computeEmployeeDeductions(input, ibc, ibc);
+    const solidarity = deductions.find((e) => e.concept_type === "solidarity_pension");
+    expect(solidarity).toBeDefined();
+    expect(solidarity!.amount).toBe(Math.round(ibc * 0.01));
+  });
+
+  it("IBC = 16 × SMMLV → solidarity_pension = ibc × 0.012", () => {
+    const ibc = 16 * SMMLV;
+    const input = mkInput();
+    const deductions = computeEmployeeDeductions(input, ibc, ibc);
+    const solidarity = deductions.find((e) => e.concept_type === "solidarity_pension");
+    expect(solidarity).toBeDefined();
+    expect(solidarity!.amount).toBe(Math.round(ibc * 0.012));
+  });
+
+  it("IBC < 4 SMMLV → no solidarity_pension emitted", () => {
+    const ibc = 3 * SMMLV;
+    const input = mkInput();
+    const deductions = computeEmployeeDeductions(input, ibc, ibc);
+    const solidarity = deductions.find((e) => e.concept_type === "solidarity_pension");
+    expect(solidarity).toBeUndefined();
+  });
+
+  it("taxDeductions=null → 0 dependents/mortgage/etc, no crash", () => {
+    const ibc = 3_100_000;
+    const input = mkInput({ taxDeductions: null });
+    expect(() => computeEmployeeDeductions(input, ibc, ibc)).not.toThrow();
+    const deductions = computeEmployeeDeductions(input, ibc, ibc);
+    expect(deductions.length).toBeGreaterThan(0);
+  });
+
+  it("all deductions have is_income=false", () => {
+    const ibc = 5_000_000;
+    const input = mkInput();
+    const deductions = computeEmployeeDeductions(input, ibc, ibc);
+    for (const d of deductions) {
+      expect(d.is_income).toBe(false);
+    }
   });
 });

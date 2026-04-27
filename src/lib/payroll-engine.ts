@@ -565,6 +565,95 @@ export function computeIBC(input: PayrollComputeInput, allEntries: ComputedEntry
 }
 
 // ---------------------------------------------------------------------------
+// Stage 8 — computeEmployeeDeductions
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute employee deductions:
+ * - health_employee = ibc × 0.04
+ * - pension_employee = ibc × 0.04
+ * - solidarity_pension (if IBC ≥ 4 × SMMLV)
+ * - income_tax (retención en la fuente, via depuración + tabla Art. 383 ET)
+ *
+ * Returns up to 4 ComputedEntry rows with is_income=false.
+ */
+export function computeEmployeeDeductions(
+  input: PayrollComputeInput,
+  ibc: number,
+  totalDevengado: number
+): ComputedEntry[] {
+  const { employee, period, settings, taxDeductions } = input;
+
+  const cfg = getSettingsForDate(settings, period.start);
+  const smmlv = cfg?.smmlv ?? 1_750_905;
+  const uvt = cfg?.uvt ?? 52_374;
+
+  const health = Math.round(ibc * 0.04);
+  const pension = Math.round(ibc * 0.04);
+  const solidarityRate = getSolidarityRate(ibc, smmlv);
+
+  const deductions: ComputedEntry[] = [];
+
+  deductions.push({
+    concept_type: "health_employee",
+    is_income: false,
+    base: ibc,
+    rate: 0.04,
+    amount: health,
+    description: "Salud empleado 4%",
+  });
+
+  deductions.push({
+    concept_type: "pension_employee",
+    is_income: false,
+    base: ibc,
+    rate: 0.04,
+    amount: pension,
+    description: "Pensión empleado 4%",
+  });
+
+  if (solidarityRate > 0) {
+    deductions.push({
+      concept_type: "solidarity_pension",
+      is_income: false,
+      base: ibc,
+      rate: solidarityRate,
+      amount: Math.round(ibc * solidarityRate),
+      description: `Fondo solidaridad pensional ${(solidarityRate * 100).toFixed(1)}%`,
+    });
+  }
+
+  // Retención en la fuente (income_tax)
+  const mandatorySS = health + pension;
+  const depInput = {
+    grossIncome: totalDevengado,
+    mandatorySS,
+    dependents: taxDeductions?.dependents_count ?? 0,
+    mortgageInterest: taxDeductions?.mortgage_interest_monthly ?? 0,
+    prepaidHealth: taxDeductions?.prepaid_health_monthly ?? 0,
+    voluntaryPension: taxDeductions?.voluntary_pension_monthly ?? 0,
+    afc: taxDeductions?.afc_monthly ?? 0,
+    uvt,
+  };
+
+  const baseDepurada = depurarBaseRetencion(depInput);
+  const incomeTaxAmount = aplicarTablaRetencion(baseDepurada, uvt);
+
+  if (incomeTaxAmount > 0) {
+    deductions.push({
+      concept_type: "income_tax",
+      is_income: false,
+      base: baseDepurada,
+      rate: null,
+      amount: incomeTaxAmount,
+      description: "Retención en la fuente",
+    });
+  }
+
+  return deductions;
+}
+
+// ---------------------------------------------------------------------------
 // Orchestrator — computePayroll (stages 1-6)
 // ---------------------------------------------------------------------------
 
