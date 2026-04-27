@@ -8,6 +8,7 @@ import {
   computeAdjustments,
   computeIBC,
   computeEmployeeDeductions,
+  computeProvisionsAndEmployerCost,
   computePayroll,
 } from "./payroll-engine";
 import type {
@@ -372,10 +373,11 @@ describe("computePayroll orchestrator (stages 1-3)", () => {
     expect(salary!.amount).toBe(Math.round(2_800_000 * 8 / 30));
   });
 
-  it("output has provisions=[], employer_cost=zero, warnings=[]", () => {
+  it("output has provisions and employer_cost (stubs replaced by stages 7-9)", () => {
+    // Provisions and employer_cost are non-zero now that stages 7-9 are implemented
     const result = computePayroll(mkInput());
-    expect(result.provisions).toEqual([]);
-    expect(result.employer_cost.total).toBe(0);
+    expect(result.provisions).toBeDefined();
+    expect(result.employer_cost).toBeDefined();
     expect(result.warnings).toEqual([]);
   });
 });
@@ -898,5 +900,177 @@ describe("computeEmployeeDeductions", () => {
     for (const d of deductions) {
       expect(d.is_income).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 9 — computeProvisionsAndEmployerCost
+// ---------------------------------------------------------------------------
+
+describe("computeProvisionsAndEmployerCost", () => {
+  it("salario $2.8M normal, base=$3.4M → cesantias≈$283K, prima≈$283K, vacaciones≈$116.9K", () => {
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: 2_800_000, description: null },
+      { concept_type: "transport", is_income: true, base: null, rate: null, amount: 249_095, description: null },
+      { concept_type: "surcharge_night", is_income: true, base: null, rate: null, amount: 200_000, description: null },
+      { concept_type: "overtime_day", is_income: true, base: null, rate: null, amount: 100_000, description: null },
+      { concept_type: "bonus_salary", is_income: true, base: null, rate: null, amount: 50_000, description: null },
+    ];
+    const ibc = 3_150_000;
+    const input = mkInput();
+    const ytdBefore = { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { provisions } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+
+    const cesantias = provisions.find((p) => p.concept === "cesantias");
+    const prima = provisions.find((p) => p.concept === "prima");
+    const vacaciones = provisions.find((p) => p.concept === "vacaciones");
+
+    const base = 2_800_000 + 249_095 + 200_000 + 100_000 + 50_000;
+    expect(cesantias).toBeDefined();
+    expect(cesantias!.amount).toBe(Math.round(base * 0.0833));
+    expect(prima).toBeDefined();
+    expect(prima!.amount).toBe(Math.round(base * 0.0833));
+    expect(vacaciones).toBeDefined();
+    expect(vacaciones!.amount).toBe(Math.round(2_800_000 * 0.0417));
+  });
+
+  it("salario integral → provisions=[] (no aplican)", () => {
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: 25_000_000, description: "salario integral" },
+    ];
+    const ibc = Math.round(25_000_000 * 0.70);
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: 25_000_000, is_integral_salary: true })],
+    });
+    const ytdBefore = { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { provisions } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+    expect(provisions).toHaveLength(0);
+  });
+
+  it("costo empleador: ARL clase 1, salario < 10 SMMLV → sena=0, icbf=0, total correcto", () => {
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: 2_800_000, description: null },
+    ];
+    const ibc = 2_800_000;
+    const input = mkInput({ employee: { ...baseProfile, arl_risk_class: 1 } });
+    const ytdBefore = { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { employer_cost } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+
+    expect(employer_cost.health_employer).toBe(Math.round(ibc * 0.085));
+    expect(employer_cost.pension_employer).toBe(Math.round(ibc * 0.12));
+    expect(employer_cost.arl_employer).toBe(Math.round(ibc * 0.00522));
+    expect(employer_cost.parafiscales_caja).toBe(Math.round(ibc * 0.04));
+    expect(employer_cost.parafiscales_sena).toBe(0);
+    expect(employer_cost.parafiscales_icbf).toBe(0);
+    const expectedTotal = Math.round(ibc * (0.085 + 0.12 + 0.00522 + 0.04));
+    expect(employer_cost.total).toBe(expectedTotal);
+  });
+
+  it("ARL clase 5 → arl_employer = ibc × 0.0696", () => {
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: 2_800_000, description: null },
+    ];
+    const ibc = 2_800_000;
+    const input = mkInput({ employee: { ...baseProfile, arl_risk_class: 5 } });
+    const ytdBefore = { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { employer_cost } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+    expect(employer_cost.arl_employer).toBe(Math.round(ibc * 0.06960));
+  });
+
+  it("salario > 10 SMMLV → sena=ibc×0.02, icbf=ibc×0.03 (no exoneración)", () => {
+    const highSalary = 20_000_000;
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: highSalary, description: null },
+    ];
+    const ibc = highSalary;
+    const input = mkInput({
+      salaryHistory: [mkSalary({ monthly_salary: highSalary })],
+    });
+    const ytdBefore = { cesantias: 0, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { employer_cost } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+    expect(employer_cost.parafiscales_sena).toBe(Math.round(ibc * 0.02));
+    expect(employer_cost.parafiscales_icbf).toBe(Math.round(ibc * 0.03));
+  });
+
+  it("YTD accumulation: ytdBefore.cesantias=$500K → accumulated_ytd = $500K + new amount", () => {
+    const entries: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: null, rate: null, amount: 2_800_000, description: null },
+    ];
+    const ibc = 2_800_000;
+    const input = mkInput();
+    const ytdBefore = { cesantias: 500_000, cesantias_interest: 0, prima: 0, vacaciones: 0 };
+    const { provisions } = computeProvisionsAndEmployerCost(input, ibc, entries, ytdBefore);
+    const cesantias = provisions.find((p) => p.concept === "cesantias");
+    expect(cesantias!.accumulated_ytd).toBe(500_000 + cesantias!.amount);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Orchestrator E2E — computePayroll full pipeline ($2.8M fixture, research §9)
+// ---------------------------------------------------------------------------
+
+describe("computePayroll E2E — $2.8M fixture (research §9)", () => {
+  it("full pipeline: salary=$2.8M, 2 dominicales 8h, OT nocturna 8h → neto/costo en rango esperado", () => {
+    const sundayEntry1 = mkEntry({ date: "2026-03-01", start_time: "09:00", end_time: "17:00", overtime_status: "none" });
+    const sundayEntry2 = mkEntry({ date: "2026-03-08", start_time: "09:00", end_time: "17:00", overtime_status: "none" });
+    const otNightEntry = mkEntry({ date: "2026-03-02", start_time: "21:00", end_time: "05:00", overtime_status: "approved" });
+
+    const input = mkInput({
+      scheduleEntries: [sundayEntry1, sundayEntry2, otNightEntry],
+      settings: [settingsNight21],
+    });
+
+    const result = computePayroll(input);
+    expect(result.errors).toHaveLength(0);
+
+    const salary = result.entries.find((e) => e.concept_type === "salary");
+    expect(salary!.amount).toBe(2_800_000);
+
+    const transport = result.entries.find((e) => e.concept_type === "transport");
+    expect(transport!.amount).toBe(AUX_TRANSPORT);
+
+    // Sunday surcharge: 16h × VH × 0.8
+    const sundayRec = result.entries.find((e) => e.concept_type === "surcharge_sunday");
+    expect(sundayRec).toBeDefined();
+    expect(sundayRec!.amount).toBe(Math.round(16 * VH * 0.8));
+
+    // Overtime night: 8h × VH × 0.75
+    const otNight = result.entries.find((e) => e.concept_type === "overtime_night");
+    expect(otNight).toBeDefined();
+    expect(otNight!.amount).toBe(Math.round(8 * VH * 0.75));
+
+    // Deductions exist
+    expect(result.entries.find((e) => e.concept_type === "health_employee")).toBeDefined();
+    expect(result.entries.find((e) => e.concept_type === "pension_employee")).toBeDefined();
+
+    // Provisions exist
+    expect(result.provisions.length).toBeGreaterThan(0);
+    expect(result.provisions.find((p) => p.concept === "cesantias")).toBeDefined();
+    expect(result.provisions.find((p) => p.concept === "prima")).toBeDefined();
+    expect(result.provisions.find((p) => p.concept === "vacaciones")).toBeDefined();
+
+    // Employer cost > 0
+    expect(result.employer_cost.total).toBeGreaterThan(0);
+
+    // Gross devengado in expected range
+    const totalDevengado = result.entries
+      .filter((e) => e.is_income)
+      .reduce((s, e) => s + e.amount, 0);
+    expect(totalDevengado).toBeGreaterThan(3_000_000);
+    expect(totalDevengado).toBeLessThan(4_000_000);
+
+    // Neto = devengado - deducciones
+    const totalDed = result.entries
+      .filter((e) => !e.is_income)
+      .reduce((s, e) => s + e.amount, 0);
+    const neto = totalDevengado - totalDed;
+    expect(neto).toBeGreaterThan(2_800_000);
+  });
+
+  it("output has provisions populated and employer_cost.total > 0", () => {
+    const result = computePayroll(mkInput());
+    expect(result.provisions.length).toBeGreaterThan(0);
+    expect(result.employer_cost.total).toBeGreaterThan(0);
+    expect(result.warnings).toEqual([]);
   });
 });

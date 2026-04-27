@@ -654,19 +654,126 @@ export function computeEmployeeDeductions(
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator — computePayroll (stages 1-6)
+// Stage 9 — computeProvisionsAndEmployerCost
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute monthly provisions (cesantias, cesantias_interest, prima, vacaciones)
+ * and employer contribution costs (health, pension, ARL, parafiscales).
+ *
+ * Integral salary: provisions = [] (included in the integral factor by law).
+ * Normal salary: base_provisiones = salary + transport + surcharges + overtime + bonus_salary.
+ */
+export function computeProvisionsAndEmployerCost(
+  input: PayrollComputeInput,
+  ibc: number,
+  allEntries: ComputedEntry[],
+  ytdBefore: { cesantias: number; cesantias_interest: number; prima: number; vacaciones: number }
+): { provisions: ComputedProvision[]; employer_cost: ComputedEmployerCost } {
+  const { employee, period, salaryHistory, settings } = input;
+
+  const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
+  const cfg = getSettingsForDate(settings, period.start);
+  const smmlv = cfg?.smmlv ?? 1_750_905;
+
+  const isIntegral = allEntries.some(
+    (e) => e.concept_type === "salary" && e.description === "salario integral"
+  );
+
+  const provisions: ComputedProvision[] = [];
+
+  if (!isIntegral) {
+    // Base provisiones: salary + transport + surcharges + overtime + bonus_salary
+    const PROVISION_CONCEPTS = new Set([
+      "salary", "transport",
+      "surcharge_night", "surcharge_sunday", "surcharge_holiday",
+      "overtime_day", "overtime_night",
+      "bonus_salary",
+    ]);
+    const base = allEntries
+      .filter((e) => PROVISION_CONCEPTS.has(e.concept_type))
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const monthlySalary = sal?.monthly_salary ?? 0;
+
+    const cesantiasAmt = Math.round(base * 0.0833);
+    const cesantiasIntAmt = Math.round(cesantiasAmt * 0.01);
+    const primaAmt = Math.round(base * 0.0833);
+    const vacacionesAmt = Math.round(monthlySalary * 0.0417);
+
+    provisions.push({
+      concept: "cesantias",
+      base,
+      rate: 0.0833,
+      amount: cesantiasAmt,
+      accumulated_ytd: ytdBefore.cesantias + cesantiasAmt,
+    });
+
+    provisions.push({
+      concept: "cesantias_interest",
+      base: cesantiasAmt,
+      rate: 0.01,
+      amount: cesantiasIntAmt,
+      accumulated_ytd: ytdBefore.cesantias_interest + cesantiasIntAmt,
+    });
+
+    provisions.push({
+      concept: "prima",
+      base,
+      rate: 0.0833,
+      amount: primaAmt,
+      accumulated_ytd: ytdBefore.prima + primaAmt,
+    });
+
+    provisions.push({
+      concept: "vacaciones",
+      base: monthlySalary,
+      rate: 0.0417,
+      amount: vacacionesAmt,
+      accumulated_ytd: ytdBefore.vacaciones + vacacionesAmt,
+    });
+  }
+
+  // Employer cost
+  const monthlySalary = sal?.monthly_salary ?? 0;
+  const arlRate = getArlRate(employee.arl_risk_class);
+  const exonerated = isExonerationApplicable(monthlySalary, smmlv);
+
+  const health_employer = Math.round(ibc * 0.085);
+  const pension_employer = Math.round(ibc * 0.12);
+  const arl_employer = Math.round(ibc * arlRate);
+  const parafiscales_caja = Math.round(ibc * 0.04);
+  const parafiscales_sena = exonerated ? 0 : Math.round(ibc * 0.02);
+  const parafiscales_icbf = exonerated ? 0 : Math.round(ibc * 0.03);
+  const total = health_employer + pension_employer + arl_employer + parafiscales_caja + parafiscales_sena + parafiscales_icbf;
+
+  return {
+    provisions,
+    employer_cost: {
+      health_employer,
+      pension_employer,
+      arl_employer,
+      parafiscales_caja,
+      parafiscales_sena,
+      parafiscales_icbf,
+      total,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator — computePayroll (stages 1-9)
 // ---------------------------------------------------------------------------
 
 /**
  * Top-level pure payroll computation entry point.
  *
- * Stages 1-6 wired. Stages 7-9 (IBC, deductions, provisions+employer cost)
- * remain as zero stubs pending later tasks.
+ * All 9 stages wired in order. Stages 7-9 (IBC, deductions, provisions,
+ * employer cost) run once on the combined entries from stages 1-6.
  *
  * Contract:
  * - `errors[]` → hard problems that block period approval.
  * - `warnings[]` → soft messages surfaced in the UI but don't block.
- * - `provisions` and `employer_cost` are zero-valued stubs until tasks 17-18.
  */
 
 /** Helper: check whether an entry represents an integral salary. */
@@ -674,43 +781,26 @@ export function entryIsIntegral(entry: ComputedEntry): boolean {
   return entry.concept_type === "salary" && entry.description === "salario integral";
 }
 
-const ZERO_EMPLOYER_COST: ComputedEmployerCost = {
-  health_employer: 0,
-  pension_employer: 0,
-  arl_employer: 0,
-  parafiscales_caja: 0,
-  parafiscales_sena: 0,
-  parafiscales_icbf: 0,
-  total: 0,
-};
-
 export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Stage 1
+  // Stages 1-6
   const workedDays = computeWorkedDays(input);
 
-  // Stage 2
   const { entries: salaryEntries, errors: salaryErrors } = computeBaseSalary(input, workedDays);
   errors.push(...salaryErrors);
 
-  // Stage 3
   const baseSalaryEntry = salaryEntries[0] ?? null;
   const transportEntry = baseSalaryEntry
     ? computeTransportAux(input, workedDays, baseSalaryEntry)
     : null;
 
-  // Stage 4 — surcharges for ordinary (non-overtime) entries
   const surchargeEntries = computeSurcharges(input);
-
-  // Stage 5 — overtime entries (approved overtime_status only)
   const overtimeEntries = computeOvertime(input);
-
-  // Stage 6 — salary adjustments within the period
   const adjustmentEntries = computeAdjustments(input);
 
-  const entries: ComputedEntry[] = [
+  const incomeEntries: ComputedEntry[] = [
     ...salaryEntries,
     ...(transportEntry ? [transportEntry] : []),
     ...surchargeEntries,
@@ -718,10 +808,33 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
     ...adjustmentEntries,
   ];
 
+  // Stage 7 — IBC (once on combined entries)
+  const ibc = incomeEntries.length > 0 ? computeIBC(input, incomeEntries) : 0;
+
+  // Stage 8 — Employee deductions
+  const totalDevengado = incomeEntries
+    .filter((e) => e.is_income)
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const deductionEntries = incomeEntries.length > 0 && ibc > 0
+    ? computeEmployeeDeductions(input, ibc, totalDevengado)
+    : [];
+
+  // Stage 9 — Provisions + employer cost
+  const { provisions, employer_cost } = incomeEntries.length > 0 && ibc > 0
+    ? computeProvisionsAndEmployerCost(input, ibc, incomeEntries, input.ytdProvisionsBefore)
+    : {
+        provisions: [] as ComputedProvision[],
+        employer_cost: {
+          health_employer: 0, pension_employer: 0, arl_employer: 0,
+          parafiscales_caja: 0, parafiscales_sena: 0, parafiscales_icbf: 0, total: 0,
+        },
+      };
+
   return {
-    entries,
-    provisions: [],
-    employer_cost: { ...ZERO_EMPLOYER_COST },
+    entries: [...incomeEntries, ...deductionEntries],
+    provisions,
+    employer_cost,
     warnings,
     errors,
   };
