@@ -184,6 +184,7 @@ export interface StaffingRequirement {
   required_count: number;
   created_at: string;
   updated_at: string;
+  updated_by?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   position?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -81,6 +81,10 @@ Hooks in `src/hooks/` re-export from contexts for backward compatibility.
 
 Schedules are per-location, per-month with status flow: `draft` → `published` → `archived`. Only draft schedules can be edited. Publishing triggers Postgres notifications to affected employees.
 
+### Staffing Matrix (`/necesidades`)
+
+Configurador semanal recurrente de necesidades por (sede × posición × turno × día). Tres tabs: Por turno, Por posición, Heatmap demanda. Persiste vía RPC `save_staffing_diff(p_location_id uuid, p_rows jsonb)` que aplica un diff atómico (insert/update/delete según desired state) y devuelve `{inserted, updated, deleted}`. Auditoría: `staffing_requirements.updated_by`. Helpers puros en `src/lib/staffing-helpers.ts` (`diffStaffing`, `replicateAcrossDays`, `replicateShiftToShift`). Hook `useStaffingMatrix` carga 5 queries en paralelo (requirements + positions + shift_templates + capacidad teórica desde `profiles` + `employee_secondary_positions` + cobertura últimas 4 semanas desde `schedule_entries`).
+
 ### Demo Employees
 
 Profiles with `is_demo = true` are placeholder employees for schedule planning. They have no `auth.users` entry and cannot log in. Two conversion paths: convert in-place (creates auth user, migrates shifts) or transfer shifts to an existing real employee. Visually identified by yellow "Demo" badge + italic name. Hard-deleted by admin; schedule_entries cascade (migration 022).
