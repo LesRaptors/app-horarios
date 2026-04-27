@@ -372,6 +372,7 @@ export interface PayrollPeriod {
   period_end: string;
   frequency: PaymentFrequency;
   status: PayrollPeriodStatus;
+  is_advance: boolean;
   approved_at: string | null;
   approved_by: string | null;
   paid_at: string | null;
