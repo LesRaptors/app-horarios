@@ -16,9 +16,14 @@ export function exportSchedulePdf(
 
   // Build entry map
   const entryMap: Record<string, ScheduleEntry> = {};
+  const employeesWithEntries = new Set<string>();
   for (const e of entries) {
     entryMap[entryMapKey(e.employee_id, e.date)] = e;
+    employeesWithEntries.add(e.employee_id);
   }
+
+  // Filter: solo empleados con al menos un turno en el período
+  const visibleEmployees = employees.filter((e) => employeesWithEntries.has(e.id));
 
   // Title
   doc.setFontSize(14);
@@ -31,7 +36,7 @@ export function exportSchedulePdf(
   ];
 
   // Table body
-  const body = employees.map((emp) => {
+  const body = visibleEmployees.map((emp) => {
     const row = [`${emp.first_name} ${emp.last_name}`];
     for (const date of dates) {
       const dateStr = formatDateISO(date);

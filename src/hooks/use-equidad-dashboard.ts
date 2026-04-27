@@ -155,6 +155,7 @@ export function useEquidadDashboard(
           .from("profiles")
           .select("*")
           .eq("is_active", true)
+          .neq("role", "admin")
           .order("last_name"),
         supabase.from("positions").select("*"),
         supabase.from("staffing_requirements").select("*"),
