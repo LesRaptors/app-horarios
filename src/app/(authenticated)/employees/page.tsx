@@ -43,6 +43,8 @@ import { EmployeeEquityPanel } from "@/components/schedule/employee-equity-panel
 import { SalaryCell } from "@/components/employees/salary-cell";
 import { SalaryHistorySection } from "@/components/employees/salary-history-section";
 import { SalaryAdjustmentsSection } from "@/components/employees/salary-adjustments-section";
+import { AbsenceSection } from "@/components/employees/absence-section";
+import { TaxDeductionsSection } from "@/components/employees/tax-deductions-section";
 import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
@@ -57,6 +59,8 @@ import type {
   SalaryHistory,
   SalaryAdjustment,
   PayrollSettings,
+  AbsenceRecord,
+  TaxPersonalDeduction,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -239,17 +243,25 @@ export default function EmployeesPage() {
   const [appFlags, setAppFlags] = useState<{ managers_can_see_salaries: boolean }>({
     managers_can_see_salaries: false,
   });
+  const [absenceRecords, setAbsenceRecords] = useState<AbsenceRecord[]>([]);
+  const [taxDeductions, setTaxDeductions] = useState<TaxPersonalDeduction[]>([]);
 
   const fetchSalaryData = useCallback(async () => {
-    const [shRes, saRes, psRes, afRes] = await Promise.all([
+    const [shRes, saRes, psRes, afRes, arRes, tdRes] = await Promise.all([
       supabase.from("salary_history").select("*, creator:profiles!salary_history_created_by_fkey(first_name,last_name)").order("effective_from", { ascending: false }),
       supabase.from("salary_adjustments").select("*").order("payment_date", { ascending: false }),
       supabase.from("payroll_settings").select("*").order("period_start", { ascending: true }),
       supabase.from("app_settings").select("value").eq("key", "app_flags").maybeSingle(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("absence_records").select("*").order("start_date", { ascending: false }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("tax_personal_deductions").select("*").order("effective_from", { ascending: false }),
     ]);
     setSalaryHistory((shRes.data ?? []) as unknown as SalaryHistory[]);
     setSalaryAdjustments((saRes.data ?? []) as SalaryAdjustment[]);
     setPayrollSettings((psRes.data ?? []) as PayrollSettings[]);
+    setAbsenceRecords(((arRes as { data: unknown[] | null }).data ?? []) as AbsenceRecord[]);
+    setTaxDeductions(((tdRes as { data: unknown[] | null }).data ?? []) as TaxPersonalDeduction[]);
     if (afRes.data?.value && typeof afRes.data.value === "object") {
       const v = afRes.data.value as Record<string, unknown>;
       setAppFlags({
@@ -1767,6 +1779,18 @@ export default function EmployeesPage() {
                 <SalaryAdjustmentsSection
                   employeeId={panelEmp.id}
                   adjustments={salaryAdjustments.filter((a) => a.employee_id === panelEmp.id)}
+                  canEdit={canEditSalary}
+                  onChanged={fetchSalaryData}
+                />
+                <AbsenceSection
+                  employeeId={panelEmp.id}
+                  absences={absenceRecords.filter((a) => a.employee_id === panelEmp.id)}
+                  canEdit={canEditSalary}
+                  onChanged={fetchSalaryData}
+                />
+                <TaxDeductionsSection
+                  employeeId={panelEmp.id}
+                  deductions={taxDeductions.filter((d) => d.employee_id === panelEmp.id)}
                   canEdit={canEditSalary}
                   onChanged={fetchSalaryData}
                 />
