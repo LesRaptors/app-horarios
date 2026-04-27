@@ -118,7 +118,7 @@ export function ConceptTooltip({ concept, children }: Props) {
           href={`/mi-pago/glosario#${concept}`}
           className="mt-2 inline-block text-primary underline underline-offset-2 text-xs"
         >
-          Saber mas
+          Saber más
         </Link>
       </PopoverContent>
     </Popover>
