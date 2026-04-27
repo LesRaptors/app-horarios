@@ -5,6 +5,7 @@ import {
   computeTransportAux,
   computeSurcharges,
   computeOvertime,
+  computeAdjustments,
   computePayroll,
 } from "./payroll-engine";
 import type {
@@ -594,5 +595,118 @@ describe("computeOvertime", () => {
     expect(dayOT!.amount).toBe(Math.round(4 * VH * 0.25));
     expect(holRec).toBeDefined();
     expect(holRec!.amount).toBe(Math.round(4 * VH * 0.8));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 6 — computeAdjustments
+// ---------------------------------------------------------------------------
+
+describe("computeAdjustments", () => {
+  const mkAdj = (overrides: Partial<SalaryAdjustment>): SalaryAdjustment => ({
+    id: "adj1",
+    employee_id: "emp1",
+    payment_date: "2026-03-15",
+    concept_label: "Comision febrero",
+    amount: 200_000,
+    is_salary_component: true,
+    description: null,
+    created_by: null,
+    created_at: "2026-03-01T00:00:00Z",
+    ...overrides,
+  });
+
+  it("sin adjustments → entries vacio", () => {
+    const input = mkInput({ adjustments: [] });
+    expect(computeAdjustments(input)).toHaveLength(0);
+  });
+
+  it("is_salary=true dentro del periodo → bonus_salary con amount y description", () => {
+    const adj = mkAdj({ is_salary_component: true, amount: 200_000, concept_label: "Comision febrero" });
+    const input = mkInput({ adjustments: [adj] });
+    const entries = computeAdjustments(input);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].concept_type).toBe("bonus_salary");
+    expect(entries[0].amount).toBe(200_000);
+    expect(entries[0].description).toBe("Comision febrero");
+  });
+
+  it("is_salary=false → bonus_non_salary", () => {
+    const adj = mkAdj({ is_salary_component: false });
+    const input = mkInput({ adjustments: [adj] });
+    const entries = computeAdjustments(input);
+    expect(entries[0].concept_type).toBe("bonus_non_salary");
+  });
+
+  it("payment_date fuera del periodo → ignorado", () => {
+    const adj = mkAdj({ payment_date: "2026-04-01" }); // April, outside March period
+    const input = mkInput({ adjustments: [adj] });
+    expect(computeAdjustments(input)).toHaveLength(0);
+  });
+
+  it("multiples adjustments → cada uno como entry separada (no se agregan)", () => {
+    const adj1 = mkAdj({ id: "adj1", concept_label: "Comision A", amount: 100_000, is_salary_component: true });
+    const adj2 = mkAdj({ id: "adj2", concept_label: "Comision B", amount: 150_000, is_salary_component: true });
+    const input = mkInput({ adjustments: [adj1, adj2] });
+    const entries = computeAdjustments(input);
+    expect(entries).toHaveLength(2);
+    expect(entries[0].amount).toBe(100_000);
+    expect(entries[1].amount).toBe(150_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Orchestrator — computePayroll (stages 4-6 wired)
+// ---------------------------------------------------------------------------
+
+describe("computePayroll orchestrator (stages 4-6)", () => {
+  it("turno nocturno ordinario + adjustment + approved overtime emite todas las entries correctas", () => {
+    // Night shift (ordinary): Monday 21:00-05:00 = 8h night (night_start=21) → surcharge_night
+    // Approved overtime: Tuesday 17:00-19:00 = 2h diurna (night_start=21, all before 21) → overtime_day
+    // Adjustment: $300K is_salary → bonus_salary
+    const nightEntry = mkEntry({ date: "2026-03-02", start_time: "21:00", end_time: "05:00", overtime_status: "none" });
+    const overtimeEntry = mkEntry({
+      date: "2026-03-03", // Tuesday
+      start_time: "17:00",
+      end_time: "19:00",
+      overtime_status: "approved",
+    });
+    const adj: SalaryAdjustment = {
+      id: "adj1",
+      employee_id: "emp1",
+      payment_date: "2026-03-15",
+      concept_label: "Bono",
+      amount: 300_000,
+      is_salary_component: true,
+      description: null,
+      created_by: null,
+      created_at: "2026-03-01T00:00:00Z",
+    };
+    const input = mkInput({
+      scheduleEntries: [nightEntry, overtimeEntry],
+      adjustments: [adj],
+      settings: [settingsNight21],
+    });
+    const result = computePayroll(input);
+    expect(result.errors).toHaveLength(0);
+
+    // Salary + transport from stages 1-3
+    expect(result.entries.find((e) => e.concept_type === "salary")).toBeDefined();
+    expect(result.entries.find((e) => e.concept_type === "transport")).toBeDefined();
+
+    // Stage 4: surcharge_night for the ordinary night shift (8h)
+    const surchargeNight = result.entries.find((e) => e.concept_type === "surcharge_night");
+    expect(surchargeNight).toBeDefined();
+    expect(surchargeNight!.amount).toBe(Math.round(8 * VH * 0.35));
+
+    // Stage 5: overtime_day for the 2h diurna approved overtime (17:00-19:00, night_start=21)
+    const otDay = result.entries.find((e) => e.concept_type === "overtime_day");
+    expect(otDay).toBeDefined();
+    expect(otDay!.amount).toBe(Math.round(2 * VH * 0.25));
+
+    // Stage 6: bonus_salary
+    const bonus = result.entries.find((e) => e.concept_type === "bonus_salary");
+    expect(bonus).toBeDefined();
+    expect(bonus!.amount).toBe(300_000);
   });
 });

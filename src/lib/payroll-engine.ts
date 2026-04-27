@@ -476,13 +476,42 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator — computePayroll (stages 1-5)
+// Stage 6 — computeAdjustments
+// ---------------------------------------------------------------------------
+
+/**
+ * Emit one ComputedEntry per salary_adjustment with payment_date within
+ * [period.start, period.end]. Each adjustment is emitted independently
+ * (no aggregation). is_salary_component → bonus_salary; else → bonus_non_salary.
+ */
+export function computeAdjustments(input: PayrollComputeInput): ComputedEntry[] {
+  const { period, adjustments } = input;
+
+  return adjustments
+    .filter(
+      (adj) => adj.payment_date >= period.start && adj.payment_date <= period.end
+    )
+    .map((adj) => ({
+      concept_type: adj.is_salary_component
+        ? ("bonus_salary" as const)
+        : ("bonus_non_salary" as const),
+      is_income: true,
+      base: null,
+      rate: null,
+      amount: adj.amount,
+      description: adj.concept_label,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator — computePayroll (stages 1-6)
 // ---------------------------------------------------------------------------
 
 /**
  * Top-level pure payroll computation entry point.
  *
- * Stages 1-5 wired. Stages 6-9 pending later tasks.
+ * Stages 1-6 wired. Stages 7-9 (IBC, deductions, provisions+employer cost)
+ * remain as zero stubs pending later tasks.
  *
  * Contract:
  * - `errors[]` → hard problems that block period approval.
@@ -528,11 +557,15 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
   // Stage 5 — overtime entries (approved overtime_status only)
   const overtimeEntries = computeOvertime(input);
 
+  // Stage 6 — salary adjustments within the period
+  const adjustmentEntries = computeAdjustments(input);
+
   const entries: ComputedEntry[] = [
     ...salaryEntries,
     ...(transportEntry ? [transportEntry] : []),
     ...surchargeEntries,
     ...overtimeEntries,
+    ...adjustmentEntries,
   ];
 
   return {
