@@ -42,7 +42,7 @@ export interface PayrollComputeInput {
     termination_date: string | null;
     arl_risk_class: number | null;
   };
-  period: { start: string; end: string; frequency: PaymentFrequency };
+  period: { start: string; end: string; frequency: PaymentFrequency; paymentMode?: "independent" | "advance_settlement" };
   salaryHistory: SalaryHistory[];
   scheduleEntries: ScheduleEntry[];
   shiftTemplates: ShiftTemplate[];
@@ -57,6 +57,11 @@ export interface PayrollComputeInput {
     prima: number;
     vacaciones: number;
   };
+  /**
+   * For Q2 settlement only: the salary+transport entries already paid in the Q1 advance
+   * of the same month. Engine subtracts them from the corresponding Q2 entries.
+   */
+  q1AdvanceEntries?: ComputedEntry[];
 }
 
 export interface ComputedEntry {
@@ -781,6 +786,51 @@ export function entryIsIntegral(entry: ComputedEntry): boolean {
   return entry.concept_type === "salary" && entry.description === "salario integral";
 }
 
+/** Returns a zero-valued ComputedEmployerCost. */
+function emptyEmployerCost(): ComputedEmployerCost {
+  return {
+    health_employer: 0,
+    pension_employer: 0,
+    arl_employer: 0,
+    parafiscales_caja: 0,
+    parafiscales_sena: 0,
+    parafiscales_icbf: 0,
+    total: 0,
+  };
+}
+
+function isFirstDayOfMonth(dateStr: string): boolean {
+  return dateStr.endsWith("-01");
+}
+
+function isFifteenthOfMonth(dateStr: string): boolean {
+  return dateStr.endsWith("-15");
+}
+
+function isLastDayOfMonth(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d) + 86_400_000);
+  return next.getUTCMonth() !== m - 1;
+}
+
+function isQ1Advance(period: { start: string; end: string; frequency: string; paymentMode?: string }): boolean {
+  return (
+    period.paymentMode === "advance_settlement" &&
+    period.frequency === "quincenal" &&
+    isFirstDayOfMonth(period.start) &&
+    isFifteenthOfMonth(period.end)
+  );
+}
+
+function isQ2Settlement(period: { start: string; end: string; frequency: string; paymentMode?: string }): boolean {
+  return (
+    period.paymentMode === "advance_settlement" &&
+    period.frequency === "quincenal" &&
+    period.start.endsWith("-16") &&
+    isLastDayOfMonth(period.end)
+  );
+}
+
 /**
  * Detect whether the period crosses a settings boundary.
  * Returns an array of sub-period {start, end} ranges if it does, otherwise null.
@@ -834,7 +884,11 @@ function mergeEntriesByConcept(entries: ComputedEntry[]): ComputedEntry[] {
   return Array.from(map.values());
 }
 
-export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput {
+/**
+ * Internal full pipeline (stages 1-9). Does NOT check advance/settlement branches.
+ * Called by computePayroll (which checks branches first) and by the Q2 settlement branch.
+ */
+function runFullPipeline(input: PayrollComputeInput): PayrollComputeOutput {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -936,10 +990,7 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
     ? computeProvisionsAndEmployerCost(input, ibc, incomeEntries, input.ytdProvisionsBefore)
     : {
         provisions: [] as ComputedProvision[],
-        employer_cost: {
-          health_employer: 0, pension_employer: 0, arl_employer: 0,
-          parafiscales_caja: 0, parafiscales_sena: 0, parafiscales_icbf: 0, total: 0,
-        },
+        employer_cost: emptyEmployerCost(),
       };
 
   return {
@@ -949,6 +1000,81 @@ export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput
     warnings,
     errors,
   };
+}
+
+export function computePayroll(input: PayrollComputeInput): PayrollComputeOutput {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Q1 advance branch: emit only salary+transport, skip stages 4-9.
+  if (isQ1Advance(input.period)) {
+    const termInQ1 =
+      input.employee.termination_date &&
+      input.employee.termination_date >= input.period.start &&
+      input.employee.termination_date <= input.period.end;
+
+    if (!termInQ1) {
+      const workedDays = computeWorkedDays(input);
+      const { entries: salaryEntries, errors: salaryErrors } = computeBaseSalary(input, workedDays);
+      errors.push(...salaryErrors);
+
+      const baseSalaryEntry = salaryEntries[0] ?? null;
+      const transportEntry = baseSalaryEntry
+        ? computeTransportAux(input, workedDays, baseSalaryEntry)
+        : null;
+
+      const advanceEntries: ComputedEntry[] = [
+        ...salaryEntries,
+        ...(transportEntry ? [transportEntry] : []),
+      ];
+
+      return {
+        entries: advanceEntries,
+        provisions: [],
+        employer_cost: emptyEmployerCost(),
+        warnings: ["Anticipo de Q1 — la liquidación completa llega en la segunda quincena"],
+        errors,
+      };
+    }
+  }
+
+  // Q2 settlement branch: compute on full month, then subtract Q1 advance.
+  if (isQ2Settlement(input.period)) {
+    const monthStart = input.period.start.slice(0, 7) + "-01";
+    // Use the period end as-is (it should already be the last day of the month)
+    const monthEnd = input.period.end;
+
+    const fullMonthInput: PayrollComputeInput = {
+      ...input,
+      // Override to "mensual" so computeWorkedDays uses 30-day cap (not 15).
+      period: { ...input.period, start: monthStart, end: monthEnd, frequency: "mensual" },
+    };
+
+    const monthlyOutput = runFullPipeline(fullMonthInput);
+
+    // Subtract Q1 advance from salary and transport entries.
+    if (input.q1AdvanceEntries && input.q1AdvanceEntries.length > 0) {
+      const q1Salary = input.q1AdvanceEntries.find((e) => e.concept_type === "salary")?.amount ?? 0;
+      const q1Transport = input.q1AdvanceEntries.find((e) => e.concept_type === "transport")?.amount ?? 0;
+
+      monthlyOutput.entries = monthlyOutput.entries.map((e) => {
+        if (e.concept_type === "salary") {
+          return { ...e, amount: e.amount - q1Salary };
+        }
+        if (e.concept_type === "transport") {
+          return { ...e, amount: e.amount - q1Transport };
+        }
+        return e;
+      });
+
+      monthlyOutput.warnings.push(`Anticipo Q1 ya pagado: ${q1Salary + q1Transport} restado`);
+    }
+
+    return monthlyOutput;
+  }
+
+  // Normal pipeline (independent mode or full mensual).
+  return runFullPipeline(input);
 }
 
 // ---------------------------------------------------------------------------

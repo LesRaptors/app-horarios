@@ -346,6 +346,7 @@ export interface PayrollSettings {
 // ----------------------------------------------------------------------------
 
 export type PaymentFrequency = "mensual" | "quincenal";
+export type PaymentMode = "independent" | "advance_settlement";
 export type PayrollPeriodStatus = "draft" | "approved" | "paid";
 
 export type PayrollConceptType =

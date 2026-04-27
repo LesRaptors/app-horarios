@@ -16,6 +16,7 @@ import type {
   WorkedDaysResult,
   ComputedEntry,
 } from "./payroll-engine";
+import type { PaymentMode } from "./types";
 import type {
   Profile,
   SalaryHistory,
@@ -1184,5 +1185,191 @@ describe("computePayroll multi-period split", () => {
     // Exactly one health_employee deduction (not duplicated per sub-period)
     const healthEntries = result.entries.filter((e) => e.concept_type === "health_employee");
     expect(healthEntries).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// makeInput — convenience helper for advance/settlement tests
+// Accepts named overrides for common fields used in Tasks 6+7.
+// ---------------------------------------------------------------------------
+
+function makeInput(opts: {
+  period: { start: string; end: string; frequency: "mensual" | "quincenal"; paymentMode?: "independent" | "advance_settlement" };
+  monthlySalary?: number;
+  hireDate?: string;
+  terminationDate?: string;
+  q1AdvanceEntries?: ComputedEntry[];
+}): PayrollComputeInput {
+  const salary = opts.monthlySalary ?? 2_800_000;
+  return mkInput({
+    employee: {
+      ...baseProfile,
+      hire_date: opts.hireDate ?? null,
+      termination_date: opts.terminationDate ?? null,
+    },
+    period: opts.period as PayrollComputeInput["period"],
+    salaryHistory: [mkSalary({ monthly_salary: salary })],
+    q1AdvanceEntries: opts.q1AdvanceEntries,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Task 6 — computePayroll advance/settlement mode (Q1 branch)
+// ---------------------------------------------------------------------------
+
+describe("computePayroll — advance/settlement mode", () => {
+  it("Q1 advance emits only salary + transport, no SS deductions", () => {
+    const period = {
+      start: "2026-04-01",
+      end: "2026-04-15",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const input = makeInput({ period, monthlySalary: 2_800_000 });
+    const out = computePayroll(input);
+
+    const concepts = out.entries.map((e) => e.concept_type).sort();
+    expect(concepts).toEqual(["salary", "transport"]);
+    expect(out.provisions).toHaveLength(0);
+    expect(out.employer_cost.total).toBe(0);
+    expect(out.warnings).toContain(
+      "Anticipo de Q1 — la liquidación completa llega en la segunda quincena"
+    );
+  });
+
+  it("Q1 advance with hire mid-Q1: prorrateo correcto", () => {
+    const period = {
+      start: "2026-04-01",
+      end: "2026-04-15",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const input = makeInput({
+      period,
+      monthlySalary: 3_000_000,
+      hireDate: "2026-04-08",
+    });
+    const out = computePayroll(input);
+    const salary = out.entries.find((e) => e.concept_type === "salary");
+    // 8 days × 3M / 30 = 800K
+    expect(salary?.amount).toBe(800_000);
+  });
+
+  it("Q1 fallback when termination ∈ Q1: full calc, is_advance=false", () => {
+    const period = {
+      start: "2026-04-01",
+      end: "2026-04-15",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const input = makeInput({
+      period,
+      monthlySalary: 2_800_000,
+      terminationDate: "2026-04-10",
+    });
+    const out = computePayroll(input);
+    // Full calculation should run (deducciones present)
+    const concepts = out.entries.map((e) => e.concept_type);
+    expect(concepts).toContain("salary");
+    expect(concepts).toContain("health_employee");
+    expect(concepts).toContain("pension_employee");
+  });
+
+  it("independent mode quincenal: full calc per period", () => {
+    const period = {
+      start: "2026-04-01",
+      end: "2026-04-15",
+      frequency: "quincenal" as const,
+      paymentMode: "independent" as const,
+    };
+    const input = makeInput({ period, monthlySalary: 2_800_000 });
+    const out = computePayroll(input);
+    const concepts = out.entries.map((e) => e.concept_type);
+    expect(concepts).toContain("salary");
+    expect(concepts).toContain("health_employee");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7 — computePayroll Q2 settlement subtraction
+// ---------------------------------------------------------------------------
+
+describe("computePayroll — Q2 settlement", () => {
+  it("Q2 settlement subtracts Q1 advance from salary and transport", () => {
+    const period = {
+      start: "2026-04-16",
+      end: "2026-04-30",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const q1Advance: ComputedEntry[] = [
+      { concept_type: "salary", is_income: true, base: 1_400_000, rate: null, amount: 1_400_000, description: null },
+      { concept_type: "transport", is_income: true, base: 124_548, rate: null, amount: 124_548, description: null },
+    ];
+    const input = makeInput({
+      period,
+      monthlySalary: 2_800_000,
+      q1AdvanceEntries: q1Advance,
+    });
+    const out = computePayroll(input);
+
+    const salary = out.entries.find((e) => e.concept_type === "salary");
+    const transport = out.entries.find((e) => e.concept_type === "transport");
+    expect(salary?.amount).toBe(1_400_000);  // 2_800_000 − 1_400_000
+    expect(transport?.amount).toBe(124_547);  // 249_095 − 124_548 (close)
+    expect(out.warnings.some((w) => w.includes("Anticipo Q1 ya pagado"))).toBe(true);
+  });
+
+  it("Q2 settlement without Q1 (employee hired mid-Q2): no subtraction", () => {
+    const period = {
+      start: "2026-04-16",
+      end: "2026-04-30",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const input = makeInput({
+      period,
+      monthlySalary: 3_000_000,
+      hireDate: "2026-04-20",
+      // no q1AdvanceEntries
+    });
+    const out = computePayroll(input);
+    const salary = out.entries.find((e) => e.concept_type === "salary");
+    // hire 2026-04-20, period_end 2026-04-30 → 11 days
+    expect(salary?.amount).toBe(1_100_000);
+  });
+
+  it("Q1 advance + Q2 settlement sum to full mensual", () => {
+    // Run Q1
+    const q1Period = {
+      start: "2026-04-01",
+      end: "2026-04-15",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const q1Out = computePayroll(makeInput({ period: q1Period, monthlySalary: 2_800_000 }));
+    const q1Advance = q1Out.entries;
+
+    // Run Q2 with Q1 reference
+    const q2Period = {
+      start: "2026-04-16",
+      end: "2026-04-30",
+      frequency: "quincenal" as const,
+      paymentMode: "advance_settlement" as const,
+    };
+    const q2Out = computePayroll(makeInput({
+      period: q2Period,
+      monthlySalary: 2_800_000,
+      q1AdvanceEntries: q1Advance,
+    }));
+
+    // Suma de Q1+Q2 salary = 2_800_000
+    const totalSalary = (q1Out.entries.find((e) => e.concept_type === "salary")?.amount ?? 0)
+      + (q2Out.entries.find((e) => e.concept_type === "salary")?.amount ?? 0);
+    expect(totalSalary).toBe(2_800_000);
+
+    const totalTransport = (q1Out.entries.find((e) => e.concept_type === "transport")?.amount ?? 0)
+      + (q2Out.entries.find((e) => e.concept_type === "transport")?.amount ?? 0);
+    expect(totalTransport).toBeCloseTo(249_095, -1);  // ±10 rounding
   });
 });
