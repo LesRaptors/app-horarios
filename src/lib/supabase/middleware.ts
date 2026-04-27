@@ -30,15 +30,18 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Si no hay usuario y no está en /login, redirigir a login
-  if (!user && !request.nextUrl.pathname.startsWith("/login")) {
+  const path = request.nextUrl.pathname;
+  const isPublic = path.startsWith("/login") || path.startsWith("/auth");
+
+  // Si no hay usuario y no está en una ruta pública, redirigir a login
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
   // Si hay usuario y está en /login, redirigir a dashboard
-  if (user && request.nextUrl.pathname.startsWith("/login")) {
+  if (user && path.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

@@ -45,9 +45,13 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://app-horarios-mauve.vercel.app";
+
     const { data: newUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
         data: { first_name, last_name, role },
+        redirectTo: `${appUrl}/auth/set-password`,
       });
 
     if (inviteError) {
