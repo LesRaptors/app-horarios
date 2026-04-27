@@ -32,6 +32,9 @@ volumes/
 # Claude
 .claude/
 
+# Brainstorming visual companion (superpowers)
+.superpowers/
+
 # Agent skills cache (from superpowers / claude plugins)
 .agents/
 skills-lock.json
