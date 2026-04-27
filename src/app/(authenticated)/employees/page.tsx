@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -124,6 +125,10 @@ interface EditForm {
   max_hours_per_week: number;
   is_active: boolean;
   secondary_position_ids: string[];
+  hire_date: string;
+  termination_date: string;
+  is_terminated: boolean;
+  arl_risk_class: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +438,10 @@ export default function EmployeesPage() {
       max_hours_per_week: emp.max_hours_per_week,
       is_active: emp.is_active,
       secondary_position_ids: secondaryData?.map((s) => s.position_id) ?? [],
+      hire_date: (emp as any).hire_date ?? "",
+      termination_date: (emp as any).termination_date ?? "",
+      is_terminated: (emp as any).is_terminated ?? false,
+      arl_risk_class: (emp as any).arl_risk_class ?? null,
     });
     setEditOpen(true);
   }
@@ -458,6 +467,10 @@ export default function EmployeesPage() {
           location_id: editForm.location_id || null,
           max_hours_per_week: editForm.max_hours_per_week,
           is_active: editForm.is_active,
+          hire_date: editForm.hire_date || null,
+          termination_date: editForm.termination_date || null,
+          is_terminated: editForm.is_terminated,
+          arl_risk_class: editForm.arl_risk_class,
         })
         .eq("id", editForm.id);
 
@@ -1391,6 +1404,77 @@ export default function EmployeesPage() {
                     )
                   }
                 />
+              </div>
+
+              {/* Hire date and Termination date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hire-date">Fecha de ingreso</Label>
+                  <Input
+                    id="hire-date"
+                    type="date"
+                    value={editForm.hire_date}
+                    onChange={(e) =>
+                      setEditForm((f) =>
+                        f ? { ...f, hire_date: e.target.value } : f
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="termination-date">Fecha de retiro</Label>
+                  <Input
+                    id="termination-date"
+                    type="date"
+                    value={editForm.termination_date}
+                    onChange={(e) =>
+                      setEditForm((f) =>
+                        f ? { ...f, termination_date: e.target.value } : f
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Is terminated and ARL class */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is-terminated"
+                    checked={editForm.is_terminated}
+                    onCheckedChange={(c) =>
+                      setEditForm((f) =>
+                        f ? { ...f, is_terminated: c === true } : f
+                      )
+                    }
+                  />
+                  <Label htmlFor="is-terminated" className="font-normal cursor-pointer">
+                    Empleado retirado
+                  </Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="arl-class">Clase ARL</Label>
+                  <Select
+                    value={editForm.arl_risk_class === null ? "auto" : String(editForm.arl_risk_class)}
+                    onValueChange={(v) =>
+                      setEditForm((f) =>
+                        f ? { ...f, arl_risk_class: v === "auto" ? null : parseInt(v, 10) } : f
+                      )
+                    }
+                  >
+                    <SelectTrigger id="arl-class">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Automático (clase I)</SelectItem>
+                      <SelectItem value="1">I (0,522%)</SelectItem>
+                      <SelectItem value="2">II (1,044%)</SelectItem>
+                      <SelectItem value="3">III (2,436%)</SelectItem>
+                      <SelectItem value="4">IV (4,350%)</SelectItem>
+                      <SelectItem value="5">V (6,960%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Active toggle */}
