@@ -14,6 +14,70 @@ export type Database = {
   }
   public: {
     Tables: {
+      absence_records: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          end_date: string
+          id: string
+          notes: string | null
+          paid_pct: number
+          payer: string
+          source_request_id: string | null
+          start_date: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          paid_pct: number
+          payer: string
+          source_request_id?: string | null
+          start_date: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          paid_pct?: number
+          payer?: string
+          source_request_id?: string | null
+          start_date?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absence_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_records_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_records_source_request_id_fkey"
+            columns: ["source_request_id"]
+            isOneToOne: false
+            referencedRelation: "time_off_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           id: string
@@ -41,6 +105,8 @@ export type Database = {
           description: string | null
           id: string
           max_holidays_per_quarter: number
+          max_hours_per_day: number | null
+          max_hours_per_week: number | null
           max_sundays_per_quarter: number
           name: string
           target_hours_per_week: number | null
@@ -53,6 +119,8 @@ export type Database = {
           description?: string | null
           id?: string
           max_holidays_per_quarter?: number
+          max_hours_per_day?: number | null
+          max_hours_per_week?: number | null
           max_sundays_per_quarter?: number
           name: string
           target_hours_per_week?: number | null
@@ -65,6 +133,8 @@ export type Database = {
           description?: string | null
           id?: string
           max_holidays_per_quarter?: number
+          max_hours_per_day?: number | null
+          max_hours_per_week?: number | null
           max_sundays_per_quarter?: number
           name?: string
           target_hours_per_week?: number | null
@@ -283,6 +353,228 @@ export type Database = {
           },
         ]
       }
+      payroll_employer_cost: {
+        Row: {
+          arl_employer: number
+          created_at: string
+          employee_id: string
+          health_employer: number
+          id: string
+          parafiscales_caja: number
+          parafiscales_icbf: number
+          parafiscales_sena: number
+          payroll_period_id: string
+          pension_employer: number
+          total: number | null
+        }
+        Insert: {
+          arl_employer?: number
+          created_at?: string
+          employee_id: string
+          health_employer?: number
+          id?: string
+          parafiscales_caja?: number
+          parafiscales_icbf?: number
+          parafiscales_sena?: number
+          payroll_period_id: string
+          pension_employer?: number
+          total?: number | null
+        }
+        Update: {
+          arl_employer?: number
+          created_at?: string
+          employee_id?: string
+          health_employer?: number
+          id?: string
+          parafiscales_caja?: number
+          parafiscales_icbf?: number
+          parafiscales_sena?: number
+          payroll_period_id?: string
+          pension_employer?: number
+          total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_employer_cost_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_employer_cost_payroll_period_id_fkey"
+            columns: ["payroll_period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_entries: {
+        Row: {
+          amount: number
+          base: number | null
+          concept_type: string
+          created_at: string
+          description: string | null
+          employee_id: string
+          id: string
+          is_income: boolean
+          is_manual_override: boolean
+          payroll_period_id: string
+          rate: number | null
+        }
+        Insert: {
+          amount: number
+          base?: number | null
+          concept_type: string
+          created_at?: string
+          description?: string | null
+          employee_id: string
+          id?: string
+          is_income: boolean
+          is_manual_override?: boolean
+          payroll_period_id: string
+          rate?: number | null
+        }
+        Update: {
+          amount?: number
+          base?: number | null
+          concept_type?: string
+          created_at?: string
+          description?: string | null
+          employee_id?: string
+          id?: string
+          is_income?: boolean
+          is_manual_override?: boolean
+          payroll_period_id?: string
+          rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_payroll_period_id_fkey"
+            columns: ["payroll_period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_periods: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          frequency: string
+          id: string
+          is_advance: boolean
+          paid_at: string | null
+          paid_by: string | null
+          period_end: string
+          period_start: string
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          frequency: string
+          id?: string
+          is_advance?: boolean
+          paid_at?: string | null
+          paid_by?: string | null
+          period_end: string
+          period_start: string
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          frequency?: string
+          id?: string
+          is_advance?: boolean
+          paid_at?: string | null
+          paid_by?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_periods_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_provisions: {
+        Row: {
+          accumulated_ytd: number
+          amount: number
+          base: number
+          concept: string
+          created_at: string
+          employee_id: string
+          id: string
+          payroll_period_id: string
+          rate: number
+        }
+        Insert: {
+          accumulated_ytd: number
+          amount: number
+          base: number
+          concept: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          payroll_period_id: string
+          rate: number
+        }
+        Update: {
+          accumulated_ytd?: number
+          amount?: number
+          base?: number
+          concept?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          payroll_period_id?: string
+          rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_provisions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_provisions_payroll_period_id_fkey"
+            columns: ["payroll_period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_settings: {
         Row: {
           aux_transport: number
@@ -295,6 +587,7 @@ export type Database = {
           smmlv: number
           sunday_surcharge_pct: number
           updated_at: string
+          uvt: number
         }
         Insert: {
           aux_transport: number
@@ -307,6 +600,7 @@ export type Database = {
           smmlv: number
           sunday_surcharge_pct: number
           updated_at?: string
+          uvt?: number
         }
         Update: {
           aux_transport?: number
@@ -319,6 +613,7 @@ export type Database = {
           smmlv?: number
           sunday_surcharge_pct?: number
           updated_at?: string
+          uvt?: number
         }
         Relationships: []
       }
@@ -359,51 +654,63 @@ export type Database = {
       }
       profiles: {
         Row: {
+          arl_risk_class: number | null
           contract_type_id: string
           created_at: string
           email: string
           first_name: string
+          hire_date: string | null
           id: string
           is_active: boolean
           is_demo: boolean
+          is_terminated: boolean
           last_name: string
           location_id: string | null
           max_hours_per_week: number
           phone: string | null
           position_id: string | null
           role: Database["public"]["Enums"]["user_role"]
+          termination_date: string | null
           updated_at: string
         }
         Insert: {
+          arl_risk_class?: number | null
           contract_type_id?: string
           created_at?: string
           email: string
           first_name: string
+          hire_date?: string | null
           id: string
           is_active?: boolean
           is_demo?: boolean
+          is_terminated?: boolean
           last_name: string
           location_id?: string | null
           max_hours_per_week?: number
           phone?: string | null
           position_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          termination_date?: string | null
           updated_at?: string
         }
         Update: {
+          arl_risk_class?: number | null
           contract_type_id?: string
           created_at?: string
           email?: string
           first_name?: string
+          hire_date?: string | null
           id?: string
           is_active?: boolean
           is_demo?: boolean
+          is_terminated?: boolean
           last_name?: string
           location_id?: string | null
           max_hours_per_week?: number
           phone?: string | null
           position_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          termination_date?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -802,6 +1109,7 @@ export type Database = {
           required_count: number
           shift_template_id: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -812,6 +1120,7 @@ export type Database = {
           required_count?: number
           shift_template_id: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -822,6 +1131,7 @@ export type Database = {
           required_count?: number
           shift_template_id?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -843,6 +1153,70 @@ export type Database = {
             columns: ["shift_template_id"]
             isOneToOne: false
             referencedRelation: "shift_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_requirements_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_personal_deductions: {
+        Row: {
+          afc_monthly: number
+          created_at: string
+          created_by: string | null
+          dependents_count: number
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          mortgage_interest_monthly: number
+          prepaid_health_monthly: number
+          voluntary_pension_monthly: number
+        }
+        Insert: {
+          afc_monthly?: number
+          created_at?: string
+          created_by?: string | null
+          dependents_count?: number
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+          mortgage_interest_monthly?: number
+          prepaid_health_monthly?: number
+          voluntary_pension_monthly?: number
+        }
+        Update: {
+          afc_monthly?: number
+          created_at?: string
+          created_by?: string | null
+          dependents_count?: number
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+          mortgage_interest_monthly?: number
+          prepaid_health_monthly?: number
+          voluntary_pension_monthly?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_personal_deductions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_personal_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -929,6 +1303,10 @@ export type Database = {
       recompute_equity_rollup: {
         Args: { p_employee_id: string; p_month: number; p_year: number }
         Returns: undefined
+      }
+      save_staffing_diff: {
+        Args: { p_location_id: string; p_rows: Json }
+        Returns: Json
       }
     }
     Enums: {
@@ -1048,38 +1426,3 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {
-      notification_type: [
-        "schedule_published",
-        "shift_change",
-        "request_update",
-        "swap_request",
-        "general",
-      ],
-      request_status: ["pending", "approved", "rejected"],
-      schedule_status: ["draft", "published", "archived"],
-      swap_status: ["pending", "accepted", "rejected", "approved"],
-      user_role: ["admin", "manager", "employee"],
-    },
-  },
-} as const
