@@ -30,27 +30,27 @@ const CONCEPTS: ConceptDef[] = [
   {
     id: "surcharge_night",
     title: "Recargo nocturno",
-    body: `Aplica cuando trabajas en horario nocturno, es decir entre las 9:00 PM (21:00) y las 6:00 AM. La ley colombiana (Art. 168 del Código Sustantivo del Trabajo) establece un recargo del 35% sobre el valor de la hora ordinaria. Por ejemplo, si tu hora ordinaria vale $10.000, la hora nocturna vale $13.500.`,
+    body: `Aplica cuando trabajas en horario nocturno, es decir entre las 7:00 PM (19:00) y las 6:00 AM. La Ley 2466 de 2025 (vigente desde el 1 de julio de 2025) ajustó el inicio del horario nocturno de las 9:00 PM a las 7:00 PM. El Art. 168 del Código Sustantivo del Trabajo establece un recargo del 35% sobre el valor de la hora ordinaria. Por ejemplo, si tu hora ordinaria vale $10.000, la hora nocturna vale $13.500.`,
   },
   {
     id: "surcharge_sunday",
     title: "Recargo dominical",
-    body: `Trabajar en domingo da derecho a un recargo del 75% sobre el valor de la hora ordinaria. Si además trabajas en horario nocturno ese domingo, los porcentajes se acumulan. El empleado también puede acordar un día de descanso compensatorio en lugar del recargo económico, según lo establece el Código Sustantivo del Trabajo.`,
+    body: `Trabajar en domingo da derecho a un recargo sobre el valor de la hora ordinaria. La Ley 2466 de 2025 establece un aumento gradual: 80% hasta el 30 de junio de 2026, 90% desde el 1 de julio de 2026, y 100% desde el 1 de julio de 2027. Si además trabajas en horario nocturno ese domingo, los porcentajes se acumulan. El empleado también puede acordar un día de descanso compensatorio en lugar del recargo económico, según lo establece el Código Sustantivo del Trabajo.`,
   },
   {
     id: "surcharge_holiday",
     title: "Recargo festivo",
-    body: `Los días festivos reconocidos en Colombia (regulados por la Ley 51 de 1983 y otras normas) tienen el mismo tratamiento que los domingos: recargo del 75% sobre la hora ordinaria. Los festivos colombianos incluyen Año Nuevo, Reyes, Día del Trabajo, Ascensión, Corpus Christi, Sagrado Corazón, San Pedro y San Pablo, Independencia, Batalla de Boyacá, Asunción, Día de la Raza, Todos los Santos, Independencia de Cartagena, Inmaculada Concepción, Navidad y Semana Santa.`,
+    body: `Los días festivos reconocidos en Colombia (regulados por la Ley 51 de 1983 y otras normas) tienen el mismo tratamiento que los domingos: el recargo aumenta gradualmente con la Ley 2466 de 2025 — 80% hasta el 30 de junio de 2026, 90% desde el 1 de julio de 2026, y 100% desde el 1 de julio de 2027. Los festivos colombianos incluyen Año Nuevo, Reyes, Día del Trabajo, Ascensión, Corpus Christi, Sagrado Corazón, San Pedro y San Pablo, Independencia, Batalla de Boyacá, Asunción, Día de la Raza, Todos los Santos, Independencia de Cartagena, Inmaculada Concepción, Navidad y Semana Santa.`,
   },
   {
     id: "overtime_day",
     title: "Hora extra diurna",
-    body: `Son las horas trabajadas por encima de la jornada ordinaria (máximo 8 horas diarias o 46 semanales según la jornada reducida gradual de la Ley 2101 de 2021) en el horario diurno (6:00 AM a 9:00 PM). El recargo es del 25% sobre el valor de la hora ordinaria. Ejemplo: si la hora vale $10.000, la extra diurna vale $12.500.`,
+    body: `Son las horas trabajadas por encima de la jornada ordinaria (máximo 8 horas diarias y 44 semanales en 2026 según la reducción gradual de la Ley 2101 de 2021 — pasa a 42 horas en julio de 2027) en el horario diurno, que va de las 6:00 AM a las 7:00 PM (Ley 2466 de 2025). El recargo es del 25% sobre el valor de la hora ordinaria. Ejemplo: si la hora vale $10.000, la extra diurna vale $12.500.`,
   },
   {
     id: "overtime_night",
     title: "Hora extra nocturna",
-    body: `Horas adicionales trabajadas por encima de la jornada ordinaria en el horario nocturno (9:00 PM a 6:00 AM). El recargo es del 75% sobre el valor de la hora ordinaria. Son las horas extra mejor pagadas. Ejemplo: si la hora vale $10.000, la extra nocturna vale $17.500.`,
+    body: `Horas adicionales trabajadas por encima de la jornada ordinaria en el horario nocturno (7:00 PM a 6:00 AM, según la Ley 2466 de 2025). El recargo es del 75% sobre el valor de la hora ordinaria. Son las horas extra mejor pagadas. Ejemplo: si la hora vale $10.000, la extra nocturna vale $17.500.`,
   },
   {
     id: "health_employee",
@@ -138,12 +138,12 @@ const FAQS = [
   {
     id: "faq-recargo-nocturno",
     question: "¿Por qué a veces sale recargo nocturno y otras veces no?",
-    answer: `El recargo nocturno del 35% aplica únicamente cuando tu turno cae entre las 9:00 PM y las 6:00 AM. Si trabajas en horario diurno (6:00 AM a 9:00 PM) no hay recargo. Si tu turno cruza el horario nocturno, el recargo aplica solo sobre las horas dentro de ese rango, no sobre todo el turno. En la plataforma, las plantillas de turno tienen marcada la bandera "nocturno" cuando cruzan ese horario.`,
+    answer: `El recargo nocturno del 35% aplica únicamente cuando tu turno cae entre las 7:00 PM y las 6:00 AM (rango ajustado por la Ley 2466 de 2025, antes empezaba a las 9:00 PM). Si trabajas en horario diurno (6:00 AM a 7:00 PM) no hay recargo. Si tu turno cruza el horario nocturno, el recargo aplica solo sobre las horas dentro de ese rango, no sobre todo el turno. En la plataforma, las plantillas de turno tienen marcada la bandera "nocturno" cuando cruzan ese horario.`,
   },
   {
     id: "faq-auxilio-transporte",
     question: "¿Qué es el auxilio de transporte y por qué lo recibo (o no)?",
-    answer: `El auxilio de transporte (para 2026: $249.095/mes) es un beneficio legal para empleados que devengan hasta 2 SMMLV ($2.847.000 para 2026). Si tu salario supera ese límite, no tienes derecho al auxilio aunque te desplaces al trabajo. Si lo recibes, aparece sumado a tu devengado, pero no hace parte del salario para el cálculo de prestaciones sociales ni aportes a seguridad social.`,
+    answer: `El auxilio de transporte (para 2026: $249.095/mes) es un beneficio legal para empleados que devengan hasta 2 SMMLV ($3.501.810 para 2026, ya que el SMMLV es $1.750.905). Si tu salario supera ese límite, no tienes derecho al auxilio aunque te desplaces al trabajo. Si lo recibes, aparece sumado a tu devengado, pero no hace parte del salario para el cálculo de prestaciones sociales ni aportes a seguridad social.`,
   },
   {
     id: "faq-solidaridad",
@@ -163,7 +163,7 @@ const FAQS = [
   {
     id: "faq-hora-extra",
     question: "¿Cómo se calcula la hora extra?",
-    answer: `Primero calculas el valor de tu hora ordinaria: salario mensual ÷ 240 horas (30 días × 8 horas). Luego aplicas el recargo según el tipo: hora extra diurna = hora ordinaria × 1.25; hora extra nocturna = hora ordinaria × 1.75. Ejemplo con salario de $1.500.000: hora ordinaria = $6.250. Extra diurna = $7.813. Extra nocturna = $10.938. Recuerda que hay un límite legal de horas extra semanales (máximo 2 diarias y 12 semanales según la Ley 2101 de 2021).`,
+    answer: `Primero calculas el valor de tu hora ordinaria: salario mensual ÷ divisor mensual. El divisor depende de la jornada vigente — la Ley 2101 de 2021 redujo gradualmente la jornada: para 2026 el divisor es 220 horas (44h × 5 semanas) hasta el 14 de julio, y 210 horas (42h × 5) desde el 15 de julio. Luego aplicas el recargo según el tipo: hora extra diurna = hora ordinaria × 1.25; hora extra nocturna = hora ordinaria × 1.75. Ejemplo con salario de $1.500.000 y divisor 220: hora ordinaria = $6.818. Extra diurna = $8.523. Extra nocturna = $11.932. Recuerda que hay un límite legal de horas extra (máximo 2 diarias y 12 semanales).`,
   },
   {
     id: "faq-parafiscales",
