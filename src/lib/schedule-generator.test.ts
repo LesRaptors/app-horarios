@@ -21,6 +21,7 @@ const fullTime: ContractType = {
   id: "ct-full", name: "Full-time", description: null,
   max_sundays_per_quarter: 6, max_holidays_per_quarter: 3,
   target_saturdays_per_month: 2, target_nights_per_month: 4, target_hours_per_week: 40,
+  max_hours_per_day: null, max_hours_per_week: null,
   created_at: "", updated_at: "",
 };
 
@@ -298,5 +299,33 @@ describe("score penaliza saturación", () => {
 
     const sat11 = result.entries.find((e) => e.date === "2026-04-11");
     expect(sat11?.employee_id).toBe("e-fresh");
+  });
+});
+
+describe("contract caps overriden global", () => {
+  it("empleado con contract.max_hours_per_day=12 puede recibir un turno de 11h", () => {
+    const asistencial: ContractType = {
+      ...fullTime, id: "ct-asist", name: "Asistencial",
+      max_hours_per_day: 12, max_hours_per_week: 48,
+    };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-asist" });
+    const tpl = makeTemplate({
+      id: "tpl-12h", name: "12h", start_time: "07:00", end_time: "19:00",
+    });
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-12h"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      { maxHoursPerWeek: 40, maxHoursPerDay: 10,
+        minRestHoursBetweenShifts: 12, maxConsecutiveDays: 6 },
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-12h", day_of_week: 1, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [asistencial], defaultWeights,
+    );
+
+    expect(result.entries.length).toBeGreaterThan(0);
   });
 });

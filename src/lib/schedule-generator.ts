@@ -201,7 +201,9 @@ function scoreCandidate(
   const week = getISOWeekNumber(slot.date);
   const weekHoursUsed = tracker.weeklyHours[week] || 0;
   const contract = ctx.contractTypes.get(employee.contract_type_id ?? "");
-  const contractCap = contract?.target_hours_per_week ?? Number.POSITIVE_INFINITY;
+  const contractCap = contract?.max_hours_per_week
+    ?? contract?.target_hours_per_week
+    ?? Number.POSITIVE_INFINITY;
   const effectiveWeekly = Math.min(
     ctx.constraints.maxHoursPerWeek,
     contractCap,
@@ -230,9 +232,10 @@ function computeExceededCaps(
 
   const week = getISOWeekNumber(slot.date);
   const currentWeekHours = tracker.weeklyHours[week] || 0;
-  const globalCap = constraints.maxHoursPerWeek;
-  const contractCap = contract?.target_hours_per_week ?? Number.POSITIVE_INFINITY;
-  const effectiveWeekly = Math.min(globalCap, contractCap, employee.max_hours_per_week);
+  const weekHardCap = contract?.max_hours_per_week
+    ?? contract?.target_hours_per_week
+    ?? Number.POSITIVE_INFINITY;
+  const effectiveWeekly = Math.min(constraints.maxHoursPerWeek, weekHardCap, employee.max_hours_per_week);
   if (currentWeekHours + slot.durationHours > effectiveWeekly) caps.push("weekly_hours");
 
   if (tracker.lastShiftDate === prevDateStr(slot.date)
@@ -270,7 +273,9 @@ function filterCandidates(
     // INVIOLABLES
     if (tracker.assignedDates.has(slot.date)) continue;
     if (timeOffMap.get(empId)?.has(slot.date)) continue;
-    if (slot.durationHours > constraints.maxHoursPerDay) continue;
+    const contract = ctx.contractTypes.get(emp.contract_type_id);
+    const dayCap = contract?.max_hours_per_day ?? constraints.maxHoursPerDay;
+    if (slot.durationHours > dayCap) continue;
     if (tracker.lastShiftDate && tracker.lastShiftEndTime && tracker.lastShiftStartTime) {
       const rest = requiredRestHours(tracker.lastShiftWasNight, constraints);
       if (!hasEnoughRest(tracker.lastShiftEndTime, tracker.lastShiftDate, tracker.lastShiftStartTime,
@@ -285,10 +290,10 @@ function filterCandidates(
 
     // CONTRACTUAL
     const week = getISOWeekNumber(slot.date);
-    const contract = ctx.contractTypes.get(emp.contract_type_id);
-    const globalCap = constraints.maxHoursPerWeek;
-    const contractCap = contract?.target_hours_per_week ?? Number.POSITIVE_INFINITY;
-    const effectiveWeekly = Math.min(globalCap, contractCap, emp.max_hours_per_week);
+    const weekHardCap = contract?.max_hours_per_week
+      ?? contract?.target_hours_per_week
+      ?? Number.POSITIVE_INFINITY;
+    const effectiveWeekly = Math.min(constraints.maxHoursPerWeek, weekHardCap, emp.max_hours_per_week);
     if ((tracker.weeklyHours[week] || 0) + slot.durationHours > effectiveWeekly) continue;
 
     if (contract) {
