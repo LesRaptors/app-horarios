@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2 } from "lucide-react";
+import { Pencil, Trash2, Loader2, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { translateDbError } from "@/lib/utils";
 import { ContractTypeForm } from "./contract-type-form";
@@ -103,7 +104,7 @@ export default function ContractTypesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Tipos de contrato"
-        description="Define plantillas de contrato con caps trimestrales y targets mensuales"
+        description="Define plantillas de contrato con tipo de jornada y disponibilidad"
         action={{
           label: "Nuevo tipo",
           onClick: () => {
@@ -128,24 +129,45 @@ export default function ContractTypesPage() {
             cell: (r) => r.employee_count,
           },
           {
-            header: "Max dom/trim",
-            cell: (r) => r.max_sundays_per_quarter,
+            header: "Jornada",
+            cell: (r) =>
+              r.weekly_hours_mode === "partial"
+                ? `Parcial (${r.weekly_hours ?? "?"}h)`
+                : "Completa (44h)",
           },
           {
-            header: "Max fest/trim",
-            cell: (r) => r.max_holidays_per_quarter,
+            header: "Asistencial",
+            cell: (r) =>
+              r.is_healthcare ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              ),
           },
           {
-            header: "Target sáb/mes",
-            cell: (r) => r.target_saturdays_per_month ?? "—",
-          },
-          {
-            header: "Target noches/mes",
-            cell: (r) => r.target_nights_per_month ?? "—",
-          },
-          {
-            header: "Horas/sem",
-            cell: (r) => r.target_hours_per_week ?? "—",
+            header: "Disponibilidad",
+            cell: (r) => (
+              <div className="flex items-center gap-1">
+                <Badge
+                  variant={r.available_sundays ? "default" : "secondary"}
+                  className="px-1.5 py-0 text-xs"
+                >
+                  D
+                </Badge>
+                <Badge
+                  variant={r.available_holidays ? "default" : "secondary"}
+                  className="px-1.5 py-0 text-xs"
+                >
+                  F
+                </Badge>
+                <Badge
+                  variant={r.available_nights ? "default" : "secondary"}
+                  className="px-1.5 py-0 text-xs"
+                >
+                  N
+                </Badge>
+              </div>
+            ),
           },
           {
             header: "Acciones",

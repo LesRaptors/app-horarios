@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/shared/form-field";
 import {
   Dialog,
@@ -24,65 +27,64 @@ interface Props {
   onSaved: () => void;
 }
 
+type FormState = {
+  name: string;
+  description: string;
+  weekly_hours_mode: "full" | "partial";
+  weekly_hours: string;
+  is_healthcare: boolean;
+  available_sundays: boolean;
+  available_holidays: boolean;
+  available_nights: boolean;
+};
+
+function defaultForm(initial: ContractType | null): FormState {
+  return {
+    name: initial?.name ?? "",
+    description: initial?.description ?? "",
+    weekly_hours_mode: initial?.weekly_hours_mode ?? "full",
+    weekly_hours: initial?.weekly_hours?.toString() ?? "",
+    is_healthcare: initial?.is_healthcare ?? false,
+    available_sundays: initial?.available_sundays ?? true,
+    available_holidays: initial?.available_holidays ?? true,
+    available_nights: initial?.available_nights ?? true,
+  };
+}
+
 export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props) {
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<FormState>(() => defaultForm(initial));
 
-  const [name, setName] = useState(initial?.name ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [maxSun, setMaxSun] = useState<number | string>(
-    initial?.max_sundays_per_quarter ?? 6
-  );
-  const [maxHol, setMaxHol] = useState<number | string>(
-    initial?.max_holidays_per_quarter ?? 3
-  );
-  const [targetSat, setTargetSat] = useState<string>(
-    initial?.target_saturdays_per_month?.toString() ?? ""
-  );
-  const [targetNight, setTargetNight] = useState<string>(
-    initial?.target_nights_per_month?.toString() ?? ""
-  );
-  const [targetHours, setTargetHours] = useState<string>(
-    initial?.target_hours_per_week?.toString() ?? ""
-  );
-  const [maxHoursDay, setMaxHoursDay] = useState<string>(
-    initial?.max_hours_per_day?.toString() ?? ""
-  );
-  const [maxHoursWeek, setMaxHoursWeek] = useState<string>(
-    initial?.max_hours_per_week?.toString() ?? ""
-  );
-
-  // Reset form state when dialog opens or the edited record changes.
   useEffect(() => {
     if (open) {
-      setName(initial?.name ?? "");
-      setDescription(initial?.description ?? "");
-      setMaxSun(initial?.max_sundays_per_quarter ?? 6);
-      setMaxHol(initial?.max_holidays_per_quarter ?? 3);
-      setTargetSat(initial?.target_saturdays_per_month?.toString() ?? "");
-      setTargetNight(initial?.target_nights_per_month?.toString() ?? "");
-      setTargetHours(initial?.target_hours_per_week?.toString() ?? "");
-      setMaxHoursDay(initial?.max_hours_per_day?.toString() ?? "");
-      setMaxHoursWeek(initial?.max_hours_per_week?.toString() ?? "");
+      setForm(defaultForm(initial));
     }
   }, [open, initial]);
 
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   async function handleSave() {
-    if (!name.trim()) {
+    if (!form.name.trim()) {
       toast.error("El nombre es obligatorio");
       return;
     }
     setSaving(true);
+
     const payload = {
-      name: name.trim(),
-      description: description?.trim() ? description.trim() : null,
-      max_sundays_per_quarter: Number(maxSun),
-      max_holidays_per_quarter: Number(maxHol),
-      target_saturdays_per_month: targetSat === "" ? null : Number(targetSat),
-      target_nights_per_month: targetNight === "" ? null : Number(targetNight),
-      target_hours_per_week: targetHours === "" ? null : Number(targetHours),
-      max_hours_per_day: maxHoursDay === "" ? null : Number(maxHoursDay),
-      max_hours_per_week: maxHoursWeek === "" ? null : Number(maxHoursWeek),
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      weekly_hours_mode: form.weekly_hours_mode,
+      weekly_hours:
+        form.weekly_hours_mode === "partial" && form.weekly_hours
+          ? Number(form.weekly_hours)
+          : null,
+      is_healthcare: form.is_healthcare,
+      available_sundays: form.available_sundays,
+      available_holidays: form.available_holidays,
+      available_nights: form.available_nights,
     };
 
     const { error } = initial
@@ -110,87 +112,123 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
             {initial ? "Editar tipo de contrato" : "Nuevo tipo de contrato"}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 py-2">
+
+        <div className="space-y-4 py-2">
+          {/* Nombre */}
           <FormField label="Nombre" required>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
               placeholder="Ej: Tiempo completo, Medio tiempo..."
             />
           </FormField>
+
+          {/* Descripción */}
           <FormField label="Descripción">
             <Input
-              value={description ?? ""}
-              onChange={(e) => setDescription(e.target.value)}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Opcional"
             />
           </FormField>
-          <FormField label="Máximo domingos por trimestre" required>
-            <Input
-              type="number"
-              min={0}
-              value={maxSun}
-              onChange={(e) => setMaxSun(e.target.value)}
+
+          {/* Tipo de jornada */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tipo de jornada</Label>
+            <RadioGroup
+              value={form.weekly_hours_mode}
+              onValueChange={(v) =>
+                set("weekly_hours_mode", v as "full" | "partial")
+              }
+              className="space-y-1"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="full" id="mode-full" />
+                <Label htmlFor="mode-full" className="font-normal cursor-pointer">
+                  Completa (44 h/semana)
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="partial" id="mode-partial" />
+                <Label htmlFor="mode-partial" className="font-normal cursor-pointer">
+                  Parcial
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {form.weekly_hours_mode === "partial" && (
+              <div className="ml-6">
+                <FormField label="Horas/semana">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={43}
+                    value={form.weekly_hours}
+                    onChange={(e) => set("weekly_hours", e.target.value)}
+                    placeholder="Ej: 20, 30..."
+                    className="w-32"
+                  />
+                </FormField>
+              </div>
+            )}
+          </div>
+
+          {/* Personal asistencial */}
+          <div className="flex items-start gap-3 rounded-md border p-3">
+            <Switch
+              id="is-healthcare"
+              checked={form.is_healthcare}
+              onCheckedChange={(v) => set("is_healthcare", v)}
+              className="mt-0.5"
             />
-          </FormField>
-          <FormField label="Máximo festivos por trimestre" required>
-            <Input
-              type="number"
-              min={0}
-              value={maxHol}
-              onChange={(e) => setMaxHol(e.target.value)}
-            />
-          </FormField>
-          <FormField label="Target sábados/mes (opcional)">
-            <Input
-              type="number"
-              min={0}
-              value={targetSat}
-              onChange={(e) => setTargetSat(e.target.value)}
-            />
-          </FormField>
-          <FormField label="Target noches/mes (opcional)">
-            <Input
-              type="number"
-              min={0}
-              value={targetNight}
-              onChange={(e) => setTargetNight(e.target.value)}
-            />
-          </FormField>
-          <FormField label="Horas/semana (opcional, override)">
-            <Input
-              type="number"
-              min={0}
-              value={targetHours}
-              onChange={(e) => setTargetHours(e.target.value)}
-            />
-          </FormField>
-          <FormField label="Máximo horas por día">
-            <Input
-              type="number"
-              min={1}
-              max={24}
-              value={maxHoursDay}
-              onChange={(e) => setMaxHoursDay(e.target.value)}
-              placeholder="Vacío para usar límite global"
-            />
-            <p className="text-xs text-muted-foreground">
-              Vacío para usar el límite global de Restricciones laborales.
-            </p>
-          </FormField>
-          <FormField label="Máximo horas por semana">
-            <Input
-              type="number"
-              min={1}
-              max={84}
-              value={maxHoursWeek}
-              onChange={(e) => setMaxHoursWeek(e.target.value)}
-              placeholder="Vacío para usar límite global"
-            />
-            <p className="text-xs text-muted-foreground">
-              Cap duro semanal. Distinto del target (aspiracional).
-            </p>
-          </FormField>
+            <div>
+              <Label htmlFor="is-healthcare" className="cursor-pointer font-medium">
+                Personal asistencial sanitario
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Permite turnos de hasta 12 h/día (administrativo: 10 h/día).
+              </p>
+            </div>
+          </div>
+
+          {/* Días disponibles */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Días disponibles</Label>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="avail-sundays"
+                  checked={form.available_sundays}
+                  onCheckedChange={(v) => set("available_sundays", v)}
+                />
+                <Label htmlFor="avail-sundays" className="cursor-pointer font-normal">
+                  Domingos
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="avail-holidays"
+                  checked={form.available_holidays}
+                  onCheckedChange={(v) => set("available_holidays", v)}
+                />
+                <Label htmlFor="avail-holidays" className="cursor-pointer font-normal">
+                  Festivos
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="avail-nights"
+                  checked={form.available_nights}
+                  onCheckedChange={(v) => set("available_nights", v)}
+                />
+                <Label htmlFor="avail-nights" className="cursor-pointer font-normal">
+                  Noches
+                </Label>
+              </div>
+            </div>
+          </div>
         </div>
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -199,7 +237,7 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
           >
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
+          <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>
