@@ -225,3 +225,40 @@ describe("generateSchedule — 24h rest after night", () => {
     expect(result.warnings.some((w) => w.kind === "no_safe_candidate")).toBe(true);
   });
 });
+
+describe("consecutive_days inviolable", () => {
+  it("no asigna al empleado con 6 días consecutivos un séptimo día — emite coverage_gap", () => {
+    const emp = makeEmployee({ id: "e1" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    // Existing entries: 6 días consecutivos previos (lun-sáb, semana ISO 14)
+    const existingEntries: ScheduleEntry[] = [
+      "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04",
+    ].map((date, i) => ({
+      id: `pre-${i}`, schedule_id: "sched-1", employee_id: "e1", position_id: "pos-1",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none" as const,
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    }));
+
+    // Demand: domingo 5 abril (día consecutivo #7)
+    const result = generateSchedule(
+      {
+        scheduleId: "sched-1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true,
+      },
+      [emp], [tpl], existingEntries, [],
+      { ...defaultConstraints, maxConsecutiveDays: 6 },
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+         day_of_week: 0, required_count: 1, created_at: "", updated_at: "" }],
+      [], [], [fullTime], defaultWeights,
+    );
+
+    // No se asigna; queda como coverage_gap warning
+    expect(result.entries.find((e) => e.date === "2026-04-05")).toBeUndefined();
+    const gap = result.warnings.find((w) => w.kind === "coverage_gap" && w.date === "2026-04-05");
+    expect(gap).toBeDefined();
+  });
+});

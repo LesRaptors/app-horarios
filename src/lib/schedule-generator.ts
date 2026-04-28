@@ -256,6 +256,10 @@ function filterCandidates(
                          slot.startTime, slot.date, rest)) continue;
     }
 
+    // INVIOLABLE: máximo días consecutivos (Art. 161 CST — descanso semanal obligatorio)
+    if (tracker.lastShiftDate === prevDateStr(slot.date)
+        && tracker.consecutiveDays + 1 > constraints.maxConsecutiveDays) continue;
+
     if (allowOvertime) { kept.push(empId); continue; }
 
     // CONTRACTUAL
@@ -265,9 +269,6 @@ function filterCandidates(
     const contractCap = contract?.target_hours_per_week ?? Number.POSITIVE_INFINITY;
     const effectiveWeekly = Math.min(globalCap, contractCap, emp.max_hours_per_week);
     if ((tracker.weeklyHours[week] || 0) + slot.durationHours > effectiveWeekly) continue;
-
-    if (tracker.lastShiftDate === prevDateStr(slot.date)
-        && tracker.consecutiveDays + 1 > constraints.maxConsecutiveDays) continue;
 
     if (contract) {
       const q = ctx.quarterRollupSums.get(empId) ?? { sundays: 0, saturdays: 0, nights: 0, holidays: 0 };
@@ -460,8 +461,24 @@ export function generateSchedule(
     }
 
     if (!chosen) {
-      warnings.push({ kind: "no_safe_candidate",
-        positionId: slot.positionId, date: slot.date, shiftTemplateId: slot.shiftTemplateId });
+      // Distinguir entre: nadie elegible (no_safe_candidate) vs todos al cap (coverage_gap)
+      const reason: "all_at_cap" | "no_eligible" = candidateIds.some((id) => {
+        const t = trackers.get(id);
+        if (!t) return false;
+        return t.lastShiftDate === prevDateStr(slot.date)
+          && t.consecutiveDays + 1 > constraints.maxConsecutiveDays;
+      })
+        ? "all_at_cap"
+        : "no_eligible";
+
+      if (reason === "all_at_cap") {
+        warnings.push({ kind: "coverage_gap",
+          positionId: slot.positionId, date: slot.date, shiftTemplateId: slot.shiftTemplateId,
+          reason });
+      } else {
+        warnings.push({ kind: "no_safe_candidate",
+          positionId: slot.positionId, date: slot.date, shiftTemplateId: slot.shiftTemplateId });
+      }
       continue;
     }
 
