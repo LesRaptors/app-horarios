@@ -112,6 +112,12 @@ The scheduler balances workload across dimensions employees care about (priority
 - **Approve** → status='approved', reviewer metadata persisted.
 - **Reject** → status='rejected' (soft delete; audit preserved). Schedule grid filters `neq('overtime_status','rejected')`.
 
+### Salud del horario (`/schedule`)
+
+`<ScheduleHealthBanner />` y `<ScheduleHealthPanel />` se calculan con `computeHealth(entries, employees, staffing, constraints, locationId, year, month): HealthSummary` desde `src/lib/schedule-health.ts`. El banner aparece sticky cuando hay turnos `pending` o slots sin cubrir; el panel es expansible y lista cobertura sin/con extras, slots faltantes, y empleados saturados (≥85% horas semana o ≥6 días consecutivos).
+
+`consecutive_days` (Art. 161 CST — descanso semanal obligatorio) ahora es **inviolable** en `generateSchedule` — no se asigna día 7 consecutivo aunque sea Pase 2. Si nadie es elegible, emite warning `coverage_gap` con `reason: "all_at_cap"`. El scoring también penaliza candidatos cerca de sus caps (-30 si ≥85% horas semana, -50 si ≤1 día de holgura consecutivo).
+
 ### Key Shared Components
 
 - `DataTable<T>` (`src/components/shared/data-table.tsx`) — columns have `cell: (row: T) => ReactNode`, requires `loading: boolean`. Top-level `keyAccessor`, `emptyMessage`, optional search props.
