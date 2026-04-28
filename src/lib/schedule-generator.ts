@@ -201,7 +201,8 @@ function scoreCandidate(
   const week = getISOWeekNumber(slot.date);
   const weekHoursUsed = tracker.weeklyHours[week] || 0;
   const contract = ctx.contractTypes.get(employee.contract_type_id ?? "");
-  const contractCap = contract?.max_hours_per_week
+  const contractCap = contract?.weekly_hours
+    ?? contract?.max_hours_per_week
     ?? contract?.target_hours_per_week
     ?? Number.POSITIVE_INFINITY;
   const effectiveWeekly = Math.min(
@@ -232,7 +233,8 @@ function computeExceededCaps(
 
   const week = getISOWeekNumber(slot.date);
   const currentWeekHours = tracker.weeklyHours[week] || 0;
-  const weekHardCap = contract?.max_hours_per_week
+  const weekHardCap = contract?.weekly_hours
+    ?? contract?.max_hours_per_week
     ?? contract?.target_hours_per_week
     ?? Number.POSITIVE_INFINITY;
   const effectiveWeekly = Math.min(constraints.maxHoursPerWeek, weekHardCap, employee.max_hours_per_week);
@@ -243,18 +245,6 @@ function computeExceededCaps(
     caps.push("consecutive_days");
   }
 
-  if (contract) {
-    const q = ctx.quarterRollupSums.get(employee.id) ?? { sundays: 0, saturdays: 0, nights: 0, holidays: 0 };
-    if (dayOfWeek(slot.date) === 0 && q.sundays + 1 > contract.max_sundays_per_quarter)
-      caps.push("sundays_quarter");
-    if (isHoliday(slot.date, ctx.locationId, ctx.holidays)
-        && q.holidays + 1 > contract.max_holidays_per_quarter)
-      caps.push("holidays_quarter");
-    if (contract.target_nights_per_month !== null && isNightShift(slot.template)) {
-      const rn = ctx.rollingRollupSums.get(employee.id)?.nights ?? 0;
-      if (rn + 1 > contract.target_nights_per_month) caps.push("night_limit");
-    }
-  }
   return caps;
 }
 
@@ -274,7 +264,9 @@ function filterCandidates(
     if (tracker.assignedDates.has(slot.date)) continue;
     if (timeOffMap.get(empId)?.has(slot.date)) continue;
     const contract = ctx.contractTypes.get(emp.contract_type_id);
-    const dayCap = contract?.max_hours_per_day ?? constraints.maxHoursPerDay;
+    const dayCap = contract?.is_healthcare
+      ? 12
+      : (contract?.max_hours_per_day ?? constraints.maxHoursPerDay);
     if (slot.durationHours > dayCap) continue;
     if (tracker.lastShiftDate && tracker.lastShiftEndTime && tracker.lastShiftStartTime) {
       const rest = requiredRestHours(tracker.lastShiftWasNight, constraints);
@@ -286,26 +278,22 @@ function filterCandidates(
     if (tracker.lastShiftDate === prevDateStr(slot.date)
         && tracker.consecutiveDays + 1 > constraints.maxConsecutiveDays) continue;
 
+    // INVIOLABLES: disponibilidad por contract_type
+    if (contract?.available_sundays === false && dayOfWeek(slot.date) === 0) continue;
+    if (contract?.available_holidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
+    if (contract?.available_nights === false && isNightShift(slot.template)) continue;
+
     if (allowOvertime) { kept.push(empId); continue; }
 
     // CONTRACTUAL
     const week = getISOWeekNumber(slot.date);
-    const weekHardCap = contract?.max_hours_per_week
+    const weekHardCap = contract?.weekly_hours
+      ?? contract?.max_hours_per_week
       ?? contract?.target_hours_per_week
       ?? Number.POSITIVE_INFINITY;
     const effectiveWeekly = Math.min(constraints.maxHoursPerWeek, weekHardCap, emp.max_hours_per_week);
     if ((tracker.weeklyHours[week] || 0) + slot.durationHours > effectiveWeekly) continue;
 
-    if (contract) {
-      const q = ctx.quarterRollupSums.get(empId) ?? { sundays: 0, saturdays: 0, nights: 0, holidays: 0 };
-      if (dayOfWeek(slot.date) === 0 && q.sundays + 1 > contract.max_sundays_per_quarter) continue;
-      if (isHoliday(slot.date, ctx.locationId, ctx.holidays)
-          && q.holidays + 1 > contract.max_holidays_per_quarter) continue;
-      if (contract.target_nights_per_month !== null && isNightShift(slot.template)) {
-        const rn = ctx.rollingRollupSums.get(empId)?.nights ?? 0;
-        if (rn + 1 > contract.target_nights_per_month) continue;
-      }
-    }
     kept.push(empId);
   }
   return kept;

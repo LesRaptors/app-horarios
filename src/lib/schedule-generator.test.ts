@@ -22,6 +22,8 @@ const fullTime: ContractType = {
   max_sundays_per_quarter: 6, max_holidays_per_quarter: 3,
   target_saturdays_per_month: 2, target_nights_per_month: 4, target_hours_per_week: 40,
   max_hours_per_day: null, max_hours_per_week: null,
+  weekly_hours_mode: "full", weekly_hours: null, is_healthcare: false,
+  available_sundays: true, available_holidays: true, available_nights: true,
   created_at: "", updated_at: "",
 };
 
@@ -88,10 +90,12 @@ describe("generateSchedule — empty history", () => {
   });
 });
 
-describe("generateSchedule — sunday hard cap reached", () => {
-  it("assigns with overtime_status=pending when employee at cap", () => {
+describe("generateSchedule — sunday cap removed (equity via scoring)", () => {
+  it("empleado con available_sundays=true y muchos domingos previos igual puede recibir domingo", () => {
+    // Post-034: no hay cap trimestral. El scoring penaliza según rolling rollups (equidad).
+    // Con available_sundays=true, el empleado puede trabajar domingos sin límite duro.
     const employees = [makeEmployee({ id: "e1" })];
-    // e1 already did 6 sundays in Q2 2026 (April)
+    // e1 ya hizo 6 domingos — scoring lo penaliza pero no lo bloquea
     const rollups: EmployeeEquityRollup[] = [
       { employee_id: "e1", year: 2026, month: 4,
         sundays_worked: 6, saturdays_worked: 0, nights_worked: 0,
@@ -107,9 +111,10 @@ describe("generateSchedule — sunday hard cap reached", () => {
       defaultConstraints, [], rollups, [], [fullTime], defaultWeights,
     );
 
+    // Asigna normalmente (único candidato, disponible)
     expect(result.entries).toHaveLength(1);
-    expect(result.entries[0].overtime_status).toBe("pending");
-    expect(result.entries[0].exceeds_caps).toContain("sundays_quarter");
+    expect(result.entries[0].overtime_status).toBe("none");
+    expect(result.entries[0].exceeds_caps).toEqual([]);
   });
 });
 
@@ -324,6 +329,57 @@ describe("contract caps overriden global", () => {
          shift_template_id: "tpl-12h", day_of_week: 1, required_count: 1,
          created_at: "", updated_at: "" }],
       [], [], [asistencial], defaultWeights,
+    );
+
+    expect(result.entries.length).toBeGreaterThan(0);
+  });
+});
+
+describe("contract availability flags", () => {
+  it("empleado con available_sundays=false NO recibe domingo", () => {
+    const ct: ContractType = {
+      ...fullTime, id: "ct-no-sun", available_sundays: false,
+    };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-no-sun" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      // Demand: domingo 5 abr
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 0, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [ct], defaultWeights,
+    );
+
+    expect(result.entries.find((e) => e.date === "2026-04-05")).toBeUndefined();
+  });
+
+  it("contract.is_healthcare=true permite turnos de hasta 12h", () => {
+    const ct: ContractType = {
+      ...fullTime, id: "ct-hc", is_healthcare: true,
+    };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-hc" });
+    const tpl = makeTemplate({
+      id: "tpl-12h", name: "12h", start_time: "07:00", end_time: "19:00",
+    });
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-12h"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      // Global: 10h/día. Pero is_healthcare lo eleva a 12.
+      { maxHoursPerWeek: 48, maxHoursPerDay: 10,
+        minRestHoursBetweenShifts: 12, maxConsecutiveDays: 6 },
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-12h", day_of_week: 1, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [ct], defaultWeights,
     );
 
     expect(result.entries.length).toBeGreaterThan(0);
