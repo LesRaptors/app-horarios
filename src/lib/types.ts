@@ -269,6 +269,7 @@ export type AutoGenWarning =
   | { kind: "no_employees_in_position";  positionId: string; date: string; shiftTemplateId: string }
   | { kind: "no_safe_candidate";          positionId: string; date: string; shiftTemplateId: string }
   | { kind: "overtime_assigned";          positionId: string; date: string; shiftTemplateId: string; employeeId: string; caps: CapExcessKind[] }
+  | { kind: "coverage_gap";               positionId: string; date: string; shiftTemplateId: string; reason: "all_at_cap" | "no_eligible" }
   | { kind: "no_templates_selected" }
   | { kind: "no_employees_selected" };
 
