@@ -57,7 +57,7 @@ export default function ContractTypesPage() {
     }
 
     setItems(
-      (typesRes.data ?? []).map((t) => ({
+      ((typesRes.data ?? []) as ContractType[]).map((t) => ({
         ...t,
         employee_count: counts[t.id] ?? 0,
       }))

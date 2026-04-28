@@ -215,6 +215,12 @@ export interface ContractType {
   target_hours_per_week: number | null;
   max_hours_per_day: number | null;
   max_hours_per_week: number | null;
+  weekly_hours_mode: "full" | "partial";
+  weekly_hours: number | null;
+  is_healthcare: boolean;
+  available_sundays: boolean;
+  available_holidays: boolean;
+  available_nights: boolean;
   created_at: string;
   updated_at: string;
 }
