@@ -213,6 +213,8 @@ export interface ContractType {
   target_saturdays_per_month: number | null;
   target_nights_per_month: number | null;
   target_hours_per_week: number | null;
+  max_hours_per_day: number | null;
+  max_hours_per_week: number | null;
   created_at: string;
   updated_at: string;
 }
