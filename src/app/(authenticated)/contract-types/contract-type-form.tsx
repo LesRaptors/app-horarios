@@ -45,6 +45,12 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
   const [targetHours, setTargetHours] = useState<string>(
     initial?.target_hours_per_week?.toString() ?? ""
   );
+  const [maxHoursDay, setMaxHoursDay] = useState<string>(
+    initial?.max_hours_per_day?.toString() ?? ""
+  );
+  const [maxHoursWeek, setMaxHoursWeek] = useState<string>(
+    initial?.max_hours_per_week?.toString() ?? ""
+  );
 
   // Reset form state when dialog opens or the edited record changes.
   useEffect(() => {
@@ -56,6 +62,8 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
       setTargetSat(initial?.target_saturdays_per_month?.toString() ?? "");
       setTargetNight(initial?.target_nights_per_month?.toString() ?? "");
       setTargetHours(initial?.target_hours_per_week?.toString() ?? "");
+      setMaxHoursDay(initial?.max_hours_per_day?.toString() ?? "");
+      setMaxHoursWeek(initial?.max_hours_per_week?.toString() ?? "");
     }
   }, [open, initial]);
 
@@ -73,6 +81,8 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
       target_saturdays_per_month: targetSat === "" ? null : Number(targetSat),
       target_nights_per_month: targetNight === "" ? null : Number(targetNight),
       target_hours_per_week: targetHours === "" ? null : Number(targetHours),
+      max_hours_per_day: maxHoursDay === "" ? null : Number(maxHoursDay),
+      max_hours_per_week: maxHoursWeek === "" ? null : Number(maxHoursWeek),
     };
 
     const { error } = initial
@@ -153,6 +163,32 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
               value={targetHours}
               onChange={(e) => setTargetHours(e.target.value)}
             />
+          </FormField>
+          <FormField label="Máximo horas por día">
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={maxHoursDay}
+              onChange={(e) => setMaxHoursDay(e.target.value)}
+              placeholder="Vacío para usar límite global"
+            />
+            <p className="text-xs text-muted-foreground">
+              Vacío para usar el límite global de Restricciones laborales.
+            </p>
+          </FormField>
+          <FormField label="Máximo horas por semana">
+            <Input
+              type="number"
+              min={1}
+              max={84}
+              value={maxHoursWeek}
+              onChange={(e) => setMaxHoursWeek(e.target.value)}
+              placeholder="Vacío para usar límite global"
+            />
+            <p className="text-xs text-muted-foreground">
+              Cap duro semanal. Distinto del target (aspiracional).
+            </p>
           </FormField>
         </div>
         <DialogFooter>
