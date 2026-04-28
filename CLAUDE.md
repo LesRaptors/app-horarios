@@ -93,7 +93,7 @@ Profiles with `is_demo = true` are placeholder employees for schedule planning. 
 
 The scheduler balances workload across dimensions employees care about (priority order from the user): **domingos > sábados > noches > festivos > horas totales > descanso consecutivo**. Implementation:
 
-- **`contract_types`** (per-type caps): `max_sundays_per_quarter`, `max_holidays_per_quarter` (hard caps), `target_saturdays_per_month`, `target_nights_per_month`, `target_hours_per_week` (soft targets). Employees MUST have a `contract_type_id`; default is "Sin definir" (caps=999, permissive).
+- **`contract_types`** (per-type caps): `max_sundays_per_quarter`, `max_holidays_per_quarter` (hard caps), `target_saturdays_per_month`, `target_nights_per_month`, `target_hours_per_week` (soft targets), **`max_hours_per_day` y `max_hours_per_week`** (caps duros nullable; si null caen al global de `labor_constraints`). Caso de uso: personal asistencial sanitario (12h/día) vs administrativo (10h/día). Employees MUST have a `contract_type_id`; default is "Sin definir" (caps=999, permissive).
 - **`holidays`** table: pre-loaded Colombian nacional festivos 2026-2028. Admin can add nacional entries; managers add per-sede entries (`location_id` not null).
 - **`shift_templates.is_night`**: boolean, auto-suggested by the CST rule (shift overlaps 21:00-06:00) when creating a plantilla.
 - **`employee_equity_rollups`** (materialized): `(employee_id, year, month)` PK with `sundays_worked`, `saturdays_worked`, `nights_worked`, `holidays_worked`, `total_hours`. Read-only via RLS; only the trigger (`recompute_equity_rollup`, SECURITY DEFINER) writes. Fires on `schedule_entries` INSERT/UPDATE/DELETE and on `holidays` INSERT/UPDATE/DELETE (cascades).
