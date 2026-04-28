@@ -5,6 +5,7 @@ import { LaborConstraintsForm } from "@/components/settings/labor-constraints-fo
 import { SalariesVisibilityToggle } from "@/components/settings/salaries-visibility-toggle";
 import { PaymentFrequencySelector } from "@/components/settings/payment-frequency-selector";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 
 export default function SettingsPage() {
   const { profile, loading } = useAuth();
@@ -37,6 +38,10 @@ export default function SettingsPage() {
       </div>
 
       <LaborConstraintsForm />
+      <p className="text-xs text-muted-foreground">
+        Estos valores se aplican como default. Cada tipo de contrato puede sobrescribirlos en{" "}
+        <Link href="/contract-types" className="underline">/contract-types</Link>.
+      </p>
       <SalariesVisibilityToggle />
       <PaymentFrequencySelector />
     </div>
