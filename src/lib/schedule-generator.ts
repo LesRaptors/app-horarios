@@ -165,6 +165,7 @@ interface ScoringContext {
   holidays: HolidayDate[];
   locationId: string;
   contractTypes: Map<string, ContractType>;
+  constraints: LaborConstraints;
 }
 
 function scoreCandidate(
@@ -195,6 +196,26 @@ function scoreCandidate(
   } else if (gap !== null && gap >= 3) {
     score += w.clean_restart_bonus;
   }
+
+  // Penalización por saturación: candidatos cerca de sus caps pesan menos
+  const week = getISOWeekNumber(slot.date);
+  const weekHoursUsed = tracker.weeklyHours[week] || 0;
+  const contract = ctx.contractTypes.get(employee.contract_type_id ?? "");
+  const contractCap = contract?.target_hours_per_week ?? Number.POSITIVE_INFINITY;
+  const effectiveWeekly = Math.min(
+    ctx.constraints.maxHoursPerWeek,
+    contractCap,
+    employee.max_hours_per_week,
+  );
+  const weekPctUsed = effectiveWeekly > 0 ? (weekHoursUsed + slot.durationHours) / effectiveWeekly : 0;
+  if (weekPctUsed >= 0.85) score -= 30;
+
+  // Penalización por días consecutivos cerca del cap
+  const wouldBeConsecutive = tracker.lastShiftDate === prevDateStr(slot.date)
+    ? tracker.consecutiveDays + 1
+    : 1;
+  const consecutiveSlack = ctx.constraints.maxConsecutiveDays - wouldBeConsecutive;
+  if (consecutiveSlack <= 1) score -= 50;
 
   return score;
 }
@@ -432,7 +453,7 @@ export function generateSchedule(
   const ctx: ScoringContext = {
     weights, rollingRollupSums, quarterRollupSums,
     targetHours, targetShifts, holidays, locationId: config.locationId,
-    contractTypes: contractTypeMap,
+    contractTypes: contractTypeMap, constraints,
   };
 
   for (const slot of demandSlots) {

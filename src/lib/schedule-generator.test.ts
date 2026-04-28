@@ -262,3 +262,41 @@ describe("consecutive_days inviolable", () => {
     expect(gap).toBeDefined();
   });
 });
+
+describe("score penaliza saturación", () => {
+  it("prefiere empleado con holgura sobre uno al 90% de horas semana", () => {
+    const fresh = makeEmployee({ id: "e-fresh" });
+    const saturated = makeEmployee({ id: "e-sat" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    // saturated tiene 5 turnos × 8h = 40h ya en la semana del 6 abril (lunes)
+    // (ISO week 15 = lun 6 abr - dom 12 abr)
+    const existingEntries: ScheduleEntry[] = [
+      "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10",
+    ].map((date, i) => ({
+      id: `pre-${i}`, schedule_id: "sched-1", employee_id: "e-sat", position_id: "pos-1",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none" as const,
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    }));
+    // contract.target_hours_per_week = 40 → ya está al 100% (saturado)
+
+    // Demand: sábado 11 abr — los 2 elegibles, pero uno está saturado
+    const result = generateSchedule(
+      {
+        scheduleId: "sched-1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e-fresh", "e-sat"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true,
+      },
+      [fresh, saturated], [tpl], existingEntries, [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+         day_of_week: 6, required_count: 1, created_at: "", updated_at: "" }],
+      [], [], [fullTime], defaultWeights,
+    );
+
+    const sat11 = result.entries.find((e) => e.date === "2026-04-11");
+    expect(sat11?.employee_id).toBe("e-fresh");
+  });
+});
