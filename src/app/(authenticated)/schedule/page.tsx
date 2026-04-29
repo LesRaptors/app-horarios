@@ -115,7 +115,7 @@ export default function SchedulePage() {
           .maybeSingle(),
         supabase
           .from("profiles")
-          .select("*, position:positions(*), location:locations(*)")
+          .select("*, position:positions(*, department:departments(id, name)), location:locations(*)")
           .eq("location_id", selectedLocationId)
           .eq("is_active", true)
           .order("last_name"),
