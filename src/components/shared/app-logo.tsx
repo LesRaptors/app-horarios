@@ -9,7 +9,7 @@ interface AppLogoProps {
 export function AppLogo({ size = 32, className }: AppLogoProps) {
   return (
     <Image
-      src="/Icono%20Transparente.png"
+      src="/icono-transparente.png"
       alt="Horarios"
       width={size}
       height={size}
