@@ -5,6 +5,7 @@ import {
   isPostNightRest,
   exceedsMaxConsecutiveNights,
   needsCompensatory,
+  isRestDay,
 } from "./rest-rules";
 import type {
   WorkCycleParams,
@@ -12,6 +13,7 @@ import type {
   PostNightRestParams,
   MaxConsecutiveNightsParams,
   CompensatoryDayParams,
+  RestRule,
   ScheduleEntry,
   ShiftTemplate,
 } from "./types";
@@ -112,9 +114,8 @@ const _dayTemplate: ShiftTemplate = {
   start_time: "09:00", end_time: "17:00", is_night: false,
 };
 
-// Suppress unused warning — templates used in isRestDay tests (Task 6)
+// Suppress unused warning — nightTemplate used in isRestDay tests (Task 6)
 void nightTemplate;
-void _dayTemplate;
 
 describe("isPostNightRest", () => {
   const params: PostNightRestParams = { nights_threshold: 3, rest_days_required: 2 };
@@ -208,5 +209,18 @@ describe("needsCompensatory", () => {
   it("dom trabajado hace > within_days → ya no aplica", () => {
     const recent = [mkEntry("2026-03-22", false)]; // domingo hace 17+ días
     expect(needsCompensatory(params, "2026-04-08", recent)).toBe(false);
+  });
+});
+
+describe("isRestDay (despachador)", () => {
+  const workCycleRule: RestRule = {
+    id: "r1", contract_type_id: "ct1", rule_type: "work_cycle",
+    params: { work_days: 4, rest_days: 3, cycle_start_date: "2026-04-06" },
+    created_at: "", updated_at: "",
+  };
+
+  it("delega correctamente a isWorkCycleRest", () => {
+    expect(isRestDay(workCycleRule, "2026-04-10", _dayTemplate, [])).toBe(true);
+    expect(isRestDay(workCycleRule, "2026-04-09", _dayTemplate, [])).toBe(false);
   });
 });

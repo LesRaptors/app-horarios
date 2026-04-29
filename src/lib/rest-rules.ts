@@ -4,7 +4,9 @@ import type {
   PostNightRestParams,
   MaxConsecutiveNightsParams,
   CompensatoryDayParams,
+  RestRule,
   ScheduleEntry,
+  ShiftTemplate,
 } from "./types";
 
 function daysBetweenISO(from: string, to: string): number {
@@ -156,4 +158,28 @@ export function needsCompensatory(
 
   // No encontró día libre entre trigger y date → necesita compensatorio HOY.
   return true;
+}
+
+export function isRestDay(
+  rule: RestRule,
+  date: string,
+  template: ShiftTemplate,
+  recent: ScheduleEntry[],
+  isHolidayFn: (date: string) => boolean = () => false,
+): boolean {
+  const slotIsNight = template.is_night;
+  switch (rule.rule_type) {
+    case "work_cycle":
+      return isWorkCycleRest(rule.params as WorkCycleParams, date);
+    case "weekend_rotation":
+      return isWeekendRotationRest(rule.params as WeekendRotationParams, date);
+    case "post_night_rest":
+      return isPostNightRest(rule.params as PostNightRestParams, date, recent);
+    case "max_consecutive_nights":
+      return exceedsMaxConsecutiveNights(rule.params as MaxConsecutiveNightsParams, recent, date, slotIsNight);
+    case "compensatory_day":
+      return needsCompensatory(rule.params as CompensatoryDayParams, date, recent, isHolidayFn);
+    default:
+      return false;
+  }
 }
