@@ -8,12 +8,13 @@ import {
   dayOfWeek,
   daysBetween,
 } from "./equity-helpers";
+import { isRestDay } from "./rest-rules";
 import type {
   AutoGenConfig, AutoGenResult, AutoGenWarning,
   ProfileWithPositions, ShiftTemplate, LaborConstraints,
   ScheduleEntry, StaffingRequirement,
   EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
-  CapExcessKind,
+  CapExcessKind, RestRule,
 } from "./types";
 
 interface TimeOffRange {
@@ -166,6 +167,8 @@ interface ScoringContext {
   locationId: string;
   contractTypes: Map<string, ContractType>;
   constraints: LaborConstraints;
+  restRulesByContract: Map<string, RestRule[]>;
+  entriesByEmployee: Map<string, ScheduleEntry[]>;
 }
 
 function scoreCandidate(
@@ -283,6 +286,17 @@ function filterCandidates(
     if (contract?.available_holidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
     if (contract?.available_nights === false && isNightShift(slot.template)) continue;
 
+    // INVIOLABLE: reglas de descanso del contract
+    if (contract && ctx.restRulesByContract.has(contract.id)) {
+      const rules = ctx.restRulesByContract.get(contract.id)!;
+      const recentEmpEntries = ctx.entriesByEmployee.get(emp.id) ?? [];
+      const isHolidayFn = (d: string) => isHoliday(d, ctx.locationId, ctx.holidays);
+      const blocked = rules.some((rule) =>
+        isRestDay(rule, slot.date, slot.template, recentEmpEntries, isHolidayFn)
+      );
+      if (blocked) continue;
+    }
+
     if (allowOvertime) { kept.push(empId); continue; }
 
     // CONTRACTUAL
@@ -335,6 +349,7 @@ export function generateSchedule(
   holidays: HolidayDate[],
   contractTypes: ContractType[],
   weights: ScoringWeights,
+  restRules: RestRule[] = [],
 ): AutoGenResult {
   const warnings: AutoGenWarning[] = [];
   const entries: AutoGenResult["entries"] = [];
@@ -411,6 +426,22 @@ export function generateSchedule(
   const timeOffMap = buildTimeOffLookup(timeOff);
   const contractTypeMap = new Map(contractTypes.map((c) => [c.id, c]));
 
+  // Build rest rules index by contract_type_id
+  const restRulesByContract = new Map<string, RestRule[]>();
+  for (const rule of restRules) {
+    const list = restRulesByContract.get(rule.contract_type_id) ?? [];
+    list.push(rule);
+    restRulesByContract.set(rule.contract_type_id, list);
+  }
+
+  // Build entries index by employee_id (for rest rule evaluation)
+  const entriesByEmployee = new Map<string, ScheduleEntry[]>();
+  for (const e of existingEntries) {
+    const list = entriesByEmployee.get(e.employee_id) ?? [];
+    list.push(e);
+    entriesByEmployee.set(e.employee_id, list);
+  }
+
   const positionEligibility = new Map<string, { primary: string[]; floater: string[] }>();
   for (const emp of selectedEmployees) {
     if (emp.is_floater) {
@@ -457,6 +488,7 @@ export function generateSchedule(
     weights, rollingRollupSums, quarterRollupSums,
     targetHours, targetShifts, holidays, locationId: config.locationId,
     contractTypes: contractTypeMap, constraints,
+    restRulesByContract, entriesByEmployee,
   };
 
   for (const slot of demandSlots) {

@@ -3,6 +3,7 @@ import { generateSchedule } from "./schedule-generator";
 import type {
   AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
   LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
+  RestRule,
 } from "./types";
 
 const defaultConstraints: LaborConstraints = {
@@ -449,5 +450,46 @@ describe("contract availability flags", () => {
     );
 
     expect(result.entries.length).toBeGreaterThan(0);
+  });
+});
+
+describe("rest rules en motor", () => {
+  it("contract con work_cycle 4x3 descarta dias de descanso", () => {
+    const ct: ContractType = {
+      ...fullTime, id: "ct-cycle",
+    };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-cycle" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    const restRules: RestRule[] = [{
+      id: "r1", contract_type_id: "ct-cycle",
+      rule_type: "work_cycle",
+      params: { work_days: 4, rest_days: 3, cycle_start_date: "2026-04-06" },
+      created_at: "", updated_at: "",
+    }];
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      // Demand: lun 6 (trabajo) + vie 10 (descanso por ciclo)
+      [
+        { id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+          shift_template_id: "tpl-m", day_of_week: 1, required_count: 1,
+          created_at: "", updated_at: "" },
+        { id: "sr-2", location_id: "loc-1", position_id: "pos-1",
+          shift_template_id: "tpl-m", day_of_week: 5, required_count: 1,
+          created_at: "", updated_at: "" },
+      ],
+      [], [], [ct], defaultWeights,
+      restRules,
+    );
+
+    // Lunes 6 abr (trabajo) -> asignado.
+    expect(result.entries.find((e) => e.date === "2026-04-06")).toBeDefined();
+    // Viernes 10 abr (descanso por ciclo 4x3) -> no asignado.
+    expect(result.entries.find((e) => e.date === "2026-04-10")).toBeUndefined();
   });
 });
