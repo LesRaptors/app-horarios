@@ -1,5 +1,6 @@
 import type {
   WorkCycleParams,
+  WeekendRotationParams,
 } from "./types";
 
 function daysBetweenISO(from: string, to: string): number {
@@ -23,4 +24,24 @@ export function isWorkCycleRest(
   if (cycleLen <= 0) return false;
   const positionInCycle = offset % cycleLen;
   return positionInCycle >= params.work_days;
+}
+
+function isoWeekNumber(dateStr: string): number {
+  const d = new Date(dateStr + "T00:00:00Z");
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+export function isWeekendRotationRest(
+  params: WeekendRotationParams,
+  date: string,
+): boolean {
+  const dow = dowUTC(date);
+  if (dow === 6 && !params.include_saturday) return false;
+  if (dow === 0 && !params.include_sunday) return false;
+  if (dow !== 0 && dow !== 6) return false;
+  const week = isoWeekNumber(date);
+  return week % params.every_n_weeks === params.offset;
 }
