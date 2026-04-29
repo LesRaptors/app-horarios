@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
+import { AppLogo } from "@/components/shared/app-logo";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -127,7 +128,7 @@ export function Sidebar() {
     <div className="flex h-full w-64 flex-col border-r bg-card">
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
-        <Calendar className="h-6 w-6 text-primary" />
+        <AppLogo size={28} />
         <span className="ml-2 text-lg font-bold">{APP_NAME}</span>
       </div>
 

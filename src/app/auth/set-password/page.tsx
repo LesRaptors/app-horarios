@@ -13,7 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Calendar, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AppLogo } from "@/components/shared/app-logo";
 import { APP_NAME } from "@/lib/constants";
 
 type Status = "checking" | "ready" | "error" | "expired";
@@ -117,7 +118,7 @@ function SetPasswordInner() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center">
-            <Calendar className="h-8 w-8 text-primary" />
+            <AppLogo size={56} />
           </div>
           <CardTitle>{APP_NAME}</CardTitle>
           <CardDescription>

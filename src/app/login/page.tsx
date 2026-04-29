@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Calendar } from "lucide-react";
+import { AppLogo } from "@/components/shared/app-logo";
 import { APP_NAME } from "@/lib/constants";
 
 export default function LoginPage() {
@@ -48,8 +48,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary">
-            <Calendar className="size-6 text-primary-foreground" aria-hidden="true" />
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center">
+            <AppLogo size={64} />
           </div>
           <CardTitle className="text-2xl">{APP_NAME}</CardTitle>
           <CardDescription>
