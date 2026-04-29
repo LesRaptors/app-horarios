@@ -335,6 +335,72 @@ describe("contract caps overriden global", () => {
   });
 });
 
+describe("supernumerario (floater)", () => {
+  it("floater no se usa si hay primario disponible", () => {
+    const primary = makeEmployee({ id: "e-pri", position_id: "pos-1", is_floater: false });
+    const floater = makeEmployee({
+      id: "e-flo",
+      position_id: "pos-other",
+      is_floater: true,
+      secondary_positions: [{ position_id: "pos-1" }],
+    });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e-pri", "e-flo"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [primary, floater], [tpl], [], [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 1, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [fullTime], defaultWeights,
+    );
+
+    const assigned = result.entries[0];
+    expect(assigned?.employee_id).toBe("e-pri");
+  });
+
+  it("floater se usa cuando primario está en cap inviolable", () => {
+    const primary = makeEmployee({ id: "e-pri", position_id: "pos-1" });
+    const floater = makeEmployee({
+      id: "e-flo",
+      position_id: "pos-other",
+      is_floater: true,
+      secondary_positions: [{ position_id: "pos-1" }],
+    });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    // Primario con 6 días consecutivos previos (lun-sáb 30 mar - 4 abr).
+    const existingEntries: ScheduleEntry[] = [
+      "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04",
+    ].map((date, i) => ({
+      id: `pre-${i}`, schedule_id: "s1", employee_id: "e-pri", position_id: "pos-1",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none" as const,
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    }));
+
+    // Demand: domingo 5 abril (día 7 consecutivo para primary → cap inviolable).
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e-pri", "e-flo"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [primary, floater], [tpl], existingEntries, [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 0, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [fullTime], defaultWeights,
+    );
+
+    const assigned = result.entries.find((e) => e.date === "2026-04-05");
+    expect(assigned?.employee_id).toBe("e-flo");
+  });
+});
+
 describe("contract availability flags", () => {
   it("empleado con available_sundays=false NO recibe domingo", () => {
     const ct: ContractType = {

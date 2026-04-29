@@ -411,17 +411,27 @@ export function generateSchedule(
   const timeOffMap = buildTimeOffLookup(timeOff);
   const contractTypeMap = new Map(contractTypes.map((c) => [c.id, c]));
 
-  const positionEligibility = new Map<string, { primary: string[]; secondary: string[] }>();
+  const positionEligibility = new Map<string, { primary: string[]; floater: string[] }>();
   for (const emp of selectedEmployees) {
-    if (emp.position_id) {
-      if (!positionEligibility.has(emp.position_id))
-        positionEligibility.set(emp.position_id, { primary: [], secondary: [] });
-      positionEligibility.get(emp.position_id)!.primary.push(emp.id);
-    }
-    for (const sp of emp.secondary_positions || []) {
-      if (!positionEligibility.has(sp.position_id))
-        positionEligibility.set(sp.position_id, { primary: [], secondary: [] });
-      positionEligibility.get(sp.position_id)!.secondary.push(emp.id);
+    if (emp.is_floater) {
+      // Floater: only eligible for their secondary_positions, never as primary.
+      for (const sp of emp.secondary_positions ?? []) {
+        const e = positionEligibility.get(sp.position_id) ?? { primary: [], floater: [] };
+        if (!e.floater.includes(emp.id)) e.floater.push(emp.id);
+        positionEligibility.set(sp.position_id, e);
+      }
+    } else {
+      // Non-floater: primary for their position_id AND for secondary_positions.
+      if (emp.position_id) {
+        const e = positionEligibility.get(emp.position_id) ?? { primary: [], floater: [] };
+        if (!e.primary.includes(emp.id)) e.primary.push(emp.id);
+        positionEligibility.set(emp.position_id, e);
+      }
+      for (const sp of emp.secondary_positions ?? []) {
+        const e = positionEligibility.get(sp.position_id) ?? { primary: [], floater: [] };
+        if (!e.primary.includes(emp.id)) e.primary.push(emp.id);
+        positionEligibility.set(sp.position_id, e);
+      }
     }
   }
 
@@ -438,8 +448,8 @@ export function generateSchedule(
     if (dc !== 0) return dc;
     const aE = positionEligibility.get(a.positionId);
     const bE = positionEligibility.get(b.positionId);
-    const aN = (aE?.primary.length ?? 0) + (aE?.secondary.length ?? 0);
-    const bN = (bE?.primary.length ?? 0) + (bE?.secondary.length ?? 0);
+    const aN = (aE?.primary.length ?? 0) + (aE?.floater.length ?? 0);
+    const bN = (bE?.primary.length ?? 0) + (bE?.floater.length ?? 0);
     return aN - bN;
   });
 
@@ -451,21 +461,31 @@ export function generateSchedule(
 
   for (const slot of demandSlots) {
     const eligibility = positionEligibility.get(slot.positionId);
-    if (!eligibility) {
+    if (!eligibility || (eligibility.primary.length === 0 && eligibility.floater.length === 0)) {
       warnings.push({ kind: "no_employees_in_position",
         positionId: slot.positionId, date: slot.date, shiftTemplateId: slot.shiftTemplateId });
       continue;
     }
-    const candidateIds = [...eligibility.primary, ...eligibility.secondary];
 
-    // Pass 1
-    const pass1 = filterCandidates(candidateIds, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
-    let chosen = pickBestCandidate(pass1, employeeMap, trackers, slot, ctx);
+    let chosen: string | null = null;
     let overtimeCaps: CapExcessKind[] = [];
 
-    // Pass 2
+    // Pass 1: primarios strict.
+    if (eligibility.primary.length > 0) {
+      const pass1 = filterCandidates(eligibility.primary, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
+      chosen = pickBestCandidate(pass1, employeeMap, trackers, slot, ctx);
+    }
+
+    // Pass 1.5: floaters strict, solo si Pass 1 falló.
+    if (!chosen && eligibility.floater.length > 0) {
+      const pass15 = filterCandidates(eligibility.floater, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
+      chosen = pickBestCandidate(pass15, employeeMap, trackers, slot, ctx);
+    }
+
+    // Pass 2: todos (primarios + floaters), relaxed.
     if (!chosen) {
-      const pass2 = filterCandidates(candidateIds, slot, employeeMap, trackers, timeOffMap, constraints, ctx, true);
+      const allCandidates = [...eligibility.primary, ...eligibility.floater];
+      const pass2 = filterCandidates(allCandidates, slot, employeeMap, trackers, timeOffMap, constraints, ctx, true);
       chosen = pickBestCandidate(pass2, employeeMap, trackers, slot, ctx);
       if (chosen) {
         const emp = employeeMap.get(chosen)!;
@@ -476,7 +496,8 @@ export function generateSchedule(
 
     if (!chosen) {
       // Distinguir entre: nadie elegible (no_safe_candidate) vs todos al cap (coverage_gap)
-      const reason: "all_at_cap" | "no_eligible" = candidateIds.some((id) => {
+      const allCandidates = [...eligibility.primary, ...eligibility.floater];
+      const reason: "all_at_cap" | "no_eligible" = allCandidates.some((id) => {
         const t = trackers.get(id);
         if (!t) return false;
         return t.lastShiftDate === prevDateStr(slot.date)
