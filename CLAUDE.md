@@ -89,6 +89,10 @@ Configurador semanal recurrente de necesidades por (sede × posición × turno �
 
 Profiles with `is_demo = true` are placeholder employees for schedule planning. They have no `auth.users` entry and cannot log in. Two conversion paths: convert in-place (creates auth user, migrates shifts) or transfer shifts to an existing real employee. Visually identified by yellow "Demo" badge + italic name. Hard-deleted by admin; schedule_entries cascade (migration 022).
 
+### Supernumerarios (`is_floater`)
+
+Empleados con `profiles.is_floater = true` (migración 035) son comodines: el motor los usa SOLO cuando los empleados primarios para una posición no pueden cubrir el slot. Implementación: nuevo Pase 1.5 entre el Pase 1 strict (solo primarios) y el Pase 2 extras (todos). Sus posiciones cubribles se definen en `employee_secondary_positions`. Esto reduce extras forzados sin sobrecargar al floater. Form en `/employees` muestra switch "Supernumerario" + multi-pick de posiciones agrupadas por departamento. Badge azul "Supernumerario" en la tabla.
+
 ### Equity Model (core feature, see spec)
 
 The scheduler balances workload across dimensions employees care about (priority order from the user): **domingos > sábados > noches > festivos > horas totales > descanso consecutivo**. Implementation:
