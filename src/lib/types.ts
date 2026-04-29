@@ -54,6 +54,7 @@ export interface Profile {
   max_hours_per_week: number;
   is_active: boolean;
   is_demo: boolean;
+  is_floater: boolean;
   contract_type_id: string;
   created_at: string;
   updated_at: string;

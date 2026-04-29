@@ -663,6 +663,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_demo: boolean
+          is_floater: boolean
           is_terminated: boolean
           last_name: string
           location_id: string | null
@@ -683,6 +684,7 @@ export type Database = {
           id: string
           is_active?: boolean
           is_demo?: boolean
+          is_floater?: boolean
           is_terminated?: boolean
           last_name: string
           location_id?: string | null
@@ -703,6 +705,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_demo?: boolean
+          is_floater?: boolean
           is_terminated?: boolean
           last_name?: string
           location_id?: string | null
