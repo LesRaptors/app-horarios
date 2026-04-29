@@ -93,6 +93,17 @@ Profiles with `is_demo = true` are placeholder employees for schedule planning. 
 
 Empleados con `profiles.is_floater = true` (migración 035) son comodines: el motor los usa SOLO cuando los empleados primarios para una posición no pueden cubrir el slot. Implementación: nuevo Pase 1.5 entre el Pase 1 strict (solo primarios) y el Pase 2 extras (todos). Sus posiciones cubribles se definen en `employee_secondary_positions`. Esto reduce extras forzados sin sobrecargar al floater. Form en `/employees` muestra switch "Supernumerario" + multi-pick de posiciones agrupadas por departamento. Badge azul "Supernumerario" en la tabla.
 
+### Reglas de descanso parametrizables
+
+Sistema plug-in (migración 036): cada `contract_type` puede tener 0 o más reglas en `contract_rest_rules` con `params jsonb`. 5 tipos soportados:
+- `work_cycle`: trabaja N días, descansa M (ej. 4×3, 7×7).
+- `weekend_rotation`: cada N semanas, sáb/dom libres (offset 0/1).
+- `post_night_rest`: tras N noches consecutivas, M días libres.
+- `max_consecutive_nights`: tope duro de noches seguidas.
+- `compensatory_day`: si trabajó dom/festivo, día libre dentro de N días (Art. 179 CST).
+
+Helpers puros en `src/lib/rest-rules.ts` con TDD (~23 tests). Motor las aplica como inviolable en `filterCandidates` después de los chequeos de descanso/disponibilidad. UI en `/contract-types` ofrece 4 presets (Sin reglas, Asistencial, Rotación 4×3, Findes alternados) + Personalizado con cards editables y preview de 14 días. Tabla muestra columna "Reglas" con resumen. Tabla `/employees` muestra badge resumen de reglas del contract. Panel "Salud del horario" lista los días de descanso por regla para empleados saturados.
+
 ### Equity Model (core feature, see spec)
 
 The scheduler balances workload across dimensions employees care about (priority order from the user): **domingos > sábados > noches > festivos > horas totales > descanso consecutivo**. Implementation:
