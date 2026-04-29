@@ -1,6 +1,7 @@
 import type {
-  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints,
+  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, RestRule, ContractType, ShiftTemplate,
 } from "./types";
+import { isRestDay } from "./rest-rules";
 
 export interface SaturatedEmployee {
   employeeId: string;
@@ -8,6 +9,7 @@ export interface SaturatedEmployee {
   weekHoursPct: number;
   consecutiveDays: number;
   flags: ("near_weekly_cap" | "near_consecutive_cap" | "exceeded")[];
+  restDays?: string[]; // fechas YYYY-MM-DD bloqueadas por regla este mes
 }
 
 export interface HealthGap {
@@ -60,6 +62,8 @@ export function computeHealth(
   locationId: string,
   year: number,
   month: number,
+  restRules: RestRule[] = [],
+  contractTypes: ContractType[] = [],
 ): HealthSummary {
   // Filtrar entries que cuentan: no rejected
   const counted = entries.filter((e) => e.overtime_status !== "rejected");
@@ -159,6 +163,65 @@ export function computeHealth(
         consecutiveDays: maxConsecutive,
         flags,
       });
+    }
+  }
+
+  // Calcular restDays para cada empleado saturado (días bloqueados por regla de descanso)
+  if (restRules.length > 0) {
+    // Agrupar reglas por contract_type_id
+    const rulesByContract = new Map<string, RestRule[]>();
+    for (const rule of restRules) {
+      const arr = rulesByContract.get(rule.contract_type_id) ?? [];
+      arr.push(rule);
+      rulesByContract.set(rule.contract_type_id, arr);
+    }
+
+    // Map de contract_type_id para lookup rápido
+    const contractById = new Map<string, ContractType>();
+    for (const ct of contractTypes) {
+      contractById.set(ct.id, ct);
+    }
+
+    // Template dummy necesario para isRestDay (solo is_night importa; usar false como fallback)
+    const dummyTemplate: ShiftTemplate = {
+      id: "preview",
+      name: "preview",
+      start_time: "09:00",
+      end_time: "17:00",
+      color: "#000",
+      location_id: locationId,
+      is_night: false,
+      break_minutes: 0,
+      created_at: "",
+    };
+
+    // Map de entradas por empleado (todas las entradas, no solo counted)
+    const allByEmp = new Map<string, ScheduleEntry[]>();
+    for (const e of entries) {
+      const arr = allByEmp.get(e.employee_id) ?? [];
+      arr.push(e);
+      allByEmp.set(e.employee_id, arr);
+    }
+
+    for (const sat of saturated) {
+      const emp = employees.find((e) => e.id === sat.employeeId);
+      if (!emp?.contract_type_id) continue;
+      const rules = rulesByContract.get(emp.contract_type_id);
+      if (!rules || rules.length === 0) continue;
+
+      const empEntries = allByEmp.get(sat.employeeId) ?? [];
+      const restDaysList: string[] = [];
+
+      for (const day of days) {
+        const blocked = rules.some((rule) =>
+          isRestDay(rule, day, dummyTemplate, empEntries),
+        );
+        if (blocked) restDaysList.push(day);
+      }
+
+      if (restDaysList.length > 0) {
+        sat.restDays = restDaysList;
+      }
     }
   }
 

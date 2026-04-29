@@ -30,6 +30,7 @@ import type {
   ScoringWeights,
   LaborConstraints,
   StaffingRequirement,
+  RestRule,
 } from "@/lib/types";
 
 export default function SchedulePage() {
@@ -58,6 +59,7 @@ export default function SchedulePage() {
   // Health model data sources
   const [staffingRequirements, setStaffingRequirements] = useState<StaffingRequirement[]>([]);
   const [constraints, setConstraints] = useState<LaborConstraints | null>(null);
+  const [restRules, setRestRules] = useState<RestRule[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -166,7 +168,7 @@ export default function SchedulePage() {
   useEffect(() => {
     if (!selectedLocationId) return;
     (async () => {
-      const [{ data: cts }, { data: hols }, { data: weights }, { data: staffing }, { data: laborConstraintsRow }] = await Promise.all([
+      const [{ data: cts }, { data: hols }, { data: weights }, { data: staffing }, { data: laborConstraintsRow }, { data: restRulesData }] = await Promise.all([
         supabase.from("contract_types").select("*"),
         supabase
           .from("holidays")
@@ -186,6 +188,7 @@ export default function SchedulePage() {
           .select("value")
           .eq("key", "labor_constraints")
           .maybeSingle(),
+        supabase.from("contract_rest_rules").select("*"),
       ]);
       setContractTypes((cts ?? []) as ContractType[]);
       setHolidays((hols ?? []) as HolidayDate[]);
@@ -199,6 +202,7 @@ export default function SchedulePage() {
           maxConsecutiveDays: 6,
         },
       );
+      setRestRules((restRulesData ?? []) as unknown as RestRule[]);
     })();
   }, [supabase, selectedLocationId]);
 
@@ -385,8 +389,10 @@ export default function SchedulePage() {
       selectedLocationId,
       year,
       month,
+      restRules,
+      contractTypes,
     );
-  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month]);
+  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month, restRules, contractTypes]);
 
   // Build entry map for grid
   const entryMap = buildEntryMap(entries);

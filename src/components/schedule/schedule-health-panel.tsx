@@ -66,23 +66,30 @@ export function ScheduleHealthPanel({
               <h3 className="text-sm font-semibold mb-2">Empleados saturados</h3>
               <ul className="space-y-1 text-sm">
                 {health.saturatedEmployees.map((e) => (
-                  <li key={e.employeeId} className="flex items-center justify-between">
-                    <span>{e.name}</span>
-                    <div className="flex gap-1">
-                      {e.flags.includes("near_weekly_cap") && (
-                        <Badge variant="outline" className="text-amber-700 border-amber-300">
-                          {Math.round(e.weekHoursPct * 100)}% horas semana
-                        </Badge>
-                      )}
-                      {e.flags.includes("near_consecutive_cap") && (
-                        <Badge variant="outline" className="text-amber-700 border-amber-300">
-                          {e.consecutiveDays} días consecutivos
-                        </Badge>
-                      )}
-                      {e.flags.includes("exceeded") && (
-                        <Badge variant="destructive">Excede cap</Badge>
-                      )}
+                  <li key={e.employeeId}>
+                    <div className="flex items-center justify-between">
+                      <span>{e.name}</span>
+                      <div className="flex gap-1">
+                        {e.flags.includes("near_weekly_cap") && (
+                          <Badge variant="outline" className="text-amber-700 border-amber-300">
+                            {Math.round(e.weekHoursPct * 100)}% horas semana
+                          </Badge>
+                        )}
+                        {e.flags.includes("near_consecutive_cap") && (
+                          <Badge variant="outline" className="text-amber-700 border-amber-300">
+                            {e.consecutiveDays} días consecutivos
+                          </Badge>
+                        )}
+                        {e.flags.includes("exceeded") && (
+                          <Badge variant="destructive">Excede cap</Badge>
+                        )}
+                      </div>
                     </div>
+                    {e.restDays && e.restDays.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Descansa por regla los días: {e.restDays.map((d) => d.slice(8)).join(", ")}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
