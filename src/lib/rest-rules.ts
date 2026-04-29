@@ -3,6 +3,7 @@ import type {
   WeekendRotationParams,
   PostNightRestParams,
   MaxConsecutiveNightsParams,
+  CompensatoryDayParams,
   ScheduleEntry,
 } from "./types";
 
@@ -111,4 +112,48 @@ export function exceedsMaxConsecutiveNights(
   if (!slotIsNight) return false;
   const consecutive = countTrailingConsecutiveNights(recent, slotDate);
   return consecutive >= params.max;
+}
+
+function entryIsOnSundayOrHoliday(
+  entry: ScheduleEntry,
+  appliesTo: "sundays" | "holidays" | "both",
+  isHoliday: (date: string) => boolean,
+): boolean {
+  const dow = dowUTC(entry.date);
+  if (appliesTo === "sundays") return dow === 0;
+  if (appliesTo === "holidays") return isHoliday(entry.date);
+  return dow === 0 || isHoliday(entry.date);
+}
+
+export function needsCompensatory(
+  params: CompensatoryDayParams,
+  date: string,
+  recent: ScheduleEntry[],
+  isHoliday: (date: string) => boolean = () => false,
+): boolean {
+  const dateMs = new Date(date + "T00:00:00Z").getTime();
+  const lookback = dateMs - params.within_days * 86400000;
+
+  // ¿Hay un dom/festivo trabajado dentro de within_days?
+  const triggers = recent.filter((e) => {
+    const t = new Date(e.date + "T00:00:00Z").getTime();
+    if (t < lookback || t >= dateMs) return false;
+    return entryIsOnSundayOrHoliday(e, params.applies_to, isHoliday);
+  });
+
+  if (triggers.length === 0) return false;
+
+  // ¿Ya cumplió? Buscar gap (día sin entry) entre el trigger y la fecha actual.
+  const trigger = triggers[triggers.length - 1];
+  const triggerMs = new Date(trigger.date + "T00:00:00Z").getTime();
+
+  // Iterar día por día desde trigger+1 hasta date-1 buscando gap.
+  for (let t = triggerMs + 86400000; t < dateMs; t += 86400000) {
+    const candidate = new Date(t).toISOString().slice(0, 10);
+    const hasEntry = recent.some((e) => e.date === candidate);
+    if (!hasEntry) return false;  // ya hubo un día libre, ya cumplió
+  }
+
+  // No encontró día libre entre trigger y date → necesita compensatorio HOY.
+  return true;
 }

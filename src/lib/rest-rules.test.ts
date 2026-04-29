@@ -4,12 +4,14 @@ import {
   isWeekendRotationRest,
   isPostNightRest,
   exceedsMaxConsecutiveNights,
+  needsCompensatory,
 } from "./rest-rules";
 import type {
   WorkCycleParams,
   WeekendRotationParams,
   PostNightRestParams,
   MaxConsecutiveNightsParams,
+  CompensatoryDayParams,
   ScheduleEntry,
   ShiftTemplate,
 } from "./types";
@@ -172,5 +174,39 @@ describe("exceedsMaxConsecutiveNights", () => {
       mkEntry("2026-04-09", true),
     ];
     expect(exceedsMaxConsecutiveNights(params, recent, "2026-04-10", false)).toBe(false);
+  });
+});
+
+describe("needsCompensatory", () => {
+  const params: CompensatoryDayParams = {
+    applies_to: "sundays",
+    within_days: 7,
+  };
+
+  it("sin domingo trabajado → no necesita compensatorio", () => {
+    expect(needsCompensatory(params, "2026-04-08", [])).toBe(false);
+  });
+
+  it("trabajó dom 5 abr, ya descansó algún día (sin entry para 6 abr) → cumplido", () => {
+    const recent = [mkEntry("2026-04-05", false)];  // domingo trabajado
+    // Si no hay entry para el 6 abr, ese día está libre → ya cumplió.
+    expect(needsCompensatory(params, "2026-04-08", recent)).toBe(false);
+  });
+
+  it("trabajó dom 5 + lun a vie (sin libre) → necesita compensatorio el sáb 11", () => {
+    const recent = [
+      mkEntry("2026-04-05", false), // domingo
+      mkEntry("2026-04-06", false), // lun
+      mkEntry("2026-04-07", false),
+      mkEntry("2026-04-08", false),
+      mkEntry("2026-04-09", false),
+      mkEntry("2026-04-10", false), // viernes (5 días seguidos sin descanso)
+    ];
+    expect(needsCompensatory(params, "2026-04-11", recent)).toBe(true);
+  });
+
+  it("dom trabajado hace > within_days → ya no aplica", () => {
+    const recent = [mkEntry("2026-03-22", false)]; // domingo hace 17+ días
+    expect(needsCompensatory(params, "2026-04-08", recent)).toBe(false);
   });
 });
