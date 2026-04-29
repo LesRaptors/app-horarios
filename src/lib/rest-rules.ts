@@ -1,6 +1,9 @@
 import type {
   WorkCycleParams,
   WeekendRotationParams,
+  PostNightRestParams,
+  MaxConsecutiveNightsParams,
+  ScheduleEntry,
 } from "./types";
 
 function daysBetweenISO(from: string, to: string): number {
@@ -44,4 +47,68 @@ export function isWeekendRotationRest(
   if (dow !== 0 && dow !== 6) return false;
   const week = isoWeekNumber(date);
   return week % params.every_n_weeks === params.offset;
+}
+
+function countTrailingConsecutiveNights(
+  recent: ScheduleEntry[],
+  beforeDate: string,
+): number {
+  const sorted = [...recent]
+    .filter((e) => e.date < beforeDate)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  let count = 0;
+  let expectedDate = (() => {
+    const d = new Date(beforeDate + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  for (const entry of sorted) {
+    if (entry.date !== expectedDate) break;
+    const isNight = entry.start_time >= "21:00" || entry.start_time < "06:00";
+    if (!isNight) break;
+    count++;
+    const d = new Date(expectedDate + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 1);
+    expectedDate = d.toISOString().slice(0, 10);
+  }
+  return count;
+}
+
+export function isPostNightRest(
+  params: PostNightRestParams,
+  date: string,
+  recent: ScheduleEntry[],
+): boolean {
+  // Find the most recent night entry before `date`
+  const pastNights = [...recent]
+    .filter((e) => {
+      if (e.date >= date) return false;
+      return e.start_time >= "21:00" || e.start_time < "06:00";
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (pastNights.length === 0) return false;
+
+  const lastNight = pastNights[0];
+  const daysSinceLastNight = daysBetweenISO(lastNight.date, date);
+
+  // Only apply if we're still within the rest window
+  if (daysSinceLastNight > params.rest_days_required) return false;
+
+  // Count consecutive nights ending at lastNight
+  const consecutive = countTrailingConsecutiveNights(recent, lastNight.date) + 1;
+  return consecutive >= params.nights_threshold;
+}
+
+export function exceedsMaxConsecutiveNights(
+  params: MaxConsecutiveNightsParams,
+  recent: ScheduleEntry[],
+  slotDate: string,
+  slotIsNight: boolean,
+): boolean {
+  if (!slotIsNight) return false;
+  const consecutive = countTrailingConsecutiveNights(recent, slotDate);
+  return consecutive >= params.max;
 }
