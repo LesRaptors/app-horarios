@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -129,6 +130,8 @@ interface EditForm {
   termination_date: string;
   is_terminated: boolean;
   arl_risk_class: number | null;
+  is_floater: boolean;
+  floater_positions: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +364,19 @@ export default function EmployeesPage() {
     [positions]
   );
 
+  // Positions grouped by department for the floater multi-pick
+  const departmentGroups = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; positions: Position[] }>();
+    for (const p of positions) {
+      const dep = departments.find((d) => d.id === p.department_id);
+      if (!dep) continue;
+      const g = map.get(dep.id) ?? { id: dep.id, name: dep.name, positions: [] };
+      g.positions.push(p);
+      map.set(dep.id, g);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [positions, departments]);
+
   // --------------------------------------------------------------------------
   // INVITE: handlers
   // --------------------------------------------------------------------------
@@ -426,6 +442,7 @@ export default function EmployeesPage() {
       .select("position_id")
       .eq("employee_id", emp.id);
 
+    const secondaryIds = secondaryData?.map((s) => s.position_id) ?? [];
     setEditForm({
       id: emp.id,
       first_name: emp.first_name,
@@ -437,11 +454,13 @@ export default function EmployeesPage() {
       position_id: emp.position_id ?? "",
       max_hours_per_week: emp.max_hours_per_week,
       is_active: emp.is_active,
-      secondary_position_ids: secondaryData?.map((s) => s.position_id) ?? [],
+      secondary_position_ids: emp.is_floater ? [] : secondaryIds,
       hire_date: (emp as any).hire_date ?? "",
       termination_date: (emp as any).termination_date ?? "",
       is_terminated: (emp as any).is_terminated ?? false,
       arl_risk_class: (emp as any).arl_risk_class ?? null,
+      is_floater: emp.is_floater ?? false,
+      floater_positions: emp.is_floater ? secondaryIds : [],
     });
     setEditOpen(true);
   }
@@ -471,6 +490,7 @@ export default function EmployeesPage() {
           termination_date: editForm.termination_date || null,
           is_terminated: editForm.is_terminated,
           arl_risk_class: editForm.arl_risk_class,
+          is_floater: editForm.is_floater,
         })
         .eq("id", editForm.id);
 
@@ -480,16 +500,21 @@ export default function EmployeesPage() {
       }
 
       // Sync secondary positions: delete all then insert new
+      // For floaters: floater_positions. For regular employees: secondary_position_ids.
       await supabase
         .from("employee_secondary_positions")
         .delete()
         .eq("employee_id", editForm.id);
 
-      if (editForm.secondary_position_ids.length > 0) {
+      const posIdsToInsert = editForm.is_floater
+        ? editForm.floater_positions
+        : editForm.secondary_position_ids;
+
+      if (posIdsToInsert.length > 0) {
         const { error: secError } = await supabase
           .from("employee_secondary_positions")
           .insert(
-            editForm.secondary_position_ids.map((posId) => ({
+            posIdsToInsert.map((posId) => ({
               employee_id: editForm.id,
               position_id: posId,
             }))
@@ -841,9 +866,12 @@ export default function EmployeesPage() {
                       onClick={() => setPanelEmp(emp as Profile)}
                     >
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span>{emp.first_name} {emp.last_name}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={emp.is_demo ? "italic" : ""}>{emp.first_name} {emp.last_name}</span>
                           {emp.is_demo && <DemoBadge />}
+                          {emp.is_floater && (
+                            <Badge variant="outline" className="text-xs">Supernumerario</Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{emp.email}</TableCell>
@@ -1329,45 +1357,111 @@ export default function EmployeesPage() {
                 </Select>
               </div>
 
-              {/* Secondary positions */}
-              <div className="grid gap-2">
-                <Label>Posiciones secundarias</Label>
-                <p className="text-xs text-muted-foreground">
-                  Posiciones adicionales que este empleado puede cubrir
-                </p>
-                <div className="max-h-32 overflow-y-auto rounded border p-2 space-y-1">
-                  {positions
-                    .filter((p) => p.id !== editForm.position_id)
-                    .map((pos) => (
-                      <label
-                        key={pos.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editForm.secondary_position_ids.includes(pos.id)}
-                          onChange={(e) => {
-                            setEditForm((f) => {
-                              if (!f) return f;
-                              const ids = e.target.checked
-                                ? [...f.secondary_position_ids, pos.id]
-                                : f.secondary_position_ids.filter((id) => id !== pos.id);
-                              return { ...f, secondary_position_ids: ids };
-                            });
-                          }}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <span
-                          className="inline-block h-3 w-3 rounded-full"
-                          style={{ backgroundColor: pos.color }}
-                        />
-                        {pos.name}
-                      </label>
-                    ))}
-                  {positions.filter((p) => p.id !== editForm.position_id).length === 0 && (
-                    <p className="text-xs text-muted-foreground">No hay otras posiciones disponibles</p>
-                  )}
+              {/* Supernumerario switch + floater multi-pick */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label>Supernumerario</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Cubre múltiples posiciones. Se asigna solo cuando los empleados primarios no alcanzan.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={editForm.is_floater}
+                    onCheckedChange={(v) =>
+                      setEditForm((f) =>
+                        f ? { ...f, is_floater: v, floater_positions: v ? f.floater_positions : [] } : f
+                      )
+                    }
+                  />
                 </div>
+
+                {editForm.is_floater ? (
+                  <div className="space-y-2">
+                    <Label>Posiciones que puede cubrir</Label>
+                    <div className="max-h-64 overflow-y-auto rounded-md border p-2 space-y-2">
+                      {departmentGroups.map((dep) => {
+                        const depPositions = dep.positions.filter((p) => p.id !== editForm.position_id);
+                        if (depPositions.length === 0) return null;
+                        return (
+                          <div key={dep.id}>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">
+                              {dep.name}
+                            </p>
+                            {depPositions.map((p) => {
+                              const checked = editForm.floater_positions.includes(p.id);
+                              return (
+                                <label
+                                  key={p.id}
+                                  className="flex items-center gap-2 py-1 pl-2 text-sm cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(v) => {
+                                      setEditForm((f) => {
+                                        if (!f) return f;
+                                        const ids = v
+                                          ? [...f.floater_positions, p.id]
+                                          : f.floater_positions.filter((id) => id !== p.id);
+                                        return { ...f, floater_positions: ids };
+                                      });
+                                    }}
+                                  />
+                                  <span
+                                    className="inline-block h-3 w-3 rounded-full"
+                                    style={{ backgroundColor: p.color }}
+                                  />
+                                  {p.name}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                      {departmentGroups.every((dep) => dep.positions.filter((p) => p.id !== editForm.position_id).length === 0) && (
+                        <p className="text-xs text-muted-foreground">No hay otras posiciones disponibles</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Posiciones secundarias</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Posiciones adicionales que este empleado puede cubrir
+                    </p>
+                    <div className="max-h-32 overflow-y-auto rounded border p-2 space-y-1">
+                      {positions
+                        .filter((p) => p.id !== editForm.position_id)
+                        .map((pos) => (
+                          <label
+                            key={pos.id}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={editForm.secondary_position_ids.includes(pos.id)}
+                              onCheckedChange={(v) => {
+                                setEditForm((f) => {
+                                  if (!f) return f;
+                                  const ids = v
+                                    ? [...f.secondary_position_ids, pos.id]
+                                    : f.secondary_position_ids.filter((id) => id !== pos.id);
+                                  return { ...f, secondary_position_ids: ids };
+                                });
+                              }}
+                            />
+                            <span
+                              className="inline-block h-3 w-3 rounded-full"
+                              style={{ backgroundColor: pos.color }}
+                            />
+                            {pos.name}
+                          </label>
+                        ))}
+                      {positions.filter((p) => p.id !== editForm.position_id).length === 0 && (
+                        <p className="text-xs text-muted-foreground">No hay otras posiciones disponibles</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Phone */}
