@@ -99,11 +99,50 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_rest_rules: {
+        Row: {
+          contract_type_id: string
+          created_at: string
+          id: string
+          params: Json
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          contract_type_id: string
+          created_at?: string
+          id?: string
+          params: Json
+          rule_type: string
+          updated_at?: string
+        }
+        Update: {
+          contract_type_id?: string
+          created_at?: string
+          id?: string
+          params?: Json
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_rest_rules_contract_type_id_fkey"
+            columns: ["contract_type_id"]
+            isOneToOne: false
+            referencedRelation: "contract_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_types: {
         Row: {
+          available_holidays: boolean
+          available_nights: boolean
+          available_sundays: boolean
           created_at: string
           description: string | null
           id: string
+          is_healthcare: boolean
           max_holidays_per_quarter: number
           max_hours_per_day: number | null
           max_hours_per_week: number | null
@@ -113,11 +152,17 @@ export type Database = {
           target_nights_per_month: number | null
           target_saturdays_per_month: number | null
           updated_at: string
+          weekly_hours: number | null
+          weekly_hours_mode: string
         }
         Insert: {
+          available_holidays?: boolean
+          available_nights?: boolean
+          available_sundays?: boolean
           created_at?: string
           description?: string | null
           id?: string
+          is_healthcare?: boolean
           max_holidays_per_quarter?: number
           max_hours_per_day?: number | null
           max_hours_per_week?: number | null
@@ -127,11 +172,17 @@ export type Database = {
           target_nights_per_month?: number | null
           target_saturdays_per_month?: number | null
           updated_at?: string
+          weekly_hours?: number | null
+          weekly_hours_mode?: string
         }
         Update: {
+          available_holidays?: boolean
+          available_nights?: boolean
+          available_sundays?: boolean
           created_at?: string
           description?: string | null
           id?: string
+          is_healthcare?: boolean
           max_holidays_per_quarter?: number
           max_hours_per_day?: number | null
           max_hours_per_week?: number | null
@@ -141,6 +192,8 @@ export type Database = {
           target_nights_per_month?: number | null
           target_saturdays_per_month?: number | null
           updated_at?: string
+          weekly_hours?: number | null
+          weekly_hours_mode?: string
         }
         Relationships: []
       }
@@ -1429,3 +1482,38 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      notification_type: [
+        "schedule_published",
+        "shift_change",
+        "request_update",
+        "swap_request",
+        "general",
+      ],
+      request_status: ["pending", "approved", "rejected"],
+      schedule_status: ["draft", "published", "archived"],
+      swap_status: ["pending", "accepted", "rejected", "approved"],
+      user_role: ["admin", "manager", "employee"],
+    },
+  },
+} as const

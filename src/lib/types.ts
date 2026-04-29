@@ -459,3 +459,54 @@ export interface TaxPersonalDeduction {
   created_by: string | null;
   created_at: string;
 }
+
+// Reglas de descanso (migración 036)
+export type RestRuleType =
+  | "work_cycle"
+  | "weekend_rotation"
+  | "post_night_rest"
+  | "max_consecutive_nights"
+  | "compensatory_day";
+
+export interface WorkCycleParams {
+  work_days: number;
+  rest_days: number;
+  cycle_start_date: string;
+}
+
+export interface WeekendRotationParams {
+  every_n_weeks: number;
+  offset: 0 | 1;
+  include_saturday: boolean;
+  include_sunday: boolean;
+}
+
+export interface PostNightRestParams {
+  nights_threshold: number;
+  rest_days_required: number;
+}
+
+export interface MaxConsecutiveNightsParams {
+  max: number;
+}
+
+export interface CompensatoryDayParams {
+  applies_to: "sundays" | "holidays" | "both";
+  within_days: number;
+}
+
+export type RestRuleParams =
+  | WorkCycleParams
+  | WeekendRotationParams
+  | PostNightRestParams
+  | MaxConsecutiveNightsParams
+  | CompensatoryDayParams;
+
+export interface RestRule {
+  id: string;
+  contract_type_id: string;
+  rule_type: RestRuleType;
+  params: RestRuleParams;
+  created_at: string;
+  updated_at: string;
+}
