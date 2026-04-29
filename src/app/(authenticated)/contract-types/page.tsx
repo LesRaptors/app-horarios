@@ -12,10 +12,11 @@ import { Pencil, Trash2, Loader2, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { translateDbError } from "@/lib/utils";
+import { summarizeRules } from "@/lib/rest-rules-summary";
 import { ContractTypeForm } from "./contract-type-form";
-import type { ContractType } from "@/lib/types";
+import type { ContractType, RestRule } from "@/lib/types";
 
-type Row = ContractType & { employee_count: number };
+type Row = ContractType & { employee_count: number; rest_rules?: RestRule[] };
 
 export default function ContractTypesPage() {
   const supabase = createClient();
@@ -36,9 +37,10 @@ export default function ContractTypesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [typesRes, empsRes] = await Promise.all([
+    const [typesRes, empsRes, rulesRes] = await Promise.all([
       supabase.from("contract_types").select("*").order("name"),
       supabase.from("profiles").select("contract_type_id"),
+      supabase.from("contract_rest_rules").select("*"),
     ]);
 
     if (typesRes.error) {
@@ -57,10 +59,19 @@ export default function ContractTypesPage() {
       counts[id] = (counts[id] ?? 0) + 1;
     }
 
+    const rulesMap: Record<string, RestRule[]> = {};
+    for (const rule of rulesRes.data ?? []) {
+      const typedRule = rule as unknown as RestRule;
+      const list = rulesMap[typedRule.contract_type_id] ?? [];
+      list.push(typedRule);
+      rulesMap[typedRule.contract_type_id] = list;
+    }
+
     setItems(
       ((typesRes.data ?? []) as ContractType[]).map((t) => ({
         ...t,
         employee_count: counts[t.id] ?? 0,
+        rest_rules: rulesMap[t.id] ?? [],
       }))
     );
     setLoading(false);
@@ -167,6 +178,14 @@ export default function ContractTypesPage() {
                   N
                 </Badge>
               </div>
+            ),
+          },
+          {
+            header: "Reglas",
+            cell: (r) => (
+              <span className="text-xs text-muted-foreground">
+                {summarizeRules(r.rest_rules ?? [])}
+              </span>
             ),
           },
           {

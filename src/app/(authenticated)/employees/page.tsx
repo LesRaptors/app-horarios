@@ -51,6 +51,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
 import { ROLE_LABELS } from "@/lib/constants";
+import { summarizeRules } from "@/lib/rest-rules-summary";
 import type {
   Profile,
   Location,
@@ -63,12 +64,13 @@ import type {
   PayrollSettings,
   AbsenceRecord,
   TaxPersonalDeduction,
+  RestRule,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Types for fetched profiles with joins
 // ---------------------------------------------------------------------------
-interface ProfileWithJoins extends Omit<Profile, "position" | "location"> {
+interface ProfileWithJoins extends Omit<Profile, "position" | "location" | "contract_type_id"> {
   position: {
     id: string;
     name: string;
@@ -82,6 +84,12 @@ interface ProfileWithJoins extends Omit<Profile, "position" | "location"> {
     id: string;
     name: string;
   } | null;
+  contract_type?: {
+    id: string;
+    name: string;
+    rest_rules?: RestRule[];
+  } | null;
+  contract_type_id?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +301,7 @@ export default function EmployeesPage() {
           supabase
             .from("profiles")
             .select(
-              "*, position:positions(id, name, department:departments(id, name, location_id)), location:locations(id, name)"
+              "*, position:positions(id, name, department:departments(id, name, location_id)), location:locations(id, name), contract_type:contract_types(id, name, rest_rules:contract_rest_rules(*))"
             )
             .order("last_name"),
           supabase.from("locations").select("*").order("name"),
@@ -301,7 +309,7 @@ export default function EmployeesPage() {
           supabase.from("positions").select("*").order("name"),
         ]);
 
-      if (profilesRes.data) setEmployees(profilesRes.data as ProfileWithJoins[]);
+      if (profilesRes.data) setEmployees(profilesRes.data as unknown as ProfileWithJoins[]);
       if (locationsRes.data) setLocations(locationsRes.data as Location[]);
       if (departmentsRes.data) setDepartments(departmentsRes.data as Department[]);
       if (positionsRes.data) setPositions(positionsRes.data as Position[]);
@@ -871,6 +879,12 @@ export default function EmployeesPage() {
                           {emp.is_demo && <DemoBadge />}
                           {emp.is_floater && (
                             <Badge variant="outline" className="text-xs">Supernumerario</Badge>
+                          )}
+                          {emp.contract_type?.rest_rules && emp.contract_type.rest_rules.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {summarizeRules(emp.contract_type.rest_rules)}
+                              {emp.contract_type.rest_rules.length > 1 && ` +${emp.contract_type.rest_rules.length - 1}`}
+                            </Badge>
                           )}
                         </div>
                       </TableCell>
