@@ -14,7 +14,7 @@ import type {
   ProfileWithPositions, ShiftTemplate, LaborConstraints,
   ScheduleEntry, StaffingRequirement,
   EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
-  CapExcessKind, RestRule,
+  CapExcessKind, RestRule, EmployeeRestRule,
 } from "./types";
 
 interface TimeOffRange {
@@ -168,6 +168,7 @@ interface ScoringContext {
   contractTypes: Map<string, ContractType>;
   constraints: LaborConstraints;
   restRulesByContract: Map<string, RestRule[]>;
+  restRulesByEmployee: Map<string, EmployeeRestRule[]>;
   entriesByEmployee: Map<string, ScheduleEntry[]>;
 }
 
@@ -286,13 +287,18 @@ function filterCandidates(
     if (contract?.available_holidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
     if (contract?.available_nights === false && isNightShift(slot.template)) continue;
 
-    // INVIOLABLE: reglas de descanso del contract
-    if (contract && ctx.restRulesByContract.has(contract.id)) {
-      const rules = ctx.restRulesByContract.get(contract.id)!;
+    // INVIOLABLE: reglas de descanso (override empleado > contract)
+    const empRules = ctx.restRulesByEmployee.get(emp.id) ?? [];
+    const contractRules = (contract && ctx.restRulesByContract.get(contract.id)) || [];
+    const effectiveRules = empRules.length > 0
+      ? empRules.map((r) => ({ rule_type: r.rule_type, params: r.params }))
+      : contractRules.map((r) => ({ rule_type: r.rule_type, params: r.params }));
+
+    if (effectiveRules.length > 0) {
       const recentEmpEntries = ctx.entriesByEmployee.get(emp.id) ?? [];
       const isHolidayFn = (d: string) => isHoliday(d, ctx.locationId, ctx.holidays);
-      const blocked = rules.some((rule) =>
-        isRestDay(rule, slot.date, slot.template, recentEmpEntries, isHolidayFn)
+      const blocked = effectiveRules.some((rule) =>
+        isRestDay(rule as RestRule, slot.date, slot.template, recentEmpEntries, isHolidayFn)
       );
       if (blocked) continue;
     }
@@ -350,6 +356,7 @@ export function generateSchedule(
   contractTypes: ContractType[],
   weights: ScoringWeights,
   restRules: RestRule[] = [],
+  employeeRestRules: EmployeeRestRule[] = [],
 ): AutoGenResult {
   const warnings: AutoGenWarning[] = [];
   const entries: AutoGenResult["entries"] = [];
@@ -434,6 +441,14 @@ export function generateSchedule(
     restRulesByContract.set(rule.contract_type_id, list);
   }
 
+  // Build rest rules index by employee_id (override de las del contract)
+  const restRulesByEmployee = new Map<string, EmployeeRestRule[]>();
+  for (const rule of employeeRestRules) {
+    const list = restRulesByEmployee.get(rule.employee_id) ?? [];
+    list.push(rule);
+    restRulesByEmployee.set(rule.employee_id, list);
+  }
+
   // Build entries index by employee_id (for rest rule evaluation)
   const entriesByEmployee = new Map<string, ScheduleEntry[]>();
   for (const e of existingEntries) {
@@ -488,7 +503,7 @@ export function generateSchedule(
     weights, rollingRollupSums, quarterRollupSums,
     targetHours, targetShifts, holidays, locationId: config.locationId,
     contractTypes: contractTypeMap, constraints,
-    restRulesByContract, entriesByEmployee,
+    restRulesByContract, restRulesByEmployee, entriesByEmployee,
   };
 
   for (const slot of demandSlots) {
@@ -502,19 +517,18 @@ export function generateSchedule(
     let chosen: string | null = null;
     let overtimeCaps: CapExcessKind[] = [];
 
-    // Pass 1: primarios strict.
-    if (eligibility.primary.length > 0) {
-      const pass1 = filterCandidates(eligibility.primary, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
+    // Pase 1: primarios + floaters compiten strict en un solo pool. El scoring
+    // (position_primary_bonus 100 vs position_secondary_bonus 30) preserva la
+    // preferencia natural por primarios; el floater gana solo si tiene mejor
+    // equidad (déficit de horas/turnos) o si los primarios quedaron filtrados
+    // por inviolables.
+    const pass1Pool = [...eligibility.primary, ...eligibility.floater];
+    if (pass1Pool.length > 0) {
+      const pass1 = filterCandidates(pass1Pool, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
       chosen = pickBestCandidate(pass1, employeeMap, trackers, slot, ctx);
     }
 
-    // Pass 1.5: floaters strict, solo si Pass 1 falló.
-    if (!chosen && eligibility.floater.length > 0) {
-      const pass15 = filterCandidates(eligibility.floater, slot, employeeMap, trackers, timeOffMap, constraints, ctx, false);
-      chosen = pickBestCandidate(pass15, employeeMap, trackers, slot, ctx);
-    }
-
-    // Pass 2: todos (primarios + floaters), relaxed.
+    // Pase 2: todos relaxed (overtime).
     if (!chosen) {
       const allCandidates = [...eligibility.primary, ...eligibility.floater];
       const pass2 = filterCandidates(allCandidates, slot, employeeMap, trackers, timeOffMap, constraints, ctx, true);

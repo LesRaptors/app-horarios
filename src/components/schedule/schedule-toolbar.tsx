@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Send, Archive, Wand2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, Archive, Wand2, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +27,7 @@ interface ScheduleToolbarProps {
   onPublish: () => void;
   onArchive: () => void;
   onAutoGenerate?: () => void;
+  onClearDraft?: () => void;
   isAdmin: boolean;
   isManager: boolean;
   saving: boolean;
@@ -45,6 +46,7 @@ export function ScheduleToolbar({
   onPublish,
   onArchive,
   onAutoGenerate,
+  onClearDraft,
   isAdmin,
   isManager,
   saving,
@@ -106,6 +108,12 @@ export function ScheduleToolbar({
             <Button variant="outline" onClick={onAutoGenerate} disabled={saving}>
               <Wand2 className="mr-2 h-4 w-4" />
               Auto-generar
+            </Button>
+          )}
+          {scheduleStatus === "draft" && onClearDraft && (
+            <Button variant="outline" onClick={onClearDraft} disabled={saving}>
+              <Eraser className="mr-2 h-4 w-4" />
+              Limpiar borrador
             </Button>
           )}
           {scheduleStatus === "draft" && (

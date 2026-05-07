@@ -1,5 +1,5 @@
 import type {
-  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, RestRule, ContractType, ShiftTemplate,
+  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, RestRule, ContractType, ShiftTemplate, EmployeeRestRule,
 } from "./types";
 import { isRestDay } from "./rest-rules";
 
@@ -64,6 +64,7 @@ export function computeHealth(
   month: number,
   restRules: RestRule[] = [],
   contractTypes: ContractType[] = [],
+  employeeRestRules: EmployeeRestRule[] = [],
 ): HealthSummary {
   // Filtrar entries que cuentan: no rejected
   const counted = entries.filter((e) => e.overtime_status !== "rejected");
@@ -166,14 +167,24 @@ export function computeHealth(
     }
   }
 
-  // Calcular restDays para cada empleado saturado (días bloqueados por regla de descanso)
-  if (restRules.length > 0) {
+  // Calcular restDays para cada empleado saturado (días bloqueados por regla de descanso).
+  // Override semántica: si el empleado tiene reglas individuales se usan esas;
+  // si no, fallback a las reglas del contract_type.
+  if (restRules.length > 0 || employeeRestRules.length > 0) {
     // Agrupar reglas por contract_type_id
     const rulesByContract = new Map<string, RestRule[]>();
     for (const rule of restRules) {
       const arr = rulesByContract.get(rule.contract_type_id) ?? [];
       arr.push(rule);
       rulesByContract.set(rule.contract_type_id, arr);
+    }
+
+    // Agrupar reglas por employee_id
+    const rulesByEmployee = new Map<string, EmployeeRestRule[]>();
+    for (const rule of employeeRestRules) {
+      const arr = rulesByEmployee.get(rule.employee_id) ?? [];
+      arr.push(rule);
+      rulesByEmployee.set(rule.employee_id, arr);
     }
 
     // Map de contract_type_id para lookup rápido
@@ -205,15 +216,26 @@ export function computeHealth(
 
     for (const sat of saturated) {
       const emp = employees.find((e) => e.id === sat.employeeId);
-      if (!emp?.contract_type_id) continue;
-      const rules = rulesByContract.get(emp.contract_type_id);
-      if (!rules || rules.length === 0) continue;
+      if (!emp) continue;
+
+      const empRules = rulesByEmployee.get(sat.employeeId) ?? [];
+      const contractRules = emp.contract_type_id
+        ? rulesByContract.get(emp.contract_type_id) ?? []
+        : [];
+      const effectiveRules: RestRule[] = empRules.length > 0
+        ? empRules.map((r) => ({
+            id: r.id, contract_type_id: "", rule_type: r.rule_type, params: r.params,
+            created_at: r.created_at, updated_at: r.updated_at,
+          }))
+        : contractRules;
+
+      if (effectiveRules.length === 0) continue;
 
       const empEntries = allByEmp.get(sat.employeeId) ?? [];
       const restDaysList: string[] = [];
 
       for (const day of days) {
-        const blocked = rules.some((rule) =>
+        const blocked = effectiveRules.some((rule) =>
           isRestDay(rule, day, dummyTemplate, empEntries),
         );
         if (blocked) restDaysList.push(day);

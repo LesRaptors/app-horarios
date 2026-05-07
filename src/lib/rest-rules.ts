@@ -5,6 +5,7 @@ import type {
   MaxConsecutiveNightsParams,
   CompensatoryDayParams,
   RestRule,
+  EmployeeRestRule,
   ScheduleEntry,
   ShiftTemplate,
 } from "./types";
@@ -182,4 +183,18 @@ export function isRestDay(
     default:
       return false;
   }
+}
+
+/**
+ * Devuelve las reglas de descanso efectivas para un empleado.
+ * Override semántico: si el empleado tiene 1+ reglas individuales, esas se usan
+ * en lugar de las del contract_type. Si no, fallback al contract.
+ * isRestDay solo lee rule_type y params, así que el shape común es suficiente.
+ */
+export function pickEffectiveRules(
+  employeeRules: EmployeeRestRule[],
+  contractRules: RestRule[],
+): Array<{ rule_type: RestRule["rule_type"]; params: RestRule["params"] }> {
+  const source = employeeRules.length > 0 ? employeeRules : contractRules;
+  return source.map((r) => ({ rule_type: r.rule_type, params: r.params }));
 }

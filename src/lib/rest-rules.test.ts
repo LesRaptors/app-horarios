@@ -6,6 +6,7 @@ import {
   exceedsMaxConsecutiveNights,
   needsCompensatory,
   isRestDay,
+  pickEffectiveRules,
 } from "./rest-rules";
 import type {
   WorkCycleParams,
@@ -14,6 +15,7 @@ import type {
   MaxConsecutiveNightsParams,
   CompensatoryDayParams,
   RestRule,
+  EmployeeRestRule,
   ScheduleEntry,
   ShiftTemplate,
 } from "./types";
@@ -222,5 +224,41 @@ describe("isRestDay (despachador)", () => {
   it("delega correctamente a isWorkCycleRest", () => {
     expect(isRestDay(workCycleRule, "2026-04-10", _dayTemplate, [])).toBe(true);
     expect(isRestDay(workCycleRule, "2026-04-09", _dayTemplate, [])).toBe(false);
+  });
+});
+
+describe("pickEffectiveRules", () => {
+  it("usa reglas del empleado si tiene 1+ y descarta las del contract", () => {
+    const empRules: EmployeeRestRule[] = [{
+      id: "er1", employee_id: "e1",
+      rule_type: "weekend_rotation",
+      params: { every_n_weeks: 2, offset: 0, include_saturday: true, include_sunday: true } as WeekendRotationParams,
+      created_at: "", updated_at: "",
+    }];
+    const contractRules: RestRule[] = [{
+      id: "cr1", contract_type_id: "ct1",
+      rule_type: "work_cycle",
+      params: { work_days: 4, rest_days: 3, cycle_start_date: "2026-01-01" } as WorkCycleParams,
+      created_at: "", updated_at: "",
+    }];
+    const result = pickEffectiveRules(empRules, contractRules);
+    expect(result).toHaveLength(1);
+    expect(result[0].rule_type).toBe("weekend_rotation");
+  });
+
+  it("fallback a reglas del contract si empleado no tiene", () => {
+    const contractRules: RestRule[] = [{
+      id: "cr1", contract_type_id: "ct1",
+      rule_type: "work_cycle",
+      params: { work_days: 4, rest_days: 3, cycle_start_date: "2026-01-01" } as WorkCycleParams,
+      created_at: "", updated_at: "",
+    }];
+    const result = pickEffectiveRules([], contractRules);
+    expect(result).toHaveLength(1);
+    expect(result[0].rule_type).toBe("work_cycle");
+  });
+
+  it("array vacío si nadie tiene reglas", () => {
+    expect(pickEffectiveRules([], [])).toEqual([]);
   });
 });

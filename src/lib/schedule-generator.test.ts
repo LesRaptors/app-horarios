@@ -3,7 +3,7 @@ import { generateSchedule } from "./schedule-generator";
 import type {
   AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
   LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
-  RestRule,
+  RestRule, EmployeeRestRule,
 } from "./types";
 
 const defaultConstraints: LaborConstraints = {
@@ -363,6 +363,43 @@ describe("supernumerario (floater)", () => {
     expect(assigned?.employee_id).toBe("e-pri");
   });
 
+  it("floater gana al primario en Pase 1 cuando primario tiene déficit menor (equidad)", () => {
+    const primary = makeEmployee({ id: "e-pri", position_id: "pos-1" });
+    const floater = makeEmployee({
+      id: "e-flo",
+      position_id: "pos-other",
+      is_floater: true,
+      secondary_positions: [{ position_id: "pos-1" }],
+    });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    // Primario ya tiene 4 turnos (32h) en abril; floater 0.
+    // Con hour_deficit_multiplier=10 y diferencia de 32h, el floater gana ~250 ptos
+    // a pesar del position_primary_bonus (+100 vs +30) que favorece al primario.
+    const existingEntries: ScheduleEntry[] = [
+      "2026-04-01", "2026-04-02", "2026-04-08", "2026-04-09",
+    ].map((date, i) => ({
+      id: `pre-${i}`, schedule_id: "s1", employee_id: "e-pri", position_id: "pos-1",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none" as const,
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    }));
+
+    // Demand: lun 13 abril (gap >= 3 desde último turno del primario, sin block bonus).
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e-pri", "e-flo"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: excludeAllExcept("2026-04-13"),
+        useDemandRequirements: false },
+      [primary, floater], [tpl], existingEntries, [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    const assigned = result.entries.find((e) => e.date === "2026-04-13");
+    expect(assigned?.employee_id).toBe("e-flo");
+  });
+
   it("floater se usa cuando primario está en cap inviolable", () => {
     const primary = makeEmployee({ id: "e-pri", position_id: "pos-1" });
     const floater = makeEmployee({
@@ -491,5 +528,77 @@ describe("rest rules en motor", () => {
     expect(result.entries.find((e) => e.date === "2026-04-06")).toBeDefined();
     // Viernes 10 abr (descanso por ciclo 4x3) -> no asignado.
     expect(result.entries.find((e) => e.date === "2026-04-10")).toBeUndefined();
+  });
+});
+
+describe("reglas de descanso por empleado (override)", () => {
+  it("dos empleados con misma contract pero distinto offset descansan en findes opuestos", () => {
+    const ct: ContractType = { ...fullTime, id: "ct-rot" };
+    const e1 = makeEmployee({ id: "e1", contract_type_id: "ct-rot" });
+    const e2 = makeEmployee({ id: "e2", contract_type_id: "ct-rot" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    // e1 offset 0: bloquea findes en semanas con (week % 2 === 0) → ISO 18 (par)
+    // e2 offset 1: bloquea findes en semanas con (week % 2 === 1) → ISO 19 (impar)
+    const employeeRules: EmployeeRestRule[] = [
+      { id: "er1", employee_id: "e1", rule_type: "weekend_rotation",
+        params: { every_n_weeks: 2, offset: 0, include_saturday: true, include_sunday: true },
+        created_at: "", updated_at: "" },
+      { id: "er2", employee_id: "e2", rule_type: "weekend_rotation",
+        params: { every_n_weeks: 2, offset: 1, include_saturday: true, include_sunday: true },
+        created_at: "", updated_at: "" },
+    ];
+
+    // Demand: 2 sábados consecutivos
+    // sáb 2 may = ISO week 18 (par) → e1 bloqueado
+    // sáb 9 may = ISO week 19 (impar) → e2 bloqueado
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 4,
+        employeeIds: ["e1", "e2"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [e1, e2], [tpl], [], [],
+      defaultConstraints,
+      [
+        { id: "sr-1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+          day_of_week: 6, required_count: 1, created_at: "", updated_at: "" },
+      ],
+      [], [], [ct], defaultWeights,
+      [], // contract rest rules vacíos
+      employeeRules,
+    );
+
+    const may2 = result.entries.find((en) => en.date === "2026-05-02");
+    expect(may2?.employee_id).toBe("e2");
+    const may9 = result.entries.find((en) => en.date === "2026-05-09");
+    expect(may9?.employee_id).toBe("e1");
+  });
+
+  it("empleado sin reglas individuales hace fallback al contract", () => {
+    const ct: ContractType = { ...fullTime, id: "ct-cycle-fb" };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-cycle-fb" });
+    const tpl = makeTemplate({ id: "tpl-m" });
+
+    const contractRules: RestRule[] = [{
+      id: "r1", contract_type_id: "ct-cycle-fb", rule_type: "work_cycle",
+      params: { work_days: 4, rest_days: 3, cycle_start_date: "2026-04-06" },
+      created_at: "", updated_at: "",
+    }];
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 5, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], [], [ct], defaultWeights,
+      contractRules,
+      [], // employeeRestRules vacío → fallback a contractRules
+    );
+
+    // Vie 10 abr: descanso por ciclo 4x3 (sigue aplicando vía fallback)
+    expect(result.entries.find((en) => en.date === "2026-04-10")).toBeUndefined();
   });
 });

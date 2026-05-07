@@ -510,3 +510,12 @@ export interface RestRule {
   created_at: string;
   updated_at: string;
 }
+
+export interface EmployeeRestRule {
+  id: string;
+  employee_id: string;
+  rule_type: RestRuleType;
+  params: RestRuleParams;
+  created_at: string;
+  updated_at: string;
+}

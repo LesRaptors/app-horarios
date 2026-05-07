@@ -1,10 +1,22 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { cn, getDayAbbreviation, isWeekend, formatDateISO, entryMapKey } from "@/lib/utils";
+import { Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { cn, getDayAbbreviation, isWeekend, formatDateISO, entryMapKey, formatTime } from "@/lib/utils";
 import { ScheduleCell } from "./schedule-cell";
 import type { Profile, ScheduleEntry } from "@/lib/types";
+import type { HealthGap } from "@/lib/schedule-health";
+
+interface PositionMeta {
+  name: string;
+  department?: { id: string; name: string } | null;
+}
+
+interface ShiftTemplateMeta {
+  name: string;
+  start_time: string;
+  end_time: string;
+}
 
 interface ScheduleCalendarGridProps {
   dates: Date[];
@@ -12,6 +24,9 @@ interface ScheduleCalendarGridProps {
   entryMap: Record<string, ScheduleEntry>;
   canEdit: boolean;
   onCellClick: (employeeId: string, date: string, entry: ScheduleEntry | null) => void;
+  gaps?: HealthGap[];
+  positionsById?: Record<string, PositionMeta>;
+  shiftTemplatesById?: Record<string, ShiftTemplateMeta>;
 }
 
 interface ProfileWithDepartment extends Profile {
@@ -27,6 +42,9 @@ export function ScheduleCalendarGrid({
   entryMap,
   canEdit,
   onCellClick,
+  gaps = [],
+  positionsById = {},
+  shiftTemplatesById = {},
 }: ScheduleCalendarGridProps) {
   const [showInactive, setShowInactive] = useState(false);
 
@@ -79,6 +97,62 @@ export function ScheduleCalendarGrid({
 
     return { groupedActive: groups, inactive: inactiveSorted };
   }, [employees, entryMap]);
+
+  // Index gaps: position -> date -> shiftTemplateId[] (un slot puede repetirse si required_count > 1)
+  const gapsByPosition = useMemo(() => {
+    const map = new Map<string, Map<string, string[]>>();
+    for (const g of gaps) {
+      const byDate = map.get(g.positionId) ?? new Map<string, string[]>();
+      const list = byDate.get(g.date) ?? [];
+      list.push(g.shiftTemplateId);
+      byDate.set(g.date, list);
+      map.set(g.positionId, byDate);
+    }
+    return map;
+  }, [gaps]);
+
+  // Group positions with gaps by department (so they render inside the right group)
+  const gapPositionsByDepartment = useMemo(() => {
+    const map = new Map<string, { departmentLabel: string; positionIds: string[] }>();
+    for (const positionId of Array.from(gapsByPosition.keys())) {
+      const meta = positionsById[positionId];
+      const dep = meta?.department;
+      const key = dep?.id ?? NO_DEPARTMENT_KEY;
+      const label = dep?.name ?? NO_DEPARTMENT_LABEL;
+      const existing = map.get(key);
+      if (existing) existing.positionIds.push(positionId);
+      else map.set(key, { departmentLabel: label, positionIds: [positionId] });
+    }
+    // Sort position ids alphabetically by name within each group
+    for (const entry of Array.from(map.values())) {
+      entry.positionIds.sort((a, b) =>
+        (positionsById[a]?.name ?? "").localeCompare(positionsById[b]?.name ?? "", "es")
+      );
+    }
+    return map;
+  }, [gapsByPosition, positionsById]);
+
+  // Department keys that already render via active employees → avoid duplicating header
+  const employeeGroupKeys = useMemo(
+    () => new Set(groupedActive.map((g) => g.key)),
+    [groupedActive],
+  );
+
+  // Department keys that have gaps but no employees with entries (need their own header)
+  const orphanGapGroupKeys = useMemo(() => {
+    const keys: string[] = [];
+    for (const k of Array.from(gapPositionsByDepartment.keys())) {
+      if (!employeeGroupKeys.has(k)) keys.push(k);
+    }
+    keys.sort((a, b) => {
+      if (a === NO_DEPARTMENT_KEY) return 1;
+      if (b === NO_DEPARTMENT_KEY) return -1;
+      const la = gapPositionsByDepartment.get(a)?.departmentLabel ?? "";
+      const lb = gapPositionsByDepartment.get(b)?.departmentLabel ?? "";
+      return la.localeCompare(lb, "es");
+    });
+    return keys;
+  }, [gapPositionsByDepartment, employeeGroupKeys]);
 
   if (employees.length === 0) {
     return (
@@ -139,22 +213,56 @@ export function ScheduleCalendarGrid({
             );
           })}
 
-          {/* Grouped active employees */}
-          {groupedActive.map((group) => (
-            <Fragment key={`group-${group.key}`}>
-              <DepartmentHeader label={group.label} totalCols={totalCols} />
-              {group.employees.map((employee) => (
-                <EmployeeRow
-                  key={employee.id}
-                  employee={employee}
-                  dates={dates}
-                  entryMap={entryMap}
-                  canEdit={canEdit}
-                  onCellClick={onCellClick}
-                />
-              ))}
-            </Fragment>
-          ))}
+          {/* Grouped active employees + gap rows for the same group */}
+          {groupedActive.map((group) => {
+            const gapEntry = gapPositionsByDepartment.get(group.key);
+            return (
+              <Fragment key={`group-${group.key}`}>
+                <DepartmentHeader label={group.label} totalCols={totalCols} />
+                {group.employees.map((employee) => (
+                  <EmployeeRow
+                    key={employee.id}
+                    employee={employee}
+                    dates={dates}
+                    entryMap={entryMap}
+                    canEdit={canEdit}
+                    onCellClick={onCellClick}
+                  />
+                ))}
+                {gapEntry?.positionIds.map((posId) => (
+                  <GapRow
+                    key={`gap-${posId}`}
+                    positionId={posId}
+                    positionName={positionsById[posId]?.name ?? "Posición"}
+                    dates={dates}
+                    gapsByDate={gapsByPosition.get(posId) ?? new Map()}
+                    shiftTemplatesById={shiftTemplatesById}
+                  />
+                ))}
+              </Fragment>
+            );
+          })}
+
+          {/* Departments that ONLY have gaps (no employees with entries) */}
+          {orphanGapGroupKeys.map((key) => {
+            const entry = gapPositionsByDepartment.get(key);
+            if (!entry) return null;
+            return (
+              <Fragment key={`gap-only-${key}`}>
+                <DepartmentHeader label={entry.departmentLabel} totalCols={totalCols} />
+                {entry.positionIds.map((posId) => (
+                  <GapRow
+                    key={`gap-${posId}`}
+                    positionId={posId}
+                    positionName={positionsById[posId]?.name ?? "Posición"}
+                    dates={dates}
+                    gapsByDate={gapsByPosition.get(posId) ?? new Map()}
+                    shiftTemplatesById={shiftTemplatesById}
+                  />
+                ))}
+              </Fragment>
+            );
+          })}
 
           {/* Inactive (sin turnos) */}
           {showInactive && inactive.length > 0 && (
@@ -269,6 +377,71 @@ function EmployeeRow({
               canEdit={canEdit}
               onClick={() => onCellClick(employee.id, dateStr, entry)}
             />
+          </div>
+        );
+      })}
+    </Fragment>
+  );
+}
+
+function GapRow({
+  positionId,
+  positionName,
+  dates,
+  gapsByDate,
+  shiftTemplatesById,
+}: {
+  positionId: string;
+  positionName: string;
+  dates: Date[];
+  gapsByDate: Map<string, string[]>;
+  shiftTemplatesById: Record<string, ShiftTemplateMeta>;
+}) {
+  const totalGaps = Array.from(gapsByDate.values()).reduce((sum, arr) => sum + arr.length, 0);
+  return (
+    <Fragment>
+      <div className="sticky left-0 z-10 flex items-center gap-1.5 border-b border-r bg-red-50 dark:bg-red-950/30 px-2 py-1">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600 dark:text-red-400" />
+        <div className="truncate text-sm">
+          <div className="font-medium text-red-700 dark:text-red-300">Sin cubrir</div>
+          <div className="truncate text-xs text-red-600/80 dark:text-red-400/80">
+            {positionName} · {totalGaps}
+          </div>
+        </div>
+      </div>
+
+      {dates.map((date) => {
+        const dateStr = formatDateISO(date);
+        const dayGaps = gapsByDate.get(dateStr) ?? [];
+        const weekend = isWeekend(date);
+
+        return (
+          <div
+            key={`gap-${positionId}-${dateStr}`}
+            className={cn(
+              "min-h-12 border-b p-0.5",
+              weekend ? "bg-muted/30" : ""
+            )}
+          >
+            {dayGaps.length > 0 && (
+              <div className="flex flex-col gap-0.5">
+                {dayGaps.map((tplId, idx) => {
+                  const tpl = shiftTemplatesById[tplId];
+                  return (
+                    <div
+                      key={`${tplId}-${idx}`}
+                      className="rounded border-2 border-dashed border-red-500 bg-red-50 px-1 py-0.5 text-[11px] leading-tight text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                      title={`Falta cubrir ${tpl?.name ?? "turno"} de ${positionName}`}
+                    >
+                      <div className="font-medium">
+                        {tpl ? `${formatTime(tpl.start_time)}-${formatTime(tpl.end_time)}` : "Faltante"}
+                      </div>
+                      <div className="truncate opacity-80">Faltante</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}

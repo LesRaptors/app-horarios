@@ -50,6 +50,7 @@ import { TaxDeductionsSection } from "@/components/employees/tax-deductions-sect
 import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
+import { EmployeeRestRulesEditor } from "@/components/employees/employee-rest-rules-editor";
 import { ROLE_LABELS } from "@/lib/constants";
 import { summarizeRules } from "@/lib/rest-rules-summary";
 import type {
@@ -65,7 +66,9 @@ import type {
   AbsenceRecord,
   TaxPersonalDeduction,
   RestRule,
+  EmployeeRestRule,
 } from "@/lib/types";
+import type { Database } from "@/lib/supabase/database.types";
 
 // ---------------------------------------------------------------------------
 // Types for fetched profiles with joins
@@ -140,6 +143,7 @@ interface EditForm {
   arl_risk_class: number | null;
   is_floater: boolean;
   floater_positions: string[];
+  rest_rules: EmployeeRestRule[];
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +455,13 @@ export default function EmployeesPage() {
       .eq("employee_id", emp.id);
 
     const secondaryIds = secondaryData?.map((s) => s.position_id) ?? [];
+
+    // Fetch individual rest rules for this employee (override del contract_type)
+    const { data: restRulesData } = await supabase
+      .from("employee_rest_rules")
+      .select("*")
+      .eq("employee_id", emp.id);
+
     setEditForm({
       id: emp.id,
       first_name: emp.first_name,
@@ -469,6 +480,7 @@ export default function EmployeesPage() {
       arl_risk_class: (emp as any).arl_risk_class ?? null,
       is_floater: emp.is_floater ?? false,
       floater_positions: emp.is_floater ? secondaryIds : [],
+      rest_rules: (restRulesData ?? []) as unknown as EmployeeRestRule[],
     });
     setEditOpen(true);
   }
@@ -530,6 +542,28 @@ export default function EmployeesPage() {
 
         if (secError) {
           toast.error(translateDbError(secError.message, "Error al guardar posiciones secundarias"));
+          return;
+        }
+      }
+
+      // Sync individual rest rules: delete-all + insert-new
+      await supabase
+        .from("employee_rest_rules")
+        .delete()
+        .eq("employee_id", editForm.id);
+
+      if (editForm.rest_rules.length > 0) {
+        const rows = editForm.rest_rules.map((r) => ({
+          employee_id: editForm.id,
+          rule_type: r.rule_type as string,
+          params: r.params as unknown as Database["public"]["Tables"]["employee_rest_rules"]["Insert"]["params"],
+        }));
+        const { error: rrError } = await supabase
+          .from("employee_rest_rules")
+          .insert(rows);
+
+        if (rrError) {
+          toast.error(translateDbError(rrError.message, "Error al guardar reglas de descanso"));
           return;
         }
       }
@@ -1476,6 +1510,22 @@ export default function EmployeesPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Reglas de descanso individuales (override del contract_type) */}
+              <div className="grid gap-2 rounded-md border p-3 bg-muted/20">
+                <Label>Reglas de descanso individuales</Label>
+                <p className="text-xs text-muted-foreground">
+                  Si están vacías, el empleado usa las reglas del tipo de contrato.
+                  Si agregas reglas aquí, reemplazan a las del contrato.
+                </p>
+                <EmployeeRestRulesEditor
+                  rules={editForm.rest_rules}
+                  employeeId={editForm.id}
+                  onChange={(rules) =>
+                    setEditForm((f) => (f ? { ...f, rest_rules: rules } : f))
+                  }
+                />
               </div>
 
               {/* Phone */}

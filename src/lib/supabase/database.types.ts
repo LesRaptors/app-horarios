@@ -273,6 +273,41 @@ export type Database = {
           },
         ]
       }
+      employee_rest_rules: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          params: Json
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          params: Json
+          rule_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          params?: Json
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_rest_rules_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_secondary_positions: {
         Row: {
           created_at: string

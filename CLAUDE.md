@@ -91,18 +91,31 @@ Profiles with `is_demo = true` are placeholder employees for schedule planning. 
 
 ### Supernumerarios (`is_floater`)
 
-Empleados con `profiles.is_floater = true` (migración 035) son comodines: el motor los usa SOLO cuando los empleados primarios para una posición no pueden cubrir el slot. Implementación: nuevo Pase 1.5 entre el Pase 1 strict (solo primarios) y el Pase 2 extras (todos). Sus posiciones cubribles se definen en `employee_secondary_positions`. Esto reduce extras forzados sin sobrecargar al floater. Form en `/employees` muestra switch "Supernumerario" + multi-pick de posiciones agrupadas por departamento. Badge azul "Supernumerario" en la tabla.
+Empleados con `profiles.is_floater = true` (migración 035) son comodines que cubren múltiples posiciones. Sus posiciones cubribles se definen en `employee_secondary_positions`. Form en `/employees` muestra switch "Supernumerario" + multi-pick de posiciones agrupadas por departamento. Badge azul "Supernumerario" en la tabla.
+
+**Integración en el motor:** floaters compiten en **Pase 1 strict** junto con los primarios (un solo pool). El scoring preserva la preferencia natural por primarios vía `position_primary_bonus (100)` vs `position_secondary_bonus (30)` — diferencia de +70 puntos que el primario solo pierde si el floater tiene déficit significativo de horas/turnos (equidad) o si el primario quedó filtrado por inviolables (descanso, días consecutivos, etc.). Esto asegura que un floater tiempo completo se cargue equitativamente con los demás, en vez de quedar subutilizado como "último recurso". Pase 2 sigue siendo el fallback con overtime para todos.
 
 ### Reglas de descanso parametrizables
 
-Sistema plug-in (migración 036): cada `contract_type` puede tener 0 o más reglas en `contract_rest_rules` con `params jsonb`. 5 tipos soportados:
+Sistema plug-in con dos fuentes de reglas:
+
+- **`contract_rest_rules`** (migración 036): por `contract_type` — default que aplica a todos los empleados con ese contrato.
+- **`employee_rest_rules`** (migración 037): por empleado individual — **override** total. Si un empleado tiene 1+ reglas individuales, esas se usan **en lugar de** las del contract; si no, fallback al contract.
+
+Override semántico permite rotación intra-equipo: dos empleados con el mismo Full-time pueden tener `weekend_rotation` con offsets opuestos (uno descansa findes pares, otro impares) sin que el motor los mande a descansar al mismo tiempo.
+
+5 tipos de regla soportados:
 - `work_cycle`: trabaja N días, descansa M (ej. 4×3, 7×7).
 - `weekend_rotation`: cada N semanas, sáb/dom libres (offset 0/1).
 - `post_night_rest`: tras N noches consecutivas, M días libres.
 - `max_consecutive_nights`: tope duro de noches seguidas.
 - `compensatory_day`: si trabajó dom/festivo, día libre dentro de N días (Art. 179 CST).
 
-Helpers puros en `src/lib/rest-rules.ts` con TDD (~23 tests). Motor las aplica como inviolable en `filterCandidates` después de los chequeos de descanso/disponibilidad. UI en `/contract-types` ofrece 4 presets (Sin reglas, Asistencial, Rotación 4×3, Findes alternados) + Personalizado con cards editables y preview de 14 días. Tabla muestra columna "Reglas" con resumen. Tabla `/employees` muestra badge resumen de reglas del contract. Panel "Salud del horario" lista los días de descanso por regla para empleados saturados.
+Helpers puros en `src/lib/rest-rules.ts` con TDD (~27 tests). Helper `pickEffectiveRules(employeeRules, contractRules)` decide qué reglas aplicar con override semántica. Motor (`schedule-generator.ts`) construye `restRulesByEmployee` y `restRulesByContract`, consulta el primero y hace fallback al segundo en `filterCandidates`. `schedule-health.ts` aplica la misma lógica al detectar `restDays` de empleados saturados.
+
+UI:
+- **`/contract-types`** — 4 presets (Sin reglas, Asistencial, Rotación 4×3, Findes alternados) + Personalizado para reglas a nivel contrato.
+- **`/employees`** edit dialog — sección "Reglas de descanso individuales" con `<EmployeeRestRulesEditor>` (reusa `RestRuleCards`). Vacío = "usa reglas del contrato"; con reglas = override. Persiste con delete-all + insert-new (mismo patrón que `employee_secondary_positions`).
 
 ### Equity Model (core feature, see spec)
 

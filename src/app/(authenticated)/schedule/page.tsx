@@ -17,6 +17,16 @@ import { ExportDropdown } from "@/components/schedule/export-dropdown";
 import { ScheduleHealthBanner } from "@/components/schedule/schedule-health-banner";
 import { ScheduleHealthPanel } from "@/components/schedule/schedule-health-panel";
 import { computeHealth } from "@/lib/schedule-health";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type {
   Location,
   Profile,
@@ -31,6 +41,7 @@ import type {
   LaborConstraints,
   StaffingRequirement,
   RestRule,
+  EmployeeRestRule,
 } from "@/lib/types";
 
 export default function SchedulePage() {
@@ -60,6 +71,7 @@ export default function SchedulePage() {
   const [staffingRequirements, setStaffingRequirements] = useState<StaffingRequirement[]>([]);
   const [constraints, setConstraints] = useState<LaborConstraints | null>(null);
   const [restRules, setRestRules] = useState<RestRule[]>([]);
+  const [employeeRestRules, setEmployeeRestRules] = useState<EmployeeRestRule[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -73,6 +85,9 @@ export default function SchedulePage() {
 
   // Auto-generate dialog state
   const [autoGenOpen, setAutoGenOpen] = useState(false);
+
+  // Clear-draft confirmation dialog state
+  const [clearDraftOpen, setClearDraftOpen] = useState(false);
 
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";
@@ -123,7 +138,7 @@ export default function SchedulePage() {
           .order("last_name"),
         supabase
           .from("positions")
-          .select("*, department:departments!inner(name, location_id)")
+          .select("*, department:departments!inner(id, name, location_id)")
           .eq("department.location_id", selectedLocationId)
           .order("name"),
         supabase
@@ -168,7 +183,7 @@ export default function SchedulePage() {
   useEffect(() => {
     if (!selectedLocationId) return;
     (async () => {
-      const [{ data: cts }, { data: hols }, { data: weights }, { data: staffing }, { data: laborConstraintsRow }, { data: restRulesData }] = await Promise.all([
+      const [{ data: cts }, { data: hols }, { data: weights }, { data: staffing }, { data: laborConstraintsRow }, { data: restRulesData }, { data: empRestRulesData }] = await Promise.all([
         supabase.from("contract_types").select("*"),
         supabase
           .from("holidays")
@@ -189,6 +204,7 @@ export default function SchedulePage() {
           .eq("key", "labor_constraints")
           .maybeSingle(),
         supabase.from("contract_rest_rules").select("*"),
+        supabase.from("employee_rest_rules").select("*"),
       ]);
       setContractTypes((cts ?? []) as ContractType[]);
       setHolidays((hols ?? []) as HolidayDate[]);
@@ -203,6 +219,7 @@ export default function SchedulePage() {
         },
       );
       setRestRules((restRulesData ?? []) as unknown as RestRule[]);
+      setEmployeeRestRules((empRestRulesData ?? []) as unknown as EmployeeRestRule[]);
     })();
   }, [supabase, selectedLocationId]);
 
@@ -377,6 +394,27 @@ export default function SchedulePage() {
     setSaving(false);
   }
 
+  // Clear all entries from the current draft (keeps the schedule, removes the entries)
+  async function handleClearDraftConfirm() {
+    if (!schedule || schedule.status !== "draft") return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("schedule_entries")
+      .delete()
+      .eq("schedule_id", schedule.id);
+
+    if (error) {
+      toast.error(translateDbError(error.message, "Error al limpiar el borrador"));
+    } else {
+      toast.success("Borrador limpiado");
+      setClearDraftOpen(false);
+      fetchScheduleData();
+    }
+
+    setSaving(false);
+  }
+
   // Compute schedule health summary
   const health = useMemo(() => {
     if (!selectedLocationId || !constraints) return null;
@@ -391,8 +429,9 @@ export default function SchedulePage() {
       month,
       restRules,
       contractTypes,
+      employeeRestRules,
     );
-  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month, restRules, contractTypes]);
+  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month, restRules, contractTypes, employeeRestRules]);
 
   // Build entry map for grid
   const entryMap = buildEntryMap(entries);
@@ -494,6 +533,7 @@ export default function SchedulePage() {
         onPublish={handlePublish}
         onArchive={handleArchive}
         onAutoGenerate={() => setAutoGenOpen(true)}
+        onClearDraft={entries.length > 0 ? () => setClearDraftOpen(true) : undefined}
         isAdmin={isAdmin}
         isManager={isManager}
         saving={saving}
@@ -545,6 +585,24 @@ export default function SchedulePage() {
             entryMap={entryMap}
             canEdit={canManage && schedule.status === "draft"}
             onCellClick={handleCellClick}
+            gaps={health?.gapsByDay ?? []}
+            positionsById={Object.fromEntries(
+              positions.map((p) => [
+                p.id,
+                {
+                  name: p.name,
+                  department: p.department
+                    ? { id: p.department.id, name: p.department.name }
+                    : null,
+                },
+              ])
+            )}
+            shiftTemplatesById={Object.fromEntries(
+              shiftTemplates.map((s) => [
+                s.id,
+                { name: s.name, start_time: s.start_time, end_time: s.end_time },
+              ])
+            )}
           />
         </>
       )}
@@ -583,6 +641,31 @@ export default function SchedulePage() {
         onSave={handleSaveEntry}
         onDelete={handleDeleteEntry}
       />
+
+      {/* Clear-draft confirmation */}
+      <AlertDialog open={clearDraftOpen} onOpenChange={setClearDraftOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpiar borrador</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán los {entries.length} turnos asignados de este borrador.
+              El borrador se mantiene vacío para que vuelvas a auto-generar o asignar
+              manualmente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearDraftConfirm}
+              disabled={saving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Limpiar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
