@@ -21,18 +21,28 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Trash2 } from "lucide-react";
 import { formatTime } from "@/lib/utils";
-import type { Position, ShiftTemplate, ScheduleEntry } from "@/lib/types";
+import type { Position, ShiftTemplate, ScheduleEntry, Profile } from "@/lib/types";
+
+type DialogMode = "employee" | "gap";
 
 interface ShiftAssignDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode?: DialogMode;
   entry: ScheduleEntry | null;
-  employeeName: string;
+  // Employee mode
+  employeeName?: string;
+  // Gap mode
+  eligibleEmployees?: Profile[];
+  initialPositionId?: string;
+  initialShiftTemplateId?: string;
+  // Shared
   dateLabel: string;
   positions: Position[];
   shiftTemplates: ShiftTemplate[];
   saving: boolean;
   onSave: (data: {
+    employee_id?: string;
     position_id: string;
     start_time: string;
     end_time: string;
@@ -45,8 +55,12 @@ interface ShiftAssignDialogProps {
 export function ShiftAssignDialog({
   open,
   onOpenChange,
+  mode = "employee",
   entry,
   employeeName,
+  eligibleEmployees = [],
+  initialPositionId,
+  initialShiftTemplateId,
   dateLabel,
   positions,
   shiftTemplates,
@@ -54,6 +68,7 @@ export function ShiftAssignDialog({
   onSave,
   onDelete,
 }: ShiftAssignDialogProps) {
+  const [employeeId, setEmployeeId] = useState("");
   const [positionId, setPositionId] = useState("");
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("14:00");
@@ -62,29 +77,42 @@ export function ShiftAssignDialog({
 
   // Reset form when dialog opens
   useEffect(() => {
-    if (open) {
-      if (entry) {
-        setPositionId(entry.position_id);
-        setStartTime(formatTime(entry.start_time));
-        setEndTime(formatTime(entry.end_time));
-        setTemplateId(entry.shift_template_id || "");
-        setNotes(entry.notes || "");
-      } else {
-        setPositionId(positions[0]?.id || "");
-        setStartTime("06:00");
-        setEndTime("14:00");
-        setTemplateId("");
-        setNotes("");
-      }
+    if (!open) return;
+
+    if (mode === "gap") {
+      const tpl = initialShiftTemplateId
+        ? shiftTemplates.find((t) => t.id === initialShiftTemplateId)
+        : null;
+      setEmployeeId(eligibleEmployees[0]?.id ?? "");
+      setPositionId(initialPositionId ?? positions[0]?.id ?? "");
+      setTemplateId(initialShiftTemplateId ?? "");
+      setStartTime(tpl ? formatTime(tpl.start_time) : "06:00");
+      setEndTime(tpl ? formatTime(tpl.end_time) : "14:00");
+      setNotes("");
+      return;
     }
-  }, [open, entry, positions]);
+
+    if (entry) {
+      setPositionId(entry.position_id);
+      setStartTime(formatTime(entry.start_time));
+      setEndTime(formatTime(entry.end_time));
+      setTemplateId(entry.shift_template_id || "");
+      setNotes(entry.notes || "");
+    } else {
+      setPositionId(positions[0]?.id || "");
+      setStartTime("06:00");
+      setEndTime("14:00");
+      setTemplateId("");
+      setNotes("");
+    }
+  }, [open, mode, entry, positions, shiftTemplates, eligibleEmployees, initialPositionId, initialShiftTemplateId]);
 
   function handleTemplateChange(id: string) {
-    setTemplateId(id);
     if (id === "manual") {
       setTemplateId("");
       return;
     }
+    setTemplateId(id);
     const template = shiftTemplates.find((t) => t.id === id);
     if (template) {
       setStartTime(formatTime(template.start_time));
@@ -94,6 +122,7 @@ export function ShiftAssignDialog({
 
   function handleSubmit() {
     onSave({
+      employee_id: mode === "gap" ? employeeId : undefined,
       position_id: positionId,
       start_time: startTime,
       end_time: endTime,
@@ -102,19 +131,61 @@ export function ShiftAssignDialog({
     });
   }
 
+  const isGap = mode === "gap";
+  const headerSubject = isGap
+    ? "Cubrir faltante"
+    : entry
+      ? "Editar turno"
+      : "Asignar turno";
+  const submitLabel = isGap
+    ? "Asignar faltante"
+    : entry
+      ? "Guardar cambios"
+      : "Asignar turno";
+  const description = isGap
+    ? dateLabel
+    : `${employeeName ?? ""} — ${dateLabel}`;
+  const noEligible = isGap && eligibleEmployees.length === 0;
+  const submitDisabled =
+    saving ||
+    !positionId ||
+    (isGap && (!employeeId || noEligible));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {entry ? "Editar turno" : "Asignar turno"}
-          </DialogTitle>
-          <DialogDescription>
-            {employeeName} — {dateLabel}
-          </DialogDescription>
+          <DialogTitle>{headerSubject}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Employee picker (gap mode only) */}
+          {isGap && (
+            <div className="space-y-2">
+              <Label>Empleado</Label>
+              {noEligible ? (
+                <p className="text-sm text-muted-foreground">
+                  No hay empleados elegibles (con esta posición como primaria o secundaria) en esta sede.
+                </p>
+              ) : (
+                <Select value={employeeId} onValueChange={setEmployeeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar empleado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eligibleEmployees.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.first_name} {e.last_name}
+                        {e.is_demo ? " (Demo)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
           {/* Shift template selector */}
           <div className="space-y-2">
             <Label>Plantilla de turno</Label>
@@ -192,7 +263,7 @@ export function ShiftAssignDialog({
 
         <DialogFooter className="flex justify-between">
           <div>
-            {entry && (
+            {entry && !isGap && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -212,9 +283,9 @@ export function ShiftAssignDialog({
             >
               Cancelar
             </Button>
-            <Button onClick={handleSubmit} disabled={saving || !positionId}>
+            <Button onClick={handleSubmit} disabled={submitDisabled}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {entry ? "Guardar cambios" : "Asignar turno"}
+              {submitLabel}
             </Button>
           </div>
         </DialogFooter>

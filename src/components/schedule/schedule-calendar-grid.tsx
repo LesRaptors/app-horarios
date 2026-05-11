@@ -24,6 +24,7 @@ interface ScheduleCalendarGridProps {
   entryMap: Record<string, ScheduleEntry>;
   canEdit: boolean;
   onCellClick: (employeeId: string, date: string, entry: ScheduleEntry | null) => void;
+  onGapClick?: (positionId: string, date: string, shiftTemplateId: string) => void;
   gaps?: HealthGap[];
   positionsById?: Record<string, PositionMeta>;
   shiftTemplatesById?: Record<string, ShiftTemplateMeta>;
@@ -42,6 +43,7 @@ export function ScheduleCalendarGrid({
   entryMap,
   canEdit,
   onCellClick,
+  onGapClick,
   gaps = [],
   positionsById = {},
   shiftTemplatesById = {},
@@ -237,6 +239,8 @@ export function ScheduleCalendarGrid({
                     dates={dates}
                     gapsByDate={gapsByPosition.get(posId) ?? new Map()}
                     shiftTemplatesById={shiftTemplatesById}
+                    canEdit={canEdit}
+                    onGapClick={onGapClick}
                   />
                 ))}
               </Fragment>
@@ -258,6 +262,8 @@ export function ScheduleCalendarGrid({
                     dates={dates}
                     gapsByDate={gapsByPosition.get(posId) ?? new Map()}
                     shiftTemplatesById={shiftTemplatesById}
+                    canEdit={canEdit}
+                    onGapClick={onGapClick}
                   />
                 ))}
               </Fragment>
@@ -390,12 +396,16 @@ function GapRow({
   dates,
   gapsByDate,
   shiftTemplatesById,
+  canEdit = false,
+  onGapClick,
 }: {
   positionId: string;
   positionName: string;
   dates: Date[];
   gapsByDate: Map<string, string[]>;
   shiftTemplatesById: Record<string, ShiftTemplateMeta>;
+  canEdit?: boolean;
+  onGapClick?: (positionId: string, date: string, shiftTemplateId: string) => void;
 }) {
   const totalGaps = Array.from(gapsByDate.values()).reduce((sum, arr) => sum + arr.length, 0);
   return (
@@ -427,16 +437,41 @@ function GapRow({
               <div className="flex flex-col gap-0.5">
                 {dayGaps.map((tplId, idx) => {
                   const tpl = shiftTemplatesById[tplId];
-                  return (
-                    <div
-                      key={`${tplId}-${idx}`}
-                      className="rounded border-2 border-dashed border-red-500 bg-red-50 px-1 py-0.5 text-[11px] leading-tight text-red-700 dark:bg-red-950/40 dark:text-red-300"
-                      title={`Falta cubrir ${tpl?.name ?? "turno"} de ${positionName}`}
-                    >
+                  const clickable = canEdit && !!onGapClick;
+                  const content = (
+                    <>
                       <div className="font-medium">
                         {tpl ? `${formatTime(tpl.start_time)}-${formatTime(tpl.end_time)}` : "Faltante"}
                       </div>
-                      <div className="truncate opacity-80">Faltante</div>
+                      <div className="truncate opacity-80">
+                        {clickable ? "Asignar" : "Faltante"}
+                      </div>
+                    </>
+                  );
+                  const className = cn(
+                    "rounded border-2 border-dashed border-red-500 bg-red-50 px-1 py-0.5 text-[11px] leading-tight text-red-700 dark:bg-red-950/40 dark:text-red-300",
+                    clickable && "cursor-pointer hover:bg-red-100 hover:border-red-600 dark:hover:bg-red-900/40 text-left w-full",
+                  );
+                  const titleText = clickable
+                    ? `Asignar ${tpl?.name ?? "turno"} de ${positionName}`
+                    : `Falta cubrir ${tpl?.name ?? "turno"} de ${positionName}`;
+                  return clickable ? (
+                    <button
+                      key={`${tplId}-${idx}`}
+                      type="button"
+                      onClick={() => onGapClick!(positionId, dateStr, tplId)}
+                      className={className}
+                      title={titleText}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div
+                      key={`${tplId}-${idx}`}
+                      className={className}
+                      title={titleText}
+                    >
+                      {content}
                     </div>
                   );
                 })}

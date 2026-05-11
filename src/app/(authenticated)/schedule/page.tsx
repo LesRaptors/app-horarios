@@ -42,6 +42,7 @@ import type {
   StaffingRequirement,
   RestRule,
   EmployeeRestRule,
+  EmployeeSecondaryPosition,
 } from "@/lib/types";
 
 export default function SchedulePage() {
@@ -79,9 +80,15 @@ export default function SchedulePage() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"employee" | "gap">("employee");
   const [dialogEmployeeId, setDialogEmployeeId] = useState("");
   const [dialogDate, setDialogDate] = useState("");
   const [dialogEntry, setDialogEntry] = useState<ScheduleEntry | null>(null);
+  const [dialogGapPositionId, setDialogGapPositionId] = useState<string>("");
+  const [dialogGapShiftTemplateId, setDialogGapShiftTemplateId] = useState<string>("");
+
+  // Secondary positions (for filtering eligible employees when covering a gap)
+  const [secondaryPositions, setSecondaryPositions] = useState<EmployeeSecondaryPosition[]>([]);
 
   // Auto-generate dialog state
   const [autoGenOpen, setAutoGenOpen] = useState(false);
@@ -115,14 +122,16 @@ export default function SchedulePage() {
     fetchLocations();
   }, [authLoading, profile?.location_id]);
 
-  // Fetch schedule + employees + entries when location/month/year change
-  const fetchScheduleData = useCallback(async () => {
+  // Fetch schedule + employees + entries when location/month/year change.
+  // Pass `{ silent: true }` after a save/delete so the grid doesn't unmount
+  // (which would reset horizontal scroll).
+  const fetchScheduleData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!selectedLocationId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
 
     try {
-      // Queries 1-4 are independent — run in parallel
-      const [scheduleResult, empResult, posResult, shiftResult] = await Promise.all([
+      // Queries 1-5 are independent — run in parallel
+      const [scheduleResult, empResult, posResult, shiftResult, secondaryResult] = await Promise.all([
         supabase
           .from("schedules")
           .select("*")
@@ -146,6 +155,9 @@ export default function SchedulePage() {
           .select("*")
           .eq("location_id", selectedLocationId)
           .order("name"),
+        supabase
+          .from("employee_secondary_positions")
+          .select("*"),
       ]);
 
       const scheduleData = scheduleResult.data;
@@ -153,8 +165,9 @@ export default function SchedulePage() {
       setEmployees((empResult.data as Profile[]) || []);
       setPositions((posResult.data as Position[]) || []);
       setShiftTemplates(shiftResult.data || []);
+      setSecondaryPositions((secondaryResult.data as EmployeeSecondaryPosition[]) || []);
 
-      // Query 5 depends on schedule existing
+      // Query 6 depends on schedule existing
       if (scheduleData) {
         const { data: entryData } = await supabase
           .from("schedule_entries")
@@ -169,7 +182,7 @@ export default function SchedulePage() {
       toast.error("Error al cargar datos del horario");
     }
 
-    setLoading(false);
+    if (!opts?.silent) setLoading(false);
   }, [selectedLocationId, month, year, supabase]);
 
   useEffect(() => {
@@ -311,14 +324,31 @@ export default function SchedulePage() {
     entry: ScheduleEntry | null
   ) {
     if (!canManage || !schedule || schedule.status !== "draft") return;
+    setDialogMode("employee");
     setDialogEmployeeId(employeeId);
     setDialogDate(date);
     setDialogEntry(entry);
+    setDialogGapPositionId("");
+    setDialogGapShiftTemplateId("");
+    setDialogOpen(true);
+  }
+
+  // Gap click handler — opens dialog pre-filled with position + shift template
+  // and an employee picker filtered to those who can cover the position
+  function handleGapClick(positionId: string, date: string, shiftTemplateId: string) {
+    if (!canManage || !schedule || schedule.status !== "draft") return;
+    setDialogMode("gap");
+    setDialogEmployeeId("");
+    setDialogDate(date);
+    setDialogEntry(null);
+    setDialogGapPositionId(positionId);
+    setDialogGapShiftTemplateId(shiftTemplateId);
     setDialogOpen(true);
   }
 
   // Save entry
   async function handleSaveEntry(data: {
+    employee_id?: string;
     position_id: string;
     start_time: string;
     end_time: string;
@@ -346,13 +376,14 @@ export default function SchedulePage() {
       } else {
         toast.success("Turno actualizado");
         setDialogOpen(false);
-        fetchScheduleData();
+        fetchScheduleData({ silent: true });
       }
     } else {
-      // Create new
+      // Create new — gap mode passes its own employee_id, employee mode uses dialogEmployeeId
+      const employeeId = data.employee_id ?? dialogEmployeeId;
       const { error } = await supabase.from("schedule_entries").insert({
         schedule_id: schedule.id,
-        employee_id: dialogEmployeeId,
+        employee_id: employeeId,
         date: dialogDate,
         position_id: data.position_id,
         start_time: data.start_time,
@@ -366,7 +397,7 @@ export default function SchedulePage() {
       } else {
         toast.success("Turno asignado");
         setDialogOpen(false);
-        fetchScheduleData();
+        fetchScheduleData({ silent: true });
       }
     }
 
@@ -388,7 +419,7 @@ export default function SchedulePage() {
     } else {
       toast.success("Turno eliminado");
       setDialogOpen(false);
-      fetchScheduleData();
+      fetchScheduleData({ silent: true });
     }
 
     setSaving(false);
@@ -409,7 +440,7 @@ export default function SchedulePage() {
     } else {
       toast.success("Borrador limpiado");
       setClearDraftOpen(false);
-      fetchScheduleData();
+      fetchScheduleData({ silent: true });
     }
 
     setSaving(false);
@@ -437,11 +468,25 @@ export default function SchedulePage() {
   const entryMap = buildEntryMap(entries);
   const dates = getMonthDates(year, month);
 
-  // Find employee name for dialog
+  // Find employee name for dialog (employee mode)
   const dialogEmployee = employees.find((e) => e.id === dialogEmployeeId);
   const dialogEmployeeName = dialogEmployee
     ? `${dialogEmployee.first_name} ${dialogEmployee.last_name}`
     : "";
+
+  // Eligible employees for gap mode: primaries + those listing the gap position as secondary
+  const eligibleGapEmployees = useMemo(() => {
+    if (dialogMode !== "gap" || !dialogGapPositionId) return [];
+    const secondaryEmpIds = new Set(
+      secondaryPositions
+        .filter((sp) => sp.position_id === dialogGapPositionId)
+        .map((sp) => sp.employee_id),
+    );
+    return employees.filter(
+      (e) =>
+        e.position?.id === dialogGapPositionId || secondaryEmpIds.has(e.id),
+    );
+  }, [dialogMode, dialogGapPositionId, employees, secondaryPositions]);
   const dialogDateLabel = dialogDate
     ? new Date(dialogDate + "T00:00:00").toLocaleDateString("es-ES", {
         weekday: "long",
@@ -585,6 +630,7 @@ export default function SchedulePage() {
             entryMap={entryMap}
             canEdit={canManage && schedule.status === "draft"}
             onCellClick={handleCellClick}
+            onGapClick={handleGapClick}
             gaps={health?.gapsByDay ?? []}
             positionsById={Object.fromEntries(
               positions.map((p) => [
@@ -632,8 +678,12 @@ export default function SchedulePage() {
       <ShiftAssignDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        mode={dialogMode}
         entry={dialogEntry}
         employeeName={dialogEmployeeName}
+        eligibleEmployees={eligibleGapEmployees}
+        initialPositionId={dialogGapPositionId || undefined}
+        initialShiftTemplateId={dialogGapShiftTemplateId || undefined}
         dateLabel={dialogDateLabel}
         positions={positions}
         shiftTemplates={shiftTemplates}
