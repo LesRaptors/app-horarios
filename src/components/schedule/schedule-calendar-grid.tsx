@@ -25,17 +25,21 @@ interface ScheduleCalendarGridProps {
   canEdit: boolean;
   onCellClick: (employeeId: string, date: string, entry: ScheduleEntry | null) => void;
   onGapClick?: (positionId: string, date: string, shiftTemplateId: string) => void;
+  onApproveOvertime?: (entryId: string) => Promise<void> | void;
+  onRejectOvertime?: (entryId: string) => Promise<void> | void;
   gaps?: HealthGap[];
   positionsById?: Record<string, PositionMeta>;
   shiftTemplatesById?: Record<string, ShiftTemplateMeta>;
+  /** Set of department ids to render. If undefined, render all. NO_DEPARTMENT_KEY for "Sin departamento". */
+  selectedDepartmentIds?: Set<string>;
 }
 
 interface ProfileWithDepartment extends Profile {
   position?: (Profile["position"] & { department?: { id: string; name: string } | null }) | null;
 }
 
-const NO_DEPARTMENT_KEY = "__sin_departamento__";
-const NO_DEPARTMENT_LABEL = "Sin departamento";
+export const NO_DEPARTMENT_KEY = "__sin_departamento__";
+export const NO_DEPARTMENT_LABEL = "Sin departamento";
 
 export function ScheduleCalendarGrid({
   dates,
@@ -44,10 +48,16 @@ export function ScheduleCalendarGrid({
   canEdit,
   onCellClick,
   onGapClick,
+  onApproveOvertime,
+  onRejectOvertime,
   gaps = [],
   positionsById = {},
   shiftTemplatesById = {},
+  selectedDepartmentIds,
 }: ScheduleCalendarGridProps) {
+  const isDeptVisible = (key: string) =>
+    selectedDepartmentIds === undefined || selectedDepartmentIds.has(key);
+
   const [showInactive, setShowInactive] = useState(false);
 
   const { groupedActive, inactive } = useMemo(() => {
@@ -216,7 +226,7 @@ export function ScheduleCalendarGrid({
           })}
 
           {/* Grouped active employees + gap rows for the same group */}
-          {groupedActive.map((group) => {
+          {groupedActive.filter((g) => isDeptVisible(g.key)).map((group) => {
             const gapEntry = gapPositionsByDepartment.get(group.key);
             return (
               <Fragment key={`group-${group.key}`}>
@@ -229,6 +239,8 @@ export function ScheduleCalendarGrid({
                     entryMap={entryMap}
                     canEdit={canEdit}
                     onCellClick={onCellClick}
+                    onApproveOvertime={onApproveOvertime}
+                    onRejectOvertime={onRejectOvertime}
                   />
                 ))}
                 {gapEntry?.positionIds.map((posId) => (
@@ -248,7 +260,7 @@ export function ScheduleCalendarGrid({
           })}
 
           {/* Departments that ONLY have gaps (no employees with entries) */}
-          {orphanGapGroupKeys.map((key) => {
+          {orphanGapGroupKeys.filter((key) => isDeptVisible(key)).map((key) => {
             const entry = gapPositionsByDepartment.get(key);
             if (!entry) return null;
             return (
@@ -325,6 +337,8 @@ function EmployeeRow({
   entryMap,
   canEdit,
   onCellClick,
+  onApproveOvertime,
+  onRejectOvertime,
   inactive = false,
 }: {
   employee: ProfileWithDepartment;
@@ -332,6 +346,8 @@ function EmployeeRow({
   entryMap: Record<string, ScheduleEntry>;
   canEdit: boolean;
   onCellClick: (employeeId: string, date: string, entry: ScheduleEntry | null) => void;
+  onApproveOvertime?: (entryId: string) => Promise<void> | void;
+  onRejectOvertime?: (entryId: string) => Promise<void> | void;
   inactive?: boolean;
 }) {
   return (
@@ -382,6 +398,8 @@ function EmployeeRow({
               entry={entry}
               canEdit={canEdit}
               onClick={() => onCellClick(employee.id, dateStr, entry)}
+              onApproveOvertime={onApproveOvertime}
+              onRejectOvertime={onRejectOvertime}
             />
           </div>
         );
