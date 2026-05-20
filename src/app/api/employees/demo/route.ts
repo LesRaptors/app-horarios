@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import { translateDbError } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -48,6 +49,18 @@ export async function POST(request: NextRequest) {
     // 4. Generate UUID and insert demo profile
     const id = crypto.randomUUID();
     const adminSupabase = createAdminClient();
+
+    // Validar que position_id/location_id pertenezcan al org del caller.
+    const callerOrg = callerProfile.organization_id;
+    try {
+      if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
+      if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
+    } catch (err) {
+      if (err instanceof CrossTenantError) {
+        return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
+      }
+      throw err;
+    }
 
     const insertData = {
       id,

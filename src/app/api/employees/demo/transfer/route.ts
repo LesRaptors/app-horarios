@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -37,6 +38,18 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient();
+
+    // Validar que ambos profiles pertenezcan al org del caller (cross-tenant guard).
+    const callerOrg = callerProfile.organization_id;
+    try {
+      await assertSameOrg(adminSupabase, callerOrg, demo_id, "profiles");
+      await assertSameOrg(adminSupabase, callerOrg, target_employee_id, "profiles");
+    } catch (err) {
+      if (err instanceof CrossTenantError) {
+        return NextResponse.json({ error: "Empleado fuera de tu organización" }, { status: 403 });
+      }
+      throw err;
+    }
 
     // 3. Verify demo exists and is_demo=true
     const { data: demoProfile, error: demoError } = await adminSupabase
