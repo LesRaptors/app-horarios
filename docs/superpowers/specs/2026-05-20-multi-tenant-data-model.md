@@ -156,7 +156,24 @@ Los 60+ días festivos nacionales colombianos 2026-2028 que pre-cargaste podría
 - **A)** Replicarse para cada org nueva al crearla (N orgs × 60 rows = duplicación, simple)
 - **B)** Mantenerse con `organization_id = NULL` = "festivos globales que aplican a todos" (más limpio, requiere RLS especial)
 
-**Decisión:** **B** — holidays nacionales tienen `organization_id IS NULL` y la RLS los muestra a TODOS (`WHERE organization_id IS NULL OR organization_id = get_user_org_id()`). Los managers solo pueden INSERT/UPDATE/DELETE las suyas (`organization_id = get_user_org_id()`). Sub-proy 5+ podrá tener un toggle "Aplicar festivos nacionales colombianos" para soportar México/Perú en el futuro.
+**Decisión:** **B** — holidays nacionales tienen `organization_id IS NULL` + nueva columna `country TEXT` (default 'CO'). RLS los muestra a las orgs cuyo país coincide: `WHERE (organization_id IS NULL AND country = (SELECT country FROM organizations WHERE id = get_user_org_id())) OR organization_id = get_user_org_id()`. Los managers solo pueden INSERT/UPDATE/DELETE los suyos (per-sede, `organization_id = get_user_org_id()`).
+
+**Preparación multi-país (sub-proy futuro):**
+
+- Nueva columna `holidays.country TEXT NOT NULL DEFAULT 'CO'` (CHECK against ISO 3166-1 alpha-2: `'CO','MX','PE','AR','CL',...`).
+- Cuando se cree una org con `country = 'MX'`, automáticamente ve los holidays con `country = 'MX'` (que habría que pre-cargar o sincronizar vía API).
+- El día que onboardees un cliente mexicano, ya tenés el schema listo: solo agregás rows con `country='MX'` y `organization_id IS NULL`.
+
+**Auto-sync de festivos nacionales (sub-proy futuro, ver §15):**
+
+API recomendada: **Nager.Date** (https://date.nager.at) — gratis, sin auth, soporta 100+ países incluyendo CO/MX/PE/AR/CL.
+Endpoint: `GET https://date.nager.at/api/v3/PublicHolidays/{year}/{countryCode}`. Devuelve JSON con date, localName, name, fixed, global, types.
+
+Implementación futura (NO en este sub-proyecto):
+1. Edge function de Supabase `sync-national-holidays` corre via `pg_cron` daily (o weekly).
+2. Para cada país soportado (lista en `app_settings.supported_countries`), fetch del año actual + siguiente.
+3. Upsert en `holidays` con `organization_id IS NULL`, `country = '<CC>'`, `auto_synced_at = now()`.
+4. Manual overrides (festivos regionales, puentes locales) marcan `auto_synced = false` y nunca se sobreescriben.
 
 ### 4.5 Rol super_admin
 
@@ -626,6 +643,26 @@ Cuando llegue el momento de construir `/super-admin`, las métricas a implementa
 | Auth trigger update + smoke | 1 |
 | Buffer / ajustes / debugging | 4 |
 | **Total** | **~17 horas (2-3 días full, 4-5 días horarios partidos)** |
+
+## 15. Preparación para expansión multi-país (futuro)
+
+El usuario explicitó: "a futuro incursionamos en otro país, que todo esté preparado (las bases)". Lo que SÍ se hace en este sub-proyecto para dejar el camino:
+
+### Ya incluido en sub-proy 3
+- `organizations.country` con default `'CO'` (CHECK constraint ISO 3166-1 alpha-2 puede agregarse después si se quiere)
+- `organizations.timezone` con default `'America/Bogota'`
+- `holidays.country TEXT NOT NULL DEFAULT 'CO'` (ver §4.4)
+- RLS de `holidays` ya filtra por country match — un cliente de MX no verá holidays de CO
+
+### Lo que queda para sub-proyectos posteriores (NO acá)
+- Edge function `sync-national-holidays` con pg_cron diario → upsert vía Nager.Date API
+- Selector de país en `/signup` (sub-proy 4) — default CO, con dropdown CO/MX/PE/AR/CL
+- Configuración de moneda por país en `organizations.currency` (sub-proy 6 billing)
+- Traducción de UI (i18n) cuando llegue primer cliente no-hispano (sub-proy avanzado; ES-CO vs ES-MX vs ES-AR son variantes mínimas que se manejan con copy condicional sin i18n full)
+- Reglas laborales país-específicas: hoy `contract_types` + `contract_rest_rules` están hardcoded a CST (Código Sustantivo del Trabajo Colombia). Para MX se necesita LFT (Ley Federal del Trabajo), para AR LCT, etc. Una tabla `country_labor_rules` con presets podría existir, pero es trabajo de sub-proy 9+ cuando llegue el primer cliente real.
+
+### Riesgo bajo
+Estas decisiones futuras NO requieren migración de schema adicional gracias a las preparaciones del sub-proy 3. Solo nuevas tablas/columnas opcionales que no rompen lo existente.
 
 ## 14. Referencias
 
