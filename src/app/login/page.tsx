@@ -109,7 +109,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                     aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                   >
                     {showPassword ? (
