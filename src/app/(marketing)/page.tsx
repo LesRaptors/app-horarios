@@ -9,10 +9,12 @@ import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Faq } from '@/components/landing/Faq';
 import { DemoForm } from '@/components/landing/DemoForm';
 import { Footer } from '@/components/landing/Footer';
+import { RecoveryTokenRedirect } from '@/components/landing/RecoveryTokenRedirect';
 
 export default function LandingPage() {
   return (
     <main id="contenido" tabIndex={-1} className="bg-white">
+      <RecoveryTokenRedirect />
       <NavBar />
       <Hero />
       <Pain />
