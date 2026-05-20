@@ -54,4 +54,37 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* 1.4 — Smooth scroll global (respetado por reduced-motion más abajo) */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* 1.2 — Focus-visible global: outline 3px con color de anillo del tema.
+     Usa :where() para especificidad cero — no sobrescribe reglas de componentes. */
+  :where(a:any-link, button):focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+}
+
+/* 1.3 — Prefers-reduced-motion: la guía CSS desaconseja el override global de
+   animation-duration a 0.01ms pues puede hacer ciertas animaciones más bruscas.
+   Se usa la propiedad custom --animation-reduced para que cada animación defina
+   su versión reducida, y se sobreescribe scroll-behavior para evitar scroll cinético. */
+@property --animation-reduced {
+  syntax: "*";
+  inherits: false;
+  initial-value: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  * {
+    animation: var(--animation-reduced) !important;
+    transition-duration: 0.01ms !important;
+  }
 }
