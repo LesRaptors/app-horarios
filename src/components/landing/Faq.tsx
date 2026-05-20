@@ -7,7 +7,7 @@ import { copy } from '@/lib/landing/copy';
 
 export function Faq() {
   return (
-    <section id="faq" tabIndex={-1} className="bg-slate-50 py-20 md:py-28">
+    <section id="faq" tabIndex={-1} className="cv-deferred bg-slate-50 py-20 md:py-28">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeading eyebrow={copy.faq.eyebrow} title={copy.faq.title} />
 

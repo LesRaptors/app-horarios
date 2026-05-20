@@ -88,3 +88,40 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 4.1 — Form validation styling — applies AFTER user interaction, not on initial render.
+   :user-invalid is Baseline Widely Available since 2023-11-02.
+   Uses border-color + background-color (not color-only) per a11y guide. */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: #d93025;
+  background-color: #fce8e6;
+}
+
+input:user-invalid:focus,
+select:user-invalid:focus,
+textarea:user-invalid:focus {
+  outline-color: #d93025;
+}
+
+/* Positive reinforcement: success indication post-interaction */
+input:user-valid,
+select:user-valid,
+textarea:user-valid {
+  border-color: #188038;
+}
+
+/* 4.2 — content-visibility: auto para secciones below-fold.
+   Baseline Newly Available (2025-09-15). Sin fallback necesario —
+   si no está soportado simplemente se ignora (sin regresión visual).
+   contain-intrinsic-size con 'auto' para que el browser recuerde el tamaño real. */
+.cv-deferred {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 600px;
+}
+
+.cv-deferred-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 400px;
+}
