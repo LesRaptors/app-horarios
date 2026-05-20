@@ -45,15 +45,38 @@ function SetPasswordInner() {
 
     (async () => {
       const code = searchParams.get("code");
-      const hashError = typeof window !== "undefined" ? window.location.hash : "";
+      const hashRaw = typeof window !== "undefined" ? window.location.hash : "";
 
-      if (hashError.includes("error_code=otp_expired")) {
+      if (hashRaw.includes("error_code=otp_expired") || hashRaw.includes("error=access_denied")) {
         if (!cancelled) {
           setStatus("expired");
         }
         return;
       }
 
+      // Implicit flow: el email de Supabase redirige con #access_token + #refresh_token.
+      // Necesitamos consumirlos explícitamente con setSession para evitar race
+      // conditions con el detectSessionInUrl interno del SDK.
+      if (hashRaw.startsWith("#") && hashRaw.includes("access_token=")) {
+        const params = new URLSearchParams(hashRaw.slice(1));
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+        if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (cancelled) return;
+          if (error) {
+            setErrorMsg(error.message);
+            setStatus("error");
+            return;
+          }
+          // Limpiar la URL — el token ya está en la sesión.
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+        }
+      }
+
+      // PKCE flow: ?code=...
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
