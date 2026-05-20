@@ -199,19 +199,38 @@ Configured in Vercel project settings for deployment.
 - **Plan**: `docs/superpowers/plans/2026-04-22-schedule-equity-model.md` — 24-task implementation plan (completed 2026-04-22 → 2026-04-23).
 - Other specs/plans: `2026-04-03-demo-employees-*` (earlier work), `2026-04-21-schedule-generator-ux-improvements.md` (prior UX pass).
 
+## Modern Web Compliance (MANDATORY before new UI/CSS/client-JS)
+
+Before writing or significantly modifying React/TSX components, CSS, or client-side JS, **invoke the `modern-web-guidance:modern-web-guidance` skill** with a focused query for the topic at hand. This is the authoritative source for a11y, CWV, forms, dialogs/popovers, and modern CSS patterns in this project.
+
+Quick invocations:
+- Forms / validation: `npx -y modern-web-guidance@latest search "form label aria-invalid"`
+- A11y / landmarks: `npx -y modern-web-guidance@latest search "landmarks skip link nav"`
+- Performance / LCP: `npx -y modern-web-guidance@latest search "LCP image fetchpriority"`
+- Modals / dialogs: `npx -y modern-web-guidance@latest search "dialog popover native"`
+- Modern CSS: `npx -y modern-web-guidance@latest search "container queries :has user-invalid"`
+
+Then `retrieve` the matched `id`s and apply DOs/DON'Ts verbatim — don't re-derive what the guide already standardizes. Compliance baseline established 2026-05-20 in `docs/superpowers/plans/2026-05-20-modern-web-compliance.md`.
+
 ## Agent Skills
 
 Reference skills are available in `.agents/skills/`. Consult the relevant SKILL.md before making changes in these areas:
 
-| Area | Skill directory |
+| Area | Skill / Plugin |
 |------|----------------|
-| Next.js | `next-best-practices/`, `next-cache-components/`, `next-upgrade/` |
-| React | `vercel-react-best-practices/`, `vercel-composition-patterns/` |
+| Modern web standards (a11y/CWV/forms/dialogs) | `modern-web-guidance:modern-web-guidance` (MANDATORY) |
+| Next.js | `vercel:nextjs`, `vercel:next-cache-components`, `vercel:next-upgrade` |
+| React | `vercel:react-best-practices`, `vercel-composition-patterns/` |
 | Tailwind | `tailwind-css-patterns/`, `tailwind-v4-shadcn/` |
-| shadcn/ui | `shadcn/` |
+| shadcn/ui | `vercel:shadcn` |
 | TypeScript | `typescript-advanced-types/` |
-| Supabase/Postgres | `supabase-postgres-best-practices/` |
+| Supabase/Postgres | `supabase:supabase`, `supabase:supabase-postgres-best-practices` |
 | Node.js Backend | `nodejs-backend-patterns/` |
-| Frontend Design | `frontend-design/` |
-| Accessibility | `accessibility/` |
+| Frontend Design | `frontend-design:frontend-design` |
+| Accessibility (companion to modern-web-guidance) | `accessibility/`, `chrome-devtools-mcp:a11y-debugging` |
 | SEO | `seo/` |
+| Browser verification | `chrome-devtools-mcp:chrome-devtools`, `vercel:verification` |
+
+**MCP plugins relevantes:** `plugin_supabase_supabase` (apply_migration, execute_sql, generate_typescript_types), `plugin_github_github` (PRs/issues), `plugin_vercel_vercel` (deployments, runtime logs), `plugin_chrome-devtools-mcp` (live browser debugging).
+
+**Subagent briefing rule:** when dispatching subagents, list the relevant skills above in the prompt and pin `model: sonnet` or `model: opus` — never let it fall to haiku for substantive code work.
