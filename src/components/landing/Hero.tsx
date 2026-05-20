@@ -1,5 +1,5 @@
 // src/components/landing/Hero.tsx
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ArrowDown } from 'lucide-react';
 import { GlowBg } from './ui/GlowBg';
 import { copy } from '@/lib/landing/copy';
 
@@ -46,7 +46,8 @@ export function Hero() {
               <ArrowRight className="w-4 h-4" />
             </a>
             <a href="#solucion" className="inline-flex items-center gap-2 text-slate-300 hover:text-white transition-colors px-6 py-3.5 font-semibold">
-              {copy.hero.ctaSecondary} ↓
+              {copy.hero.ctaSecondary}
+              <ArrowDown className="w-4 h-4" aria-hidden="true" />
             </a>
           </div>
         </div>

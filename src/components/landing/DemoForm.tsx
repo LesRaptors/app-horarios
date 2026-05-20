@@ -1,6 +1,6 @@
 'use client';
 // src/components/landing/DemoForm.tsx
-import { useState } from 'react';
+import { cloneElement, isValidElement, useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -21,14 +21,29 @@ function Field({
 }: {
   label: string;
   error?: string;
-  children: React.ReactNode;
+  children: React.ReactElement;
 }) {
+  const id = useId();
+  const errorId = `${id}-error`;
+  const inputEl = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<React.HTMLAttributes<HTMLElement>>, {
+        id,
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': error ? errorId : undefined,
+      })
+    : children;
   return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700 mb-1.5 block">{label}</span>
-      {children}
-      {error ? <p className="mt-1.5 text-xs text-red-600">{error}</p> : null}
-    </label>
+    <div className="block">
+      <label htmlFor={id} className="text-sm font-medium text-slate-700 mb-1.5 block">
+        {label}
+      </label>
+      {inputEl}
+      {error ? (
+        <p id={errorId} className="mt-1.5 text-xs text-red-600">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -65,7 +80,7 @@ export function DemoForm() {
   }
 
   return (
-    <section id="solicitar-demo" tabIndex={-1} className="bg-white py-20 md:py-28">
+    <section id="solicitar-demo" tabIndex={-1} className="cv-deferred bg-white py-20 md:py-28">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeading
           eyebrow={copy.ctaFinal.eyebrow}
@@ -127,7 +142,7 @@ export function DemoForm() {
           </div>
 
           {status === 'error' && errorMsg ? (
-            <div className="mt-5 flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
+            <div role="alert" aria-live="polite" className="mt-5 flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold">{copy.form.errorTitle}</p>
