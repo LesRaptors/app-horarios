@@ -202,7 +202,10 @@ export default function ShiftsPage() {
         fetchData();
       }
     } else {
-      const { error } = await supabase.from("shift_templates").insert(payload);
+      const { error } = await supabase.from("shift_templates").insert({
+        ...payload,
+        organization_id: profile?.organization_id ?? "",
+      });
 
       if (error) {
         toast.error(translateDbError(error.message, "Error al crear el turno"));

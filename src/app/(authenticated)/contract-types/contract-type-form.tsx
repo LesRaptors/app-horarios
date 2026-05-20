@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { translateDbError } from "@/lib/utils";
 import { Loader2, Plus } from "lucide-react";
@@ -153,6 +154,7 @@ function defaultForm(initial: ContractType | null): FormState {
 
 export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props) {
   const supabase = createClient();
+  const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(() => defaultForm(initial));
 
@@ -239,6 +241,7 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
       available_sundays: form.available_sundays,
       available_holidays: form.available_holidays,
       available_nights: form.available_nights,
+      organization_id: profile?.organization_id ?? "",
     };
 
     let contractTypeId: string | null = initial?.id ?? null;
@@ -279,6 +282,7 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
           contract_type_id: contractTypeId as string,
           rule_type: r.rule_type,
           params: r.params,
+          organization_id: profile?.organization_id ?? "",
         }));
         const { error: ruleError } = await supabase
           .from("contract_rest_rules")

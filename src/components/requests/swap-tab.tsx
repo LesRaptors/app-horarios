@@ -84,7 +84,7 @@ export function SwapTab() {
     if (error) {
       toast.error(translateDbError(error.message, "Error al cargar intercambios"));
     } else {
-      setSwaps((data as SwapWithDetails[]) || []);
+      setSwaps((data as unknown as SwapWithDetails[]) || []);
     }
     setLoading(false);
   }
@@ -158,6 +158,7 @@ export function SwapTab() {
       requester_entry_id: selectedMyEntry,
       target_entry_id: selectedTargetEntry,
       status: "pending" as const,
+      organization_id: profile?.organization_id ?? "",
     });
 
     if (error) {

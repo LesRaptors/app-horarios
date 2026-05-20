@@ -272,6 +272,7 @@ export default function SchedulePage() {
         year: year,
         status: "draft" as const,
         created_by: user.id,
+        organization_id: profile?.organization_id ?? "",
       })
       .select()
       .single();
@@ -394,6 +395,7 @@ export default function SchedulePage() {
         end_time: data.end_time,
         shift_template_id: data.shift_template_id,
         notes: data.notes || null,
+        organization_id: profile?.organization_id ?? "",
       });
 
       if (error) {

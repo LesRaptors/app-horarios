@@ -99,6 +99,7 @@ export function TimeOffTab() {
       end_date: endDate,
       reason: reason.trim(),
       status: "pending" as const,
+      organization_id: profile?.organization_id ?? "",
     });
 
     if (error) {

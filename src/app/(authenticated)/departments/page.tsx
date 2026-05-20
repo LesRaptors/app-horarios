@@ -207,6 +207,7 @@ export default function DepartmentsPage() {
       const { error } = await supabase.from("departments").insert({
         name: result.data.name,
         location_id: result.data.location_id,
+        organization_id: profile?.organization_id ?? "",
       });
 
       if (error) {

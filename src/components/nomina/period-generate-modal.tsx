@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { assemblePayrollPeriod } from "@/lib/payroll-period-builder";
 import type { PaymentFrequency } from "@/lib/types";
 
@@ -56,6 +57,7 @@ interface Props {
 
 export function PeriodGenerateModal({ open, onOpenChange, frequency }: Props) {
   const router = useRouter();
+  const { profile } = useAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
@@ -106,6 +108,7 @@ export function PeriodGenerateModal({ open, onOpenChange, frequency }: Props) {
           period_end: end,
           frequency,
           status: "draft",
+          organization_id: profile?.organization_id ?? "",
         })
         .select("id")
         .single();

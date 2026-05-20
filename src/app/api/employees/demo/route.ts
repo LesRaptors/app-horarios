@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import { translateDbError } from "@/lib/utils";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -49,6 +50,18 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     const adminSupabase = createAdminClient();
 
+    // Validar que position_id/location_id pertenezcan al org del caller.
+    const callerOrg = callerProfile.organization_id;
+    try {
+      if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
+      if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
+    } catch (err) {
+      if (err instanceof CrossTenantError) {
+        return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
+      }
+      throw err;
+    }
+
     const insertData = {
       id,
       email: `demo-${id}@placeholder.local`,
@@ -60,6 +73,7 @@ export async function POST(request: NextRequest) {
       position_id: position_id || null,
       location_id: location_id || null,
       max_hours_per_week: max_hours_per_week || null,
+      organization_id: callerProfile.organization_id,
     } as Record<string, unknown>;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

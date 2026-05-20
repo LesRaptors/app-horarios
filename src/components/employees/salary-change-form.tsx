@@ -51,7 +51,7 @@ export function SalaryChangeForm({
   onOpenChange,
   onSaved,
 }: Props) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const supabase = createClient();
   const [amount, setAmount] = useState<string>("");
   const [effectiveFrom, setEffectiveFrom] = useState<string>(todayISO());
@@ -98,6 +98,7 @@ export function SalaryChangeForm({
       change_reason: reason || null,
       effective_from: effectiveFrom,
       created_by: user?.id ?? null,
+      organization_id: profile?.organization_id ?? "",
     });
     setSaving(false);
 

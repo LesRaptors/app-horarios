@@ -14,6 +14,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import type { PayrollSettings } from "@/lib/types";
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
 
 export function PayrollSettingForm({ initial, open, onOpenChange, onSaved }: Props) {
   const supabase = createClient();
+  const { profile } = useAuth();
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [smmlv, setSmmlv] = useState("");
@@ -74,7 +76,9 @@ export function PayrollSettingForm({ initial, open, onOpenChange, onSaved }: Pro
     setSaving(true);
     const { error } = initial
       ? await supabase.from("payroll_settings").update(payload).eq("id", initial.id)
-      : await supabase.from("payroll_settings").insert(payload);
+      : await supabase
+          .from("payroll_settings")
+          .insert({ ...payload, organization_id: profile?.organization_id ?? "" });
     setSaving(false);
     if (error) {
       toast.error(`No se pudo guardar: ${error.message}`);

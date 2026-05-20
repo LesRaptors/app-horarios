@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export function SalariesVisibilityToggle() {
   const supabase = createClient();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,7 +42,14 @@ export function SalariesVisibilityToggle() {
     };
     const { error } = await supabase
       .from("app_settings")
-      .upsert({ key: "app_flags", value: merged }, { onConflict: "key" });
+      .upsert(
+        {
+          key: "app_flags",
+          value: merged,
+          organization_id: profile?.organization_id ?? "",
+        },
+        { onConflict: "key" },
+      );
     setSaving(false);
     if (error) {
       toast.error(`No se pudo guardar: ${error.message}`);

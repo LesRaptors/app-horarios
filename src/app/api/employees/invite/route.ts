@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import type { Database } from "@/lib/supabase/database.types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -45,12 +46,32 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Validar que IDs del body pertenezcan al org del caller (defense in depth
+    // contra cross-tenant injection: el admin client bypassea RLS).
+    const callerOrg = callerProfile.organization_id;
+    try {
+      if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
+      if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
+    } catch (err) {
+      if (err instanceof CrossTenantError) {
+        return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
+      }
+      throw err;
+    }
+
     const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://app-horarios-mauve.vercel.app";
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      "https://www.tushorarios.com";
 
     const { data: newUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        data: { first_name, last_name, role },
+        data: {
+          first_name,
+          last_name,
+          role,
+          organization_id: callerProfile.organization_id,
+        },
         redirectTo: `${appUrl}/auth/set-password`,
       });
 

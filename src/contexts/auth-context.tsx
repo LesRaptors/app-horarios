@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select("*, position:positions(*), location:locations(*)")
           .eq("id", user.id)
           .single();
-        setProfile(profileData);
+        setProfile(profileData as unknown as Profile);
       }
 
       setLoading(false);
