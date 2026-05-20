@@ -207,6 +207,45 @@ END $cleanup$;
 -- Drop la función vieja (RETURNS user_role) — la recreamos abajo con RETURNS TEXT
 DROP FUNCTION IF EXISTS public.get_user_role() CASCADE;
 
+-- Recrear handle_new_user() ANTES del DROP TYPE user_role (tiene cast a ese tipo).
+-- También se prepara para multi-tenant: lee organization_id de raw_user_meta_data
+-- (consolidamos acá lo que el plan original hacía en migración 040).
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $handle_new_user$
+DECLARE
+  meta_role TEXT;
+  meta_org_id UUID;
+BEGIN
+  meta_role := COALESCE(NEW.raw_user_meta_data->>'role', 'employee');
+  meta_org_id := (NEW.raw_user_meta_data->>'organization_id')::UUID;
+
+  -- Validación: si no es super_admin, organization_id es required (el CHECK
+  -- profiles_org_required lo enforce, pero damos error claro acá).
+  IF meta_role != 'super_admin' AND meta_org_id IS NULL THEN
+    RAISE EXCEPTION 'organization_id is required in user_metadata for role %', meta_role;
+  END IF;
+
+  INSERT INTO public.profiles (id, first_name, last_name, email, role, organization_id)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    NEW.email,
+    meta_role,
+    meta_org_id
+  );
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG 'handle_new_user failed for user %: %', NEW.id, SQLERRM;
+  RETURN NEW;
+END;
+$handle_new_user$;
+
 -- Cambiar profiles.role de ENUM a TEXT
 ALTER TABLE profiles ALTER COLUMN role DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN role TYPE TEXT USING role::TEXT;
@@ -380,6 +419,316 @@ CREATE INDEX schedule_entries_org_idx ON schedule_entries(organization_id);
 CREATE INDEX notifications_org_idx ON notifications(organization_id);
 CREATE INDEX employee_equity_rollups_org_idx ON employee_equity_rollups(organization_id);
 CREATE INDEX payroll_entries_org_idx ON payroll_entries(organization_id);
+
+
+-- =============================================================================
+-- 8.5 Recrear RPCs que ahora deben escribir organization_id (NOT NULL)
+-- =============================================================================
+-- recompute_equity_rollup, approve_shift_swap, save_staffing_diff insertan en
+-- tablas que ya tienen organization_id NOT NULL. Las recreamos derivando el org
+-- desde el contexto (employee profile, swap.requester o location).
+
+CREATE OR REPLACE FUNCTION public.recompute_equity_rollup(
+  p_employee_id UUID, p_year INTEGER, p_month INTEGER
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $recompute$
+DECLARE
+  emp_org UUID;
+BEGIN
+  SELECT organization_id INTO emp_org FROM profiles WHERE id = p_employee_id;
+  IF emp_org IS NULL THEN
+    RETURN;  -- empleado no existe o super_admin (no aplica)
+  END IF;
+
+  INSERT INTO employee_equity_rollups (
+    employee_id, organization_id, year, month,
+    sundays_worked, saturdays_worked, nights_worked, holidays_worked, total_hours
+  )
+  SELECT
+    p_employee_id, emp_org, p_year, p_month,
+    COUNT(*) FILTER (WHERE EXTRACT(DOW FROM se.date) = 0)::INT,
+    COUNT(*) FILTER (WHERE EXTRACT(DOW FROM se.date) = 6)::INT,
+    COUNT(*) FILTER (WHERE st.is_night = true)::INT,
+    COUNT(*) FILTER (WHERE EXISTS (
+      SELECT 1 FROM holidays h
+      WHERE h.date = se.date
+        AND (h.location_id IS NULL OR h.location_id = (
+          SELECT s.location_id FROM schedules s WHERE s.id = se.schedule_id
+        ))
+    ))::INT,
+    COALESCE(SUM(
+      EXTRACT(EPOCH FROM (
+        (se.date + se.end_time) +
+          CASE WHEN se.end_time < se.start_time THEN INTERVAL '1 day' ELSE INTERVAL '0' END
+        - (se.date + se.start_time)
+      )) / 3600
+    ), 0)::NUMERIC(6,2)
+  FROM schedule_entries se
+  LEFT JOIN shift_templates st ON st.id = se.shift_template_id
+  WHERE se.employee_id = p_employee_id
+    AND EXTRACT(YEAR FROM se.date) = p_year
+    AND EXTRACT(MONTH FROM se.date) = p_month
+  ON CONFLICT (employee_id, year, month) DO UPDATE SET
+    sundays_worked   = EXCLUDED.sundays_worked,
+    saturdays_worked = EXCLUDED.saturdays_worked,
+    nights_worked    = EXCLUDED.nights_worked,
+    holidays_worked  = EXCLUDED.holidays_worked,
+    total_hours      = EXCLUDED.total_hours,
+    updated_at       = now();
+END;
+$recompute$;
+
+CREATE OR REPLACE FUNCTION public.approve_shift_swap(p_swap_id UUID, p_reviewer_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $approve$
+DECLARE
+  v_swap RECORD;
+BEGIN
+  SELECT * INTO v_swap FROM shift_swap_requests WHERE id = p_swap_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Solicitud de intercambio no encontrada', 'code', 'NOT_FOUND');
+  END IF;
+  IF v_swap.status != 'accepted' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Solo se pueden aprobar intercambios aceptados', 'code', 'INVALID_STATUS');
+  END IF;
+
+  UPDATE schedule_entries SET employee_id = v_swap.target_id    WHERE id = v_swap.requester_entry_id;
+  UPDATE schedule_entries SET employee_id = v_swap.requester_id WHERE id = v_swap.target_entry_id;
+
+  UPDATE shift_swap_requests
+     SET status = 'approved', reviewed_by = p_reviewer_id
+   WHERE id = p_swap_id;
+
+  INSERT INTO notifications (user_id, organization_id, title, message, type, link)
+  VALUES
+    (v_swap.requester_id, v_swap.organization_id, 'Intercambio aprobado',
+     'Tu solicitud de intercambio de turno ha sido aprobada.', 'swap_request', '/requests'),
+    (v_swap.target_id, v_swap.organization_id, 'Intercambio aprobado',
+     'El intercambio de turno ha sido aprobado por el manager.', 'swap_request', '/requests');
+
+  RETURN jsonb_build_object('success', true);
+END;
+$approve$;
+
+-- create_notification: helper RPC ahora requiere organization_id explícito.
+CREATE OR REPLACE FUNCTION public.create_notification(
+  p_user_id UUID,
+  p_organization_id UUID,
+  p_title TEXT,
+  p_message TEXT,
+  p_type notification_type DEFAULT 'general'::notification_type,
+  p_link TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $create_notif$
+DECLARE
+  v_id UUID;
+BEGIN
+  INSERT INTO notifications (user_id, organization_id, title, message, type, link)
+  VALUES (p_user_id, p_organization_id, p_title, p_message, p_type, p_link)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$create_notif$;
+
+-- Triggers que insertan notifications: ahora propagan organization_id desde NEW.
+CREATE OR REPLACE FUNCTION public.notify_employees_on_period_approval()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $notif_period$
+DECLARE
+  emp_id UUID;
+  month_label TEXT;
+  month_names TEXT[] := ARRAY[
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+  ];
+BEGIN
+  IF NOT (OLD.status = 'draft' AND NEW.status = 'approved') THEN
+    RETURN NEW;
+  END IF;
+
+  month_label := initcap(month_names[EXTRACT(MONTH FROM NEW.period_start)::int])
+                 || ' ' || EXTRACT(YEAR FROM NEW.period_start)::text;
+
+  FOR emp_id IN
+    SELECT DISTINCT employee_id FROM payroll_entries
+    WHERE payroll_period_id = NEW.id
+  LOOP
+    INSERT INTO notifications (user_id, organization_id, type, title, message, link)
+    VALUES (
+      emp_id, NEW.organization_id, 'general',
+      'Tu pago de ' || month_label || ' está disponible',
+      'Ya podés ver el detalle de tu liquidación en Mi Pago.',
+      '/mi-pago?period=' || NEW.id::text
+    );
+  END LOOP;
+
+  RETURN NEW;
+END;
+$notif_period$;
+
+CREATE OR REPLACE FUNCTION public.notify_schedule_published()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $notif_schedule$
+BEGIN
+  IF NEW.status = 'published' AND (OLD.status IS NULL OR OLD.status != 'published') THEN
+    INSERT INTO notifications (user_id, organization_id, title, message, type, link)
+    SELECT DISTINCT
+      se.employee_id,
+      NEW.organization_id,
+      'Horario publicado',
+      'Se ha publicado el horario de ' ||
+        CASE NEW.month
+          WHEN 1 THEN 'Enero' WHEN 2 THEN 'Febrero' WHEN 3 THEN 'Marzo'
+          WHEN 4 THEN 'Abril' WHEN 5 THEN 'Mayo' WHEN 6 THEN 'Junio'
+          WHEN 7 THEN 'Julio' WHEN 8 THEN 'Agosto' WHEN 9 THEN 'Septiembre'
+          WHEN 10 THEN 'Octubre' WHEN 11 THEN 'Noviembre' WHEN 12 THEN 'Diciembre'
+        END || ' ' || NEW.year,
+      'schedule_published'::notification_type,
+      '/schedule'
+    FROM schedule_entries se
+    WHERE se.schedule_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$notif_schedule$;
+
+CREATE OR REPLACE FUNCTION public.notify_swap_request()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $notif_swap$
+DECLARE
+  v_requester_name TEXT;
+BEGIN
+  SELECT first_name || ' ' || last_name INTO v_requester_name
+  FROM profiles WHERE id = NEW.requester_id;
+
+  INSERT INTO notifications (user_id, organization_id, title, message, type, link)
+  VALUES (
+    NEW.target_id, NEW.organization_id,
+    'Solicitud de intercambio',
+    v_requester_name || ' quiere intercambiar un turno contigo.',
+    'swap_request'::notification_type,
+    '/requests'
+  );
+
+  RETURN NEW;
+END;
+$notif_swap$;
+
+CREATE OR REPLACE FUNCTION public.notify_time_off_reviewed()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $notif_timeoff$
+BEGIN
+  IF NEW.status != OLD.status AND NEW.status IN ('approved', 'rejected') THEN
+    INSERT INTO notifications (user_id, organization_id, title, message, type, link)
+    VALUES (
+      NEW.employee_id, NEW.organization_id,
+      CASE NEW.status
+        WHEN 'approved' THEN 'Solicitud aprobada'
+        WHEN 'rejected' THEN 'Solicitud rechazada'
+      END,
+      'Tu solicitud de días libres del ' || NEW.start_date || ' al ' || NEW.end_date ||
+      ' ha sido ' ||
+      CASE NEW.status
+        WHEN 'approved' THEN 'aprobada'
+        WHEN 'rejected' THEN 'rechazada'
+      END,
+      'request_update'::notification_type,
+      '/requests'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$notif_timeoff$;
+
+CREATE OR REPLACE FUNCTION public.save_staffing_diff(p_location_id UUID, p_rows JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $staffing$
+DECLARE
+  inserted_count INT := 0;
+  updated_count INT := 0;
+  deleted_count INT := 0;
+  user_id UUID := auth.uid();
+  loc_org UUID;
+BEGIN
+  IF NOT (
+    get_user_role() = 'admin' OR
+    (get_user_role() = 'manager' AND get_user_location_id() = p_location_id)
+  ) THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
+
+  SELECT organization_id INTO loc_org FROM locations WHERE id = p_location_id;
+  IF loc_org IS NULL THEN
+    RAISE EXCEPTION 'location not found';
+  END IF;
+
+  CREATE TEMP TABLE _desired ON COMMIT DROP AS
+  SELECT
+    (r->>'position_id')::UUID AS position_id,
+    (r->>'shift_template_id')::UUID AS shift_template_id,
+    (r->>'day_of_week')::INT AS day_of_week,
+    (r->>'required_count')::INT AS required_count
+  FROM jsonb_array_elements(p_rows) r;
+
+  WITH del AS (
+    DELETE FROM staffing_requirements sr
+     WHERE sr.location_id = p_location_id
+       AND NOT EXISTS (
+         SELECT 1 FROM _desired d
+          WHERE d.position_id = sr.position_id
+            AND d.shift_template_id = sr.shift_template_id
+            AND d.day_of_week = sr.day_of_week
+            AND d.required_count > 0
+       )
+     RETURNING 1
+  ) SELECT count(*) INTO deleted_count FROM del;
+
+  WITH ups AS (
+    INSERT INTO staffing_requirements
+      (location_id, organization_id, position_id, shift_template_id, day_of_week, required_count, updated_by)
+    SELECT p_location_id, loc_org, position_id, shift_template_id, day_of_week, required_count, user_id
+      FROM _desired WHERE required_count > 0
+    ON CONFLICT (location_id, position_id, shift_template_id, day_of_week)
+    DO UPDATE SET
+      required_count = EXCLUDED.required_count,
+      updated_by = user_id
+    RETURNING (xmax = 0) AS was_insert
+  )
+  SELECT
+    count(*) FILTER (WHERE was_insert),
+    count(*) FILTER (WHERE NOT was_insert)
+  INTO inserted_count, updated_count
+  FROM ups;
+
+  RETURN jsonb_build_object('inserted', inserted_count, 'updated', updated_count, 'deleted', deleted_count);
+END;
+$staffing$;
 
 
 -- =============================================================================
@@ -821,9 +1170,12 @@ CREATE POLICY demo_requests_update_admin ON demo_requests FOR UPDATE TO authenti
 -- =============================================================================
 -- IMPORTANTE: este UPDATE va DESPUÉS del CHECK profiles_org_required.
 -- super_admin → organization_id NULL (constraint permite NULL solo para este rol).
+-- También reactivamos is_active porque la cuenta estaba marcada inactiva.
+-- admin@apphorarios.com NO se toca: queda como admin de Les Raptors.
 UPDATE profiles
   SET role = 'super_admin',
-      organization_id = NULL
+      organization_id = NULL,
+      is_active = true
   WHERE email = 'suv411@hotmail.com';
 
 
