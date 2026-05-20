@@ -6,7 +6,7 @@ import { copy } from '@/lib/landing/copy';
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-slate-950 text-slate-400 py-12 border-t border-white/5">
+    <footer className="cv-deferred-footer bg-slate-950 text-slate-400 py-12 border-t border-white/5">
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex flex-col md:flex-row gap-8 md:items-center md:justify-between">
           <div className="flex items-start gap-3">
