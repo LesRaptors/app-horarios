@@ -18,8 +18,8 @@ export function Pain() {
               <div className="w-3 h-3 rounded-full bg-emerald-500" />
               <span className="ml-2">turnos_octubre_v17_FINAL_corregido.xlsx</span>
             </div>
-            <div className="bg-white rounded border border-slate-300 overflow-hidden">
-              <div className="grid grid-cols-8 text-[10px] font-mono">
+            <div className="bg-white rounded border border-slate-300 overflow-x-auto">
+              <div className="grid grid-cols-8 min-w-[360px] text-[10px] font-mono">
                 {Array.from({ length: 8 * 12 }).map((_, i) => {
                   const isHeader = i < 8;
                   const isError = [10, 18, 27, 35, 43, 51].includes(i);
