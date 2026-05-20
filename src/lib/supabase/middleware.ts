@@ -31,7 +31,11 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/auth");
+  const isPublic =
+    path === "/" ||
+    path === "/gracias" ||
+    path.startsWith("/login") ||
+    path.startsWith("/auth");
 
   // Si no hay usuario y no está en una ruta pública, redirigir a login
   if (!user && !isPublic) {
