@@ -1,4 +1,4 @@
-export const APP_NAME = "Horarios";
+export const APP_NAME = "Tus Horarios";
 
 export const DEFAULT_LABOR_CONSTRAINTS = {
   maxHoursPerWeek: 40,

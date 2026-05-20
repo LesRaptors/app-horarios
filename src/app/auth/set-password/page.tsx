@@ -1,30 +1,24 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
-import { AppLogo } from "@/components/shared/app-logo";
 import { APP_NAME } from "@/lib/constants";
 
 type Status = "checking" | "ready" | "error" | "expired";
+
+const inputCls =
+  "w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
 export default function SetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
         </div>
       }
     >
@@ -42,6 +36,8 @@ function SetPasswordInner() {
   const [errorMsg, setErrorMsg] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -74,7 +70,7 @@ function SetPasswordInner() {
       if (!data.user) {
         setStatus("error");
         setErrorMsg(
-          "No encontramos una sesión válida. El enlace puede haber expirado — pídele a tu administrador que te invite de nuevo."
+          "No encontramos una sesión válida. El enlace puede haber expirado — solicita uno nuevo."
         );
         return;
       }
@@ -114,95 +110,162 @@ function SetPasswordInner() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <div className="flex justify-center">
-            <AppLogo size={56} />
-          </div>
-          <CardTitle>{APP_NAME}</CardTitle>
-          <CardDescription>
-            Establece tu contraseña para terminar de activar tu cuenta
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {status === "checking" && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
+    <main className="min-h-screen flex flex-col bg-slate-50 font-sans antialiased">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <Link href="/" className="inline-flex items-center gap-2.5 text-slate-950">
+            <Image src="/icono-transparente.png" alt={APP_NAME} width={28} height={28} priority />
+            <span className="font-bold tracking-tight">{APP_NAME}</span>
+          </Link>
+        </div>
+      </header>
 
-          {status === "expired" && (
-            <div className="space-y-3 text-sm">
-              <p>El enlace de invitación expiró o ya fue utilizado.</p>
-              <p className="text-muted-foreground">
-                Pídele a tu administrador que te invite de nuevo desde la sección
-                de empleados.
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 mb-4">
+                <Image src="/icono-transparente.png" alt={APP_NAME} width={36} height={36} priority />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+                Establece tu contraseña
+              </h1>
+              <p className="mt-1.5 text-sm text-slate-600">
+                Crea una contraseña para acceder a {APP_NAME}.
               </p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => router.push("/login")}
-              >
-                Ir al inicio de sesión
-              </Button>
             </div>
-          )}
 
-          {status === "error" && (
-            <div className="space-y-3 text-sm">
-              <p className="text-destructive">{errorMsg}</p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => router.push("/login")}
-              >
-                Ir al inicio de sesión
-              </Button>
-            </div>
-          )}
+            {status === "checking" && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            )}
 
-          {status === "ready" && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Nueva contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={submitting}
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Mínimo 8 caracteres.
+            {status === "expired" && (
+              <div className="space-y-4">
+                <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  El enlace expiró o ya fue utilizado.
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Si te invitaron, pídele a tu administrador que reenvíe la invitación.
+                  Si era una recuperación de contraseña, solicita un nuevo enlace.
                 </p>
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/forgot-password"
+                    className="w-full text-center px-4 py-2.5 rounded-lg border border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700"
+                  >
+                    Solicitar nuevo enlace
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-950"
+                  >
+                    Ir al inicio de sesión
+                  </Link>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm">Confirmar contraseña</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+            )}
+
+            {status === "error" && (
+              <div className="space-y-4">
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                  {errorMsg}
+                </div>
+                <Link
+                  href="/login"
+                  className="w-full inline-flex items-center justify-center text-center px-4 py-2.5 rounded-lg border border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700"
+                >
+                  Ir al inicio de sesión
+                </Link>
+              </div>
+            )}
+
+            {status === "ready" && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Nueva contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={8}
+                      placeholder="Mínimo 8 caracteres"
+                      className={`${inputCls} pr-11`}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={submitting}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="confirm" className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Confirmar contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="confirm"
+                      type={showConfirm ? "text" : "password"}
+                      required
+                      minLength={8}
+                      placeholder="Repite tu contraseña"
+                      className={`${inputCls} pr-11`}
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      disabled={submitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label={showConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {errorMsg && (
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5" role="alert">
+                    {errorMsg}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
                   disabled={submitting}
-                />
-              </div>
-              {errorMsg && (
-                <p className="text-sm text-destructive">{errorMsg}</p>
-              )}
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar contraseña y entrar
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-4 py-2.5 rounded-lg transition-colors"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Guardando…
+                    </>
+                  ) : (
+                    <>
+                      Guardar y entrar
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
