@@ -2,7 +2,7 @@ import { Body, Button, Container, Head, Heading, Html, Img, Preview, Section, Te
 
 interface Props { nombre: string; empresa: string; }
 
-const LOGO = 'https://app-horarios-mauve.vercel.app/icono-transparente.png';
+const LOGO = 'https://www.tushorarios.com/icono-transparente.png';
 
 export default function DemoRequestConfirmationEmail({ nombre, empresa }: Props) {
   return (
