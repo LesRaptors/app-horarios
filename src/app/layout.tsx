@@ -7,10 +7,10 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "Horarios - Gestión de Horarios",
-    template: "%s | Horarios",
+    default: "Tus Horarios",
+    template: "%s | Tus Horarios",
   },
-  description: "Aplicación para gestionar y repartir horarios de empleados",
+  description: "Programación de turnos para empresas en Colombia.",
   robots: { index: false, follow: false },
 };
 

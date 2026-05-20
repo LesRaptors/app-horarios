@@ -8,6 +8,8 @@ const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-int
 export const metadata: Metadata = {
   title: `${copy.brand.name} — Programación de turnos para empresas en Colombia`,
   description: copy.hero.sub,
+  // Override root layout's robots: { index: false } — landing SÍ debe indexarse.
+  robots: { index: true, follow: true },
   openGraph: {
     title: `${copy.brand.name} — Turnos en 2 minutos`,
     description: copy.hero.sub,
