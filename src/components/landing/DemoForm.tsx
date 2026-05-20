@@ -65,7 +65,7 @@ export function DemoForm() {
   }
 
   return (
-    <section id="solicitar-demo" className="bg-white py-20 md:py-28">
+    <section id="solicitar-demo" tabIndex={-1} className="bg-white py-20 md:py-28">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeading
           eyebrow={copy.ctaFinal.eyebrow}

@@ -19,7 +19,7 @@ export function Solution() {
   const labels = { day: '6-2', night: '2-10', rest: '—' } as const;
 
   return (
-    <section id="solucion" className="bg-slate-50 py-20 md:py-28">
+    <section id="solucion" tabIndex={-1} className="bg-slate-50 py-20 md:py-28">
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeading eyebrow={copy.solution.eyebrow} title={copy.solution.title} sub={copy.solution.body} />
 

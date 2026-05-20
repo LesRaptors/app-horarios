@@ -29,5 +29,15 @@ export const metadata: Metadata = {
 };
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${inter.variable} font-sans antialiased`}>{children}</div>;
+  return (
+    <div className={`${inter.variable} font-sans antialiased`}>
+      <a
+        href="#contenido"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-semibold"
+      >
+        Saltar al contenido
+      </a>
+      {children}
+    </div>
+  );
 }

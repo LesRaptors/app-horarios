@@ -24,13 +24,13 @@ export function Footer() {
                 {copy.footer.contactEmail}
               </a>
             </div>
-            <div>
+            <nav aria-label="Pie de página">
               <p className="font-semibold text-white mb-2">Legal</p>
               <div className="flex flex-col gap-1">
                 <Link href="/privacidad" className="hover:text-white transition-colors">{copy.footer.privacyLabel}</Link>
                 <Link href="/terminos" className="hover:text-white transition-colors">{copy.footer.termsLabel}</Link>
               </div>
-            </div>
+            </nav>
           </div>
         </div>
 

@@ -4,7 +4,7 @@ import { copy } from '@/lib/landing/copy';
 
 export function HowItWorks() {
   return (
-    <section id="como-funciona" className="bg-white py-20 md:py-28">
+    <section id="como-funciona" tabIndex={-1} className="bg-white py-20 md:py-28">
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeading eyebrow={copy.howItWorks.eyebrow} title={copy.howItWorks.title} />
 
