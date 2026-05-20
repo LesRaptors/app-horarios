@@ -133,7 +133,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+      <nav aria-label="Navegación principal" className="flex-1 space-y-1 overflow-y-auto p-4">
         {filteredTop.map(renderLink)}
 
         {filteredPayroll.length > 0 && (

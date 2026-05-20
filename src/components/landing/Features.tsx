@@ -7,7 +7,7 @@ const icons = [Scale, Users2, Moon, Wallet, CalendarDays, Clock4];
 
 export function Features() {
   return (
-    <section id="funciones" className="bg-slate-50 py-20 md:py-28">
+    <section id="funciones" tabIndex={-1} className="bg-slate-50 py-20 md:py-28">
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeading eyebrow={copy.features.eyebrow} title={copy.features.title} />
 

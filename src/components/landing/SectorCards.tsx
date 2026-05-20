@@ -12,7 +12,7 @@ const icons = {
 
 export function SectorCards() {
   return (
-    <section id="sectores" className="bg-white py-20 md:py-28">
+    <section id="sectores" tabIndex={-1} className="bg-white py-20 md:py-28">
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeading eyebrow={copy.sectors.eyebrow} title={copy.sectors.title} />
 

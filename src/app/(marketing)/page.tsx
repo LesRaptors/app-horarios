@@ -12,7 +12,7 @@ import { Footer } from '@/components/landing/Footer';
 
 export default function LandingPage() {
   return (
-    <main className="bg-white">
+    <main id="contenido" tabIndex={-1} className="bg-white">
       <NavBar />
       <Hero />
       <Pain />

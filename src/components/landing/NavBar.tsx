@@ -12,7 +12,7 @@ export function NavBar() {
           <span className="font-bold text-lg tracking-tight">{copy.brand.name}</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-sm text-slate-300">
+        <nav aria-label="Principal" className="hidden md:flex items-center gap-8 text-sm text-slate-300">
           <a href="#sectores" className="hover:text-white transition-colors">{copy.nav.sectors}</a>
           <a href="#funciones" className="hover:text-white transition-colors">{copy.nav.features}</a>
           <a href="#como-funciona" className="hover:text-white transition-colors">{copy.nav.howItWorks}</a>

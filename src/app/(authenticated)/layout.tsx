@@ -18,6 +18,12 @@ export default function AuthenticatedLayout({
     <AuthProvider>
       <NotificationsProvider>
       <div className="flex h-screen overflow-hidden">
+        <a
+          href="#contenido"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-semibold"
+        >
+          Saltar al contenido
+        </a>
         {/* Mobile sidebar overlay */}
         {sidebarOpen && (
           <div
@@ -39,7 +45,7 @@ export default function AuthenticatedLayout({
         {/* Main content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <Navbar onMenuClick={() => setSidebarOpen(true)} />
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <main id="contenido" tabIndex={-1} className="flex-1 overflow-y-auto p-4 lg:p-6">
             {children}
           </main>
         </div>
