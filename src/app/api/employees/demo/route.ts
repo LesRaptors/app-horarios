@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       position_id: position_id || null,
       location_id: location_id || null,
       max_hours_per_week: max_hours_per_week || null,
+      organization_id: callerProfile.organization_id,
     } as Record<string, unknown>;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

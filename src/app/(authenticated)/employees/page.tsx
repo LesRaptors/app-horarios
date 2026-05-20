@@ -537,6 +537,7 @@ export default function EmployeesPage() {
             posIdsToInsert.map((posId) => ({
               employee_id: editForm.id,
               position_id: posId,
+              organization_id: currentProfile?.organization_id ?? "",
             }))
           );
 
@@ -557,6 +558,7 @@ export default function EmployeesPage() {
           employee_id: editForm.id,
           rule_type: r.rule_type as string,
           params: r.params as unknown as Database["public"]["Tables"]["employee_rest_rules"]["Insert"]["params"],
+          organization_id: currentProfile?.organization_id ?? "",
         }));
         const { error: rrError } = await supabase
           .from("employee_rest_rules")

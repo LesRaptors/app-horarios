@@ -22,6 +22,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { parseCOP, formatCOP } from "@/lib/payroll-helpers";
 import type { Profile, PayrollConceptType } from "@/lib/types";
 
@@ -49,6 +50,7 @@ interface Props {
 export function PeriodOverrideForm({ open, onOpenChange, periodId, employees, onSaved }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
+  const { profile } = useAuth();
 
   const [employeeId, setEmployeeId] = useState("");
   const [conceptType, setConceptType] = useState<PayrollConceptType>("other_deduction");
@@ -95,6 +97,7 @@ export function PeriodOverrideForm({ open, onOpenChange, periodId, employees, on
       amount: parsedAmount,
       description: reason.trim(),
       is_manual_override: true,
+      organization_id: profile?.organization_id ?? "",
     });
     setSaving(false);
 

@@ -65,6 +65,7 @@ export default function HolidaysPage() {
       date: formDate,
       name: formName,
       location_id: formIsNational ? null : (formSede || null),
+      organization_id: formIsNational ? null : (profile?.organization_id ?? null),
     };
     const { error } = await supabase.from("holidays").insert(payload);
     if (error) toast.error(translateDbError(error.message, "Error al crear festivo"));

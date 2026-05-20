@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -50,7 +50,12 @@ export async function POST(request: NextRequest) {
 
     const { data: newUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        data: { first_name, last_name, role },
+        data: {
+          first_name,
+          last_name,
+          role,
+          organization_id: callerProfile.organization_id,
+        },
         redirectTo: `${appUrl}/auth/set-password`,
       });
 

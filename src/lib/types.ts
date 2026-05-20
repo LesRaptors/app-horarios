@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "employee";
+export type UserRole = "super_admin" | "admin" | "manager" | "employee";
 
 export type ScheduleStatus = "draft" | "published" | "archived";
 
@@ -44,6 +44,7 @@ export interface Position {
 
 export interface Profile {
   id: string;
+  organization_id: string | null; // null only for super_admin
   first_name: string;
   last_name: string;
   email: string;

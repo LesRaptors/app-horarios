@@ -13,10 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import type { PaymentFrequency, PaymentMode } from "@/lib/types";
 
 export function PaymentFrequencySelector() {
   const supabase = createClient();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [frequency, setFrequency] = useState<PaymentFrequency>("mensual");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("independent");
@@ -52,7 +54,14 @@ export function PaymentFrequencySelector() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase
       .from("app_settings")
-      .upsert({ key: "app_flags", value: merged as any }, { onConflict: "key" });
+      .upsert(
+        {
+          key: "app_flags",
+          value: merged as any,
+          organization_id: profile?.organization_id ?? "",
+        },
+        { onConflict: "key" },
+      );
     setSaving(false);
     return error;
   }

@@ -168,7 +168,11 @@ export default function LocationsPage() {
       // Create
       const { error } = await supabase
         .from("locations")
-        .insert({ name: result.data.name, address: result.data.address });
+        .insert({
+          name: result.data.name,
+          address: result.data.address,
+          organization_id: profile?.organization_id ?? "",
+        });
 
       if (error) {
         toast.error("Error al crear la sede");

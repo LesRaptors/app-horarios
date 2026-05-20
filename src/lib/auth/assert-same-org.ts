@@ -45,9 +45,11 @@ export async function assertSameOrg(
 ): Promise<void> {
   if (callerOrgId === null) return;
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase
     .from(table)
-    .select('organization_id')
+    .select('organization_id') as unknown as {
+      eq: (col: string, val: string) => { maybeSingle: () => Promise<{ data: { organization_id: string } | null; error: unknown }> };
+    })
     .eq('id', resourceId)
     .maybeSingle();
 

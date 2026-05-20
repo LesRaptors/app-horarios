@@ -182,7 +182,10 @@ export default function PositionsPage() {
         fetchData();
       }
     } else {
-      const { error } = await supabase.from("positions").insert(payload);
+      const { error } = await supabase.from("positions").insert({
+        ...payload,
+        organization_id: profile?.organization_id ?? "",
+      });
 
       if (error) {
         toast.error(translateDbError(error.message, "Error al crear la posición"));
