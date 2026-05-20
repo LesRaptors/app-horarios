@@ -106,26 +106,39 @@ INSERT INTO organizations (
 -- 4. Helpers SQL (get_user_org_id, is_super_admin, slugify, suggest_unique_slug)
 -- =============================================================================
 
--- get_user_org_id: retorna org_id del caller, o NULL si super_admin
+-- get_user_org_id: retorna org_id del caller, o NULL si super_admin.
+-- PL/pgSQL (no SQL) porque al crear la función, profiles.organization_id
+-- todavía no existe — SQL functions validan body al CREATE, PL/pgSQL al
+-- primer execute. Se invocará después de los ADD COLUMN.
 CREATE OR REPLACE FUNCTION public.get_user_org_id()
 RETURNS UUID
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT organization_id FROM profiles WHERE id = auth.uid()
+DECLARE v UUID;
+BEGIN
+  SELECT organization_id INTO v FROM profiles WHERE id = auth.uid();
+  RETURN v;
+END;
 $$;
 
 -- is_super_admin: boolean, true si caller tiene role='super_admin'
+-- PL/pgSQL (no SQL) porque al crear la función, profiles.role todavía es ENUM user_role —
+-- SQL functions validan body al CREATE; PL/pgSQL al primer execute (después del DROP TYPE).
 CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT COALESCE(role = 'super_admin', false) FROM profiles WHERE id = auth.uid()
+DECLARE v BOOLEAN;
+BEGIN
+  SELECT COALESCE(role = 'super_admin', false) INTO v FROM profiles WHERE id = auth.uid();
+  RETURN v;
+END;
 $$;
 
 -- slugify: lowercase, sin tildes, kebab-case
