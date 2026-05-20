@@ -37,6 +37,7 @@ CREATE POLICY demo_requests_select_admin ON demo_requests
 
 CREATE POLICY demo_requests_update_admin ON demo_requests
   FOR UPDATE TO authenticated
-  USING (get_user_role() IN ('admin','manager'));
+  USING (get_user_role() IN ('admin','manager'))
+  WITH CHECK (get_user_role() IN ('admin','manager'));
 
 COMMIT;
