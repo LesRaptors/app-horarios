@@ -1,0 +1,135 @@
+// src/lib/landing/copy.ts
+// Single source of truth para todo el copy del landing.
+// Todo en español Colombia, tuteo.
+
+export const copy = {
+  brand: {
+    name: 'Tus Horarios',
+    tagline: 'Programación de turnos para empresas en Colombia.',
+  },
+  nav: {
+    features: 'Funciones',
+    sectors: 'Sectores',
+    howItWorks: 'Cómo funciona',
+    faq: 'Preguntas',
+    login: 'Iniciar sesión',
+    cta: 'Solicitar demo',
+  },
+  hero: {
+    eyebrow: 'PARA EMPRESAS EN COLOMBIA',
+    h1Start: 'Olvida el Excel.',
+    h1Accent: 'Programa el mes en 2 minutos.',
+    sub: 'Equidad real para sábados, domingos, noches y festivos. Cumple Ley 2101 y Art. 161 CST sin pensarlo.',
+    ctaPrimary: 'Solicitar demo gratis',
+    ctaSecondary: 'Ver cómo funciona',
+  },
+  pain: {
+    eyebrow: 'EL PROBLEMA',
+    title: 'El Excel de turnos te robó las mañanas del lunes.',
+    body: 'Cada inicio de mes, el mismo ritual: pestañas infinitas, fórmulas que se rompen, alguien siempre molesto por su asignación. Errores que terminan en demandas laborales por mala distribución.',
+    bullets: [
+      'Horas de cuadre manual, mes a mes',
+      'Equidad imposible de probar entre empleados',
+      'Riesgo de incumplir Ley 2101 (44h) y Art. 161 CST',
+      'Sin trazabilidad de quién tomó qué turno y por qué',
+    ],
+  },
+  solution: {
+    eyebrow: 'LA SOLUCIÓN',
+    title: 'Un motor que distribuye con equidad real.',
+    body: 'Cargas tu equipo, defines necesidades por sede, y el algoritmo arma el mes equilibrando sábados, domingos, noches y festivos entre todos. Cumple el código sustantivo del trabajo automáticamente.',
+    bullets: [
+      'Genera el cuadro completo en menos de 2 minutos',
+      'Distribuye sábados/domingos/noches con desviación < 1 turno',
+      'Respeta descansos mínimos (12h entre turnos, 24h tras noche)',
+      'Marca horas extra para tu aprobación antes de publicar',
+    ],
+  },
+  sectors: {
+    eyebrow: 'PARA TU SECTOR',
+    title: 'Diseñado para cómo trabaja Colombia.',
+    items: [
+      { key: 'salud',       title: 'Salud',                     examples: 'Clínicas, hospitales, IPS, odontologías', body: 'Personal asistencial 12h/día (Decreto 1042/1978). Turnos 24/7 cubiertos con equidad. Reglas de descanso post-nocturno automáticas.' },
+      { key: 'retail',      title: 'Retail',                    examples: 'Supermercados, tiendas, ferreterías',     body: 'Cubre horas pico de fines de semana sin pagar extras de más. Aprobación inline de overtime cuando el algoritmo lo necesite.' },
+      { key: 'hoteleria',   title: 'Hotelería y restaurantes',  examples: 'Hoteles, restaurantes, bares',            body: 'Turnos partidos, festivos balanceados, rotación equitativa de fines de semana. Reduce rotación por turnos injustos.' },
+      { key: 'vigilancia',  title: 'Vigilancia y aseo',         examples: 'Seguridad, vigilancia, aseo industrial',  body: 'Turnos 12×12 o 24×24, supernumerarios para cubrir incapacidades, trazabilidad SuperVigilancia.' },
+    ],
+  },
+  features: {
+    eyebrow: 'FUNCIONES',
+    title: 'Todo lo que necesitas para programar turnos en serio.',
+    items: [
+      { title: 'Equidad Ley CST',         body: 'Algoritmo que cumple Ley 2101 (44h semanales) y Art. 161 CST (descanso semanal obligatorio) sin pensar.' },
+      { title: 'Supernumerarios',         body: 'Empleados comodín que cubren múltiples posiciones cuando alguien se enferma o se va de vacaciones.' },
+      { title: 'Reglas de descanso',      body: 'Ciclos 4×3, rotaciones de findes, post-nocturno, máximo de noches consecutivas. Configurables por empleado.' },
+      { title: 'Nómina Colombia',         body: 'Cesantías, primas, intereses, vacaciones, recargos dominicales y nocturnos. UVT actualizado.' },
+      { title: 'Festivos automáticos',    body: 'Calendario colombiano 2026–2028 pre-cargado. Recargo del 175% aplicado automáticamente.' },
+      { title: 'Horas extra controladas', body: 'Motor identifica cuándo se necesitan extras y las marca para aprobación del gerente antes de publicar.' },
+    ],
+  },
+  howItWorks: {
+    eyebrow: 'CÓMO FUNCIONA',
+    title: 'Tres pasos para acabar con el Excel.',
+    steps: [
+      { n: '01', title: 'Carga tu equipo',        body: 'Importa empleados, sedes y posiciones. Define tipo de contrato y reglas de descanso por persona.' },
+      { n: '02', title: 'Define las necesidades', body: 'Cuántas personas necesitas por sede, posición y turno. El motor entiende los patrones semanales.' },
+      { n: '03', title: 'Genera con un click',    body: 'El algoritmo arma el cuadro completo del mes en menos de 2 minutos, balanceando con equidad.' },
+    ],
+  },
+  faq: {
+    eyebrow: 'PREGUNTAS FRECUENTES',
+    title: '¿Aún tienes dudas?',
+    items: [
+      { q: '¿En cuánto tiempo puedo empezar a usar Tus Horarios?', a: 'Después de la demo, el setup inicial toma 1–2 días. Te ayudamos con la carga de empleados, configuración de sedes y reglas de tu sector. La primera generación de turnos puede correr esa misma semana.' },
+      { q: '¿Cumple toda la normativa colombiana?', a: 'Sí. El motor implementa Ley 2101 (44h semanales), Art. 161 CST (descanso semanal obligatorio), Decreto 1042/1978 (12h asistencial), Art. 179 CST (descanso compensatorio por dominicales). Festivos nacionales 2026–2028 pre-cargados.' },
+      { q: '¿Funciona si tengo varias sedes?', a: 'Sí, el producto está pensado para empresas multi-sede (3–10 sedes típico). Cada sede tiene sus propias necesidades, posiciones y empleados, pero el reporte se ve consolidado.' },
+      { q: '¿Y la nómina?', a: 'Calculamos cesantías, intereses, prima, vacaciones, recargos dominicales y nocturnos, retención en la fuente con UVT actualizado, ARL y aportes a seguridad social. Generamos comprobante de pago (colilla) para cada empleado.' },
+      { q: '¿Qué pasa si necesito horas extra?', a: 'El motor identifica automáticamente cuándo no logra cubrir con la jornada normal y marca esas asignaciones como "extras pendientes" para tu aprobación. Tú apruebas (o rechazas) en bulk antes de publicar el cuadro.' },
+      { q: '¿Cómo manejan vacaciones, incapacidades o cambios de último momento?', a: 'Registras ausencias (con o sin justificación) en la app. El motor las respeta al generar. Para emergencias, tienes empleados marcados como "supernumerarios" que pueden cubrir múltiples posiciones.' },
+    ],
+  },
+  ctaFinal: {
+    eyebrow: '¿LISTO PARA EMPEZAR?',
+    title: 'Solicita una demo personalizada',
+    body: 'Te mostramos el producto con tus datos reales, sin compromiso. Toma 30 minutos por videollamada. Te contactamos en menos de 24 horas hábiles.',
+  },
+  form: {
+    nombreLabel: 'Nombre y apellido',
+    nombrePlaceholder: 'Simón Urrego',
+    emailLabel: 'Email corporativo',
+    emailPlaceholder: 'simon@empresa.com',
+    empresaLabel: 'Empresa',
+    empresaPlaceholder: 'Mi Clínica S.A.S.',
+    telefonoLabel: 'Teléfono',
+    telefonoPlaceholder: '+57 300 1234567',
+    sectorLabel: 'Sector',
+    sectorOptions: [
+      { value: 'salud',      label: 'Salud' },
+      { value: 'retail',     label: 'Retail' },
+      { value: 'hoteleria',  label: 'Hotelería' },
+      { value: 'vigilancia', label: 'Vigilancia' },
+      { value: 'otro',       label: 'Otro' },
+    ],
+    mensajeLabel: 'Mensaje (opcional)',
+    mensajePlaceholder: 'Cuéntanos brevemente cómo manejas los turnos hoy.',
+    submitLabel: 'Solicitar demo gratis',
+    submitting: 'Enviando…',
+    successTitle: '¡Recibimos tu solicitud!',
+    successBody: 'Te contactamos en las próximas 24 horas hábiles.',
+    errorTitle: 'No pudimos enviar tu solicitud',
+    errorBody: 'Algo salió mal. Intenta de nuevo o escríbenos directo a hola@tushorarios.com.',
+  },
+  gracias: {
+    h1: '¡Gracias!',
+    body: 'Recibimos tu solicitud de demo. Te contactamos en menos de 24 horas hábiles desde hola@tushorarios.com. Mientras tanto, puedes revisar tu correo — te enviamos una confirmación.',
+    cta: 'Volver al inicio',
+  },
+  footer: {
+    tagline: 'Programación de turnos para empresas en Colombia.',
+    contactLabel: 'Contacto',
+    contactEmail: 'hola@tushorarios.com',
+    rights: '© {year} Tus Horarios. Todos los derechos reservados.',
+    privacyLabel: 'Política de privacidad',
+    termsLabel: 'Términos y condiciones',
+  },
+} as const;
