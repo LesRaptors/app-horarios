@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const { data: callerProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, organization_id")
       .eq("id", user.id)
       .single();
 
@@ -59,14 +59,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Create auth user via invite
+    // 4. Create auth user via invite (con organization_id + redirectTo a tushorarios.com)
+    const appUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      "https://www.tushorarios.com";
+
     const { data: newUser, error: inviteError } =
       await adminSupabase.auth.admin.inviteUserByEmail(email, {
         data: {
           first_name: demoProfile.first_name,
           last_name: demoProfile.last_name,
           role: demoProfile.role,
+          organization_id: callerProfile.organization_id,
         },
+        redirectTo: `${appUrl}/auth/set-password`,
       });
 
     if (inviteError || !newUser?.user) {
