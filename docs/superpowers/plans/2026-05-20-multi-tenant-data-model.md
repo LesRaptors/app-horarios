@@ -1472,11 +1472,11 @@ EOF
 
 ### Task 17: Aplicar migración 039 a Supabase Cloud
 
-⚠️ **CHECKPOINT — confirmar con el usuario antes de proceder.**
+✅ **PRE-AUTORIZADO por el usuario el 2026-05-20** (ver memory `feedback-subproy3-apply-authorization`). El agente procede sin checkpoint manual.
 
-- [ ] **Step 17.1: Confirmar backup tomado**
+- [ ] **Step 17.1: Verificar backup automático disponible**
 
-Verificar en Supabase dashboard → Database → Backups que existe snapshot reciente (Task 0.8).
+Verificar en Supabase dashboard → Database → Backups que existe snapshot automático reciente (Daily Backups del plan Pro). No requiere snapshot manual nuevo — el rollback automático del BEGIN/COMMIT + el backup diario son safety net suficiente.
 
 - [ ] **Step 17.2: Push branch a remoto para safety**
 
