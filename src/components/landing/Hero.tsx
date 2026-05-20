@@ -21,7 +21,7 @@ function Cell({ type }: { type: CellType }) {
   };
   const labels: Record<CellType, string> = { day: '6-2', night: '2-10', rest: '—', empty: '' };
   return (
-    <div className={`aspect-[1.6/1] rounded-md border ${styles[type]} flex items-center justify-center text-[11px] font-medium`}>
+    <div className={`aspect-square md:aspect-[1.6/1] rounded-md border ${styles[type]} flex items-center justify-center text-xs font-medium`}>
       {labels[type]}
     </div>
   );
@@ -31,7 +31,7 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden text-white">
       <GlowBg />
-      <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-24 md:pt-24 md:pb-32">
+      <div className="relative max-w-6xl mx-auto px-6 pt-10 pb-16 md:pt-24 md:pb-32">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold tracking-widest text-blue-400 uppercase mb-5">{copy.hero.eyebrow}</p>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
