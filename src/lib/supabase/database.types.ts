@@ -241,6 +241,9 @@ export type Database = {
       }
       demo_requests: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
+          approved_org_id: string | null
           contacted_at: string | null
           created_at: string
           email: string
@@ -256,6 +259,9 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_org_id?: string | null
           contacted_at?: string | null
           created_at?: string
           email: string
@@ -271,6 +277,9 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_org_id?: string | null
           contacted_at?: string | null
           created_at?: string
           email?: string
@@ -285,7 +294,22 @@ export type Database = {
           telefono?: string
           user_agent?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "demo_requests_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_requests_approved_org_id_fkey"
+            columns: ["approved_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       departments: {
         Row: {
@@ -607,6 +631,8 @@ export type Database = {
       }
       organizations: {
         Row: {
+          approved_by: string | null
+          approved_from_demo_request_id: string | null
           billing_email: string | null
           country: string
           created_at: string
@@ -617,6 +643,8 @@ export type Database = {
           logo_url_dark: string | null
           name: string
           nit: string | null
+          onboarding_completed_at: string | null
+          onboarding_step: string | null
           plan: string
           primary_color: string | null
           slug: string
@@ -624,8 +652,11 @@ export type Database = {
           timezone: string
           trial_ends_at: string | null
           updated_at: string
+          welcome_email_sent_at: string | null
         }
         Insert: {
+          approved_by?: string | null
+          approved_from_demo_request_id?: string | null
           billing_email?: string | null
           country?: string
           created_at?: string
@@ -636,6 +667,8 @@ export type Database = {
           logo_url_dark?: string | null
           name: string
           nit?: string | null
+          onboarding_completed_at?: string | null
+          onboarding_step?: string | null
           plan?: string
           primary_color?: string | null
           slug: string
@@ -643,8 +676,11 @@ export type Database = {
           timezone?: string
           trial_ends_at?: string | null
           updated_at?: string
+          welcome_email_sent_at?: string | null
         }
         Update: {
+          approved_by?: string | null
+          approved_from_demo_request_id?: string | null
           billing_email?: string | null
           country?: string
           created_at?: string
@@ -655,6 +691,8 @@ export type Database = {
           logo_url_dark?: string | null
           name?: string
           nit?: string | null
+          onboarding_completed_at?: string | null
+          onboarding_step?: string | null
           plan?: string
           primary_color?: string | null
           slug?: string
@@ -662,8 +700,24 @@ export type Database = {
           timezone?: string
           trial_ends_at?: string | null
           updated_at?: string
+          welcome_email_sent_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_approved_from_demo_request_id_fkey"
+            columns: ["approved_from_demo_request_id"]
+            isOneToOne: false
+            referencedRelation: "demo_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payroll_employer_cost: {
         Row: {
@@ -1753,6 +1807,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_demo_request: {
+        Args: {
+          p_admin_email: string
+          p_admin_first_name: string
+          p_admin_last_name: string
+          p_demo_request_id: string
+          p_org_name: string
+          p_org_slug: string
+          p_plan: string
+        }
+        Returns: Json
+      }
       approve_shift_swap: {
         Args: { p_reviewer_id: string; p_swap_id: string }
         Returns: Json
@@ -1949,4 +2015,3 @@ export const Constants = {
     },
   },
 } as const
-
