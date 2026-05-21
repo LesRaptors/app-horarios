@@ -26,6 +26,27 @@ export function isReservedSlug(slug: string): boolean {
 }
 
 export function extractSubdomain(host: string): SubdomainExtraction {
-  // Placeholder — implementation in Task 1.4
+  if (!host) return { subdomain: null, rootDomain: null };
+
+  // Strip port
+  const hostWithoutPort = host.split(":")[0].toLowerCase();
+
+  // Reject IP literals (no soportadas como root)
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostWithoutPort)) {
+    return { subdomain: null, rootDomain: null };
+  }
+
+  // Match against known root domains
+  for (const root of KNOWN_ROOT_DOMAINS) {
+    if (hostWithoutPort === root) {
+      // Apex (sin subdomain)
+      return { subdomain: null, rootDomain: root };
+    }
+    if (hostWithoutPort.endsWith("." + root)) {
+      const subdomain = hostWithoutPort.slice(0, -("." + root).length);
+      return { subdomain, rootDomain: root };
+    }
+  }
+
   return { subdomain: null, rootDomain: null };
 }
