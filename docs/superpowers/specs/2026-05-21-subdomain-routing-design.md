@@ -178,7 +178,7 @@ if (tenantOrg && !user && path === '/') {
 |---|---|
 | `src/middleware.ts` | Sin cambios estructurales (sigue llamando `updateSession`). |
 | `src/lib/supabase/middleware.ts` | Refactor: agrega `resolveTenant(request)` antes de auth check. Aplica reglas R1-R9. Configura cookie `domain=.tushorarios.com` en prod. |
-| `src/app/api/super-admin/demo-requests/[id]/approve/route.ts` | Validar slug propuesto NO esté en `RESERVED_SLUGS` (defense-in-depth además del DB check). |
+| `src/app/api/admin/demo-requests/approve/route.ts` | Validar slug propuesto NO esté en `RESERVED_SLUGS` (defense-in-depth además del DB check). |
 | `.env.example` | Documenta `NEXT_PUBLIC_ROOT_DOMAIN` (prod `tushorarios.com`, dev `lvh.me`). |
 
 ### Archivos NO modificados
