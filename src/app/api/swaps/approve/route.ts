@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canManage } from "@/lib/auth/can-manage";
+import type { UserRole } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
 const UUID_REGEX =
@@ -30,10 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (
-      !callerProfile ||
-      !["admin", "manager"].includes(callerProfile.role)
-    ) {
+    if (!callerProfile || !canManage(callerProfile.role as UserRole)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

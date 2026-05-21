@@ -27,6 +27,7 @@ import {
 import { Plus, Loader2, Check, X } from "lucide-react";
 import { StatusBadge } from "./status-badge";
 import { formatDate, translateDbError } from "@/lib/utils";
+import { canManage as canManageFn } from "@/lib/auth/can-manage";
 import type { TimeOffRequest } from "@/lib/types";
 
 export function TimeOffTab() {
@@ -43,9 +44,7 @@ export function TimeOffTab() {
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
 
-  const isAdmin = profile?.role === "admin";
-  const isManager = profile?.role === "manager";
-  const canManage = isAdmin || isManager;
+  const canManage = canManageFn(profile?.role);
 
   async function fetchRequests() {
     setLoading(true);
