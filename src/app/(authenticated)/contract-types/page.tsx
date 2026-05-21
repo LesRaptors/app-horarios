@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
+import { canAdmin } from "@/lib/auth/can-manage";
 import { Pencil, Trash2, Loader2, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -30,7 +31,7 @@ export default function ContractTypesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && profile && profile.role !== "admin") {
+    if (!authLoading && profile && !canAdmin(profile.role)) {
       router.push("/dashboard");
     }
   }, [profile, authLoading, router]);
@@ -78,7 +79,7 @@ export default function ContractTypesPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!authLoading && profile?.role === "admin") {
+    if (!authLoading && canAdmin(profile?.role)) {
       fetchData();
     }
   }, [authLoading, profile, fetchData]);

@@ -14,6 +14,7 @@ import { Calendar, Users, Clock, FileText, Loader2 } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/constants";
 import { EmployeeDashboard } from "@/components/dashboard/employee-dashboard";
 import { formatTime, formatDate } from "@/lib/utils";
+import { canManage as canManageFn } from "@/lib/auth/can-manage";
 
 interface UpcomingShift {
   id: string;
@@ -36,7 +37,7 @@ export default function DashboardPage() {
 
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";
-  const canManage = isAdmin || isManager;
+  const canManage = canManageFn(profile?.role);
 
   useEffect(() => {
     if (authLoading || !user) return;

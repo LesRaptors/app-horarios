@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
+import { canManage } from "@/lib/auth/can-manage";
 
 function formatTime(time: string): string {
   return time?.slice(0, 5) || "";
@@ -110,6 +111,7 @@ export default function ShiftsPage() {
 
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";
+  const isAuthorized = canManage(profile?.role);
 
   async function fetchData() {
     setLoading(true);
@@ -135,7 +137,7 @@ export default function ShiftsPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && (isAdmin || isManager)) {
+    if (!authLoading && isAuthorized) {
       fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,7 +251,7 @@ export default function ShiftsPage() {
     );
   }
 
-  if (!isAdmin && !isManager) {
+  if (!isAuthorized) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">

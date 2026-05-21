@@ -45,6 +45,7 @@ import type {
   EmployeeRestRule,
   EmployeeSecondaryPosition,
 } from "@/lib/types";
+import { canManage as canManageFn } from "@/lib/auth/can-manage";
 
 export default function SchedulePage() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -103,7 +104,7 @@ export default function SchedulePage() {
   const isAdmin = profile?.role === "admin";
   const isManager = profile?.role === "manager";
   const isEmployee = profile?.role === "employee";
-  const canManage = isAdmin || isManager;
+  const canManage = canManageFn(profile?.role);
 
   // Fetch locations on mount
   useEffect(() => {

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { translateDbError } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 import type { HolidayDate, Location } from "@/lib/types";
+import { canManage, canAdmin } from "@/lib/auth/can-manage";
 
 export default function HolidaysPage() {
   const supabase = createClient();
@@ -36,8 +37,8 @@ export default function HolidaysPage() {
   const [formName, setFormName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = profile?.role === "admin";
-  const isManagerOrAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = canAdmin(profile?.role);
+  const isManagerOrAdmin = canManage(profile?.role);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);

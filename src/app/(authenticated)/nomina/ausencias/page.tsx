@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
+import { canAdmin } from "@/lib/auth/can-manage";
 import type { AbsenceRecord, AbsenceType, AbsencePayer, Location, Profile } from "@/lib/types";
 
 // -------------------------------------------------------------------------------
@@ -162,7 +163,7 @@ export default function AusenciasPage() {
 
   useEffect(() => {
     if (authLoading || !profile) return;
-    const isAdmin = profile.role === "admin";
+    const isAdmin = canAdmin(profile.role);
     const isManagerWithAccess =
       profile.role === "manager" && appFlags.managers_can_see_salaries;
     if (!isAdmin && !isManagerWithAccess) {
@@ -195,7 +196,7 @@ export default function AusenciasPage() {
     );
   }
 
-  const isAdmin = profile.role === "admin";
+  const isAdmin = canAdmin(profile.role);
   const isManagerWithAccess = profile.role === "manager" && appFlags.managers_can_see_salaries;
   if (!isAdmin && !isManagerWithAccess) return null;
 

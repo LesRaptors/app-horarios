@@ -13,6 +13,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { StaffingMatrix } from "@/components/staffing/staffing-matrix";
 import type { Location } from "@/lib/types";
+import { canManage } from "@/lib/auth/can-manage";
 
 export default function StaffingPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -46,7 +47,7 @@ export default function StaffingPage() {
     );
   }
 
-  if (!profile || !["admin", "manager"].includes(profile.role)) {
+  if (!profile || !canManage(profile.role)) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">No tienes permisos para ver esta pagina.</p>
