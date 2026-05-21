@@ -20,7 +20,7 @@ BEGIN;
 -- =============================================================================
 ALTER TABLE organizations
   ADD CONSTRAINT slug_not_reserved
-  CHECK (slug NOT IN ('www', 'admin', 'api', 'app', 'auth', 'mail', 'static'));
+  CHECK (lower(slug) NOT IN ('www', 'admin', 'api', 'app', 'auth', 'mail', 'static'));
 
 -- =============================================================================
 -- 2. suggest_unique_slug evita reserved
