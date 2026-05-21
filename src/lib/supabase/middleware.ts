@@ -52,5 +52,30 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Onboarding redirect: si el user tiene org sin onboarding_completed_at,
+  // forzar a /onboarding/<step>. Super_admin bypasses (puede ir a /dashboard directo).
+  if (user && !path.startsWith("/onboarding") && !path.startsWith("/auth") && !isPublic) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, organization_id")
+      .eq("id", user.id)
+      .single();
+
+    if (profile && profile.role !== "super_admin" && profile.organization_id) {
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("onboarding_completed_at, onboarding_step")
+        .eq("id", profile.organization_id)
+        .single();
+
+      if (org && !org.onboarding_completed_at) {
+        const step = org.onboarding_step ?? "empresa";
+        const url = request.nextUrl.clone();
+        url.pathname = `/onboarding/${step}`;
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return supabaseResponse;
 }
