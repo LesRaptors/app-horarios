@@ -37,7 +37,7 @@ export function extractSubdomain(host: string): SubdomainExtraction {
   }
 
   // Match against known root domains
-  for (const root of KNOWN_ROOT_DOMAINS) {
+  for (const root of Array.from(KNOWN_ROOT_DOMAINS)) {
     if (hostWithoutPort === root) {
       // Apex (sin subdomain)
       return { subdomain: null, rootDomain: root };
