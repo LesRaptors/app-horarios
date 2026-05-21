@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
-import { canManage } from "@/lib/auth/can-manage";
+import { canManage, canAdmin } from "@/lib/auth/can-manage";
 
 interface LocationItem {
   id: string;
@@ -94,8 +94,7 @@ export default function PositionsPage() {
   const [formName, setFormName] = useState("");
   const [formColor, setFormColor] = useState<string>(COLOR_PALETTE[0].value);
 
-  const isAdmin = profile?.role === "admin";
-  const isManager = profile?.role === "manager";
+  const isAdmin = canAdmin(profile?.role);
   const isAuthorized = canManage(profile?.role);
 
   async function fetchData() {

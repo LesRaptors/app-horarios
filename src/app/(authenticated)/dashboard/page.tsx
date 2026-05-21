@@ -35,8 +35,6 @@ export default function DashboardPage() {
   const [upcomingShifts, setUpcomingShifts] = useState<UpcomingShift[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
-  const isAdmin = profile?.role === "admin";
-  const isManager = profile?.role === "manager";
   const canManage = canManageFn(profile?.role);
 
   useEffect(() => {

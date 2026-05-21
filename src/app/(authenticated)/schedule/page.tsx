@@ -45,7 +45,7 @@ import type {
   EmployeeRestRule,
   EmployeeSecondaryPosition,
 } from "@/lib/types";
-import { canManage as canManageFn } from "@/lib/auth/can-manage";
+import { canManage as canManageFn, canAdmin } from "@/lib/auth/can-manage";
 
 export default function SchedulePage() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -101,7 +101,7 @@ export default function SchedulePage() {
   // Clear-draft confirmation dialog state
   const [clearDraftOpen, setClearDraftOpen] = useState(false);
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = canAdmin(profile?.role);
   const isManager = profile?.role === "manager";
   const isEmployee = profile?.role === "employee";
   const canManage = canManageFn(profile?.role);
