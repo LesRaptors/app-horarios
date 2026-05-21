@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Search, MapPin } from "lucide-react";
+import { canAdmin } from "@/lib/auth/can-manage";
 
 export default function LocationsPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -77,7 +78,7 @@ export default function LocationsPage() {
   }
 
   useEffect(() => {
-    if (profile?.role === "admin") {
+    if (canAdmin(profile?.role)) {
       fetchLocations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,7 +93,7 @@ export default function LocationsPage() {
     );
   }
 
-  if (profile?.role !== "admin") {
+  if (!canAdmin(profile?.role)) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">No autorizado</p>

@@ -52,6 +52,7 @@ import {
   Search,
   Building2,
 } from "lucide-react";
+import { canManage, canAdmin } from "@/lib/auth/can-manage";
 
 export default function DepartmentsPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -76,9 +77,8 @@ export default function DepartmentsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isAdmin = profile?.role === "admin";
-  const isAuthorized =
-    profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = canAdmin(profile?.role);
+  const isAuthorized = canManage(profile?.role);
 
   // Fetch departments with location join
   async function fetchDepartments() {

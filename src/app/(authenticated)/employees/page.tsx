@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useEquityRollups } from "@/hooks/use-equity-rollups";
 import { translateDbError } from "@/lib/utils";
+import { canManage } from "@/lib/auth/can-manage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -771,7 +772,7 @@ export default function EmployeesPage() {
 
   if (
     !currentProfile ||
-    !["admin", "manager"].includes(currentProfile.role)
+    !canManage(currentProfile.role)
   ) {
     return (
       <div className="flex items-center justify-center py-12">

@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
+import { canManage } from "@/lib/auth/can-manage";
+import type { UserRole } from "@/lib/types";
 import type { Database } from "@/lib/supabase/database.types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -20,10 +22,7 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (
-      !callerProfile ||
-      !["admin", "manager"].includes(callerProfile.role)
-    ) {
+    if (!callerProfile || !canManage(callerProfile.role as UserRole)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

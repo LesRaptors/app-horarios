@@ -33,6 +33,7 @@ import {
 import { Plus, Loader2, Check, X } from "lucide-react";
 import { StatusBadge } from "./status-badge";
 import { formatDate, formatTime, translateDbError } from "@/lib/utils";
+import { canManage as canManageFn } from "@/lib/auth/can-manage";
 import type { ShiftSwapRequest, ScheduleEntry, Profile } from "@/lib/types";
 
 interface SwapWithDetails extends ShiftSwapRequest {
@@ -59,9 +60,7 @@ export function SwapTab() {
   const [selectedTargetId, setSelectedTargetId] = useState("");
   const [selectedTargetEntry, setSelectedTargetEntry] = useState("");
 
-  const isAdmin = profile?.role === "admin";
-  const isManager = profile?.role === "manager";
-  const canManage = isAdmin || isManager;
+  const canManage = canManageFn(profile?.role);
 
   async function fetchSwaps() {
     setLoading(true);

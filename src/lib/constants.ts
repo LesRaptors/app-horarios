@@ -8,6 +8,7 @@ export const DEFAULT_LABOR_CONSTRAINTS = {
 } as const;
 
 export const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
   admin: "Administrador",
   manager: "Manager",
   employee: "Empleado",
