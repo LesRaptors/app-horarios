@@ -1812,6 +1812,7 @@ export type Database = {
           p_admin_email: string
           p_admin_first_name: string
           p_admin_last_name: string
+          p_approver_id: string
           p_demo_request_id: string
           p_org_name: string
           p_org_slug: string

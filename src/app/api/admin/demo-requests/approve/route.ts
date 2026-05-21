@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
-    // 3. RPC atómica
+    // 3. RPC atómica (p_approver_id explícito — service_role no tiene auth.uid())
     const { data: rpcResult, error: rpcError } = await adminSupabase.rpc(
       "approve_demo_request",
       {
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
         p_admin_email: admin_email,
         p_admin_first_name: admin_first_name,
         p_admin_last_name: admin_last_name,
+        p_approver_id: user.id,
       }
     );
 

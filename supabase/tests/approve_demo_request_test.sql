@@ -1,32 +1,23 @@
--- Test: approve_demo_request RPC
+-- Test: approve_demo_request RPC (signature con p_approver_id explícito)
 -- Ejecutar via execute_sql (Supabase MCP) o psql como service_role.
--- Pattern BEGIN/ROLLBACK para no ensuciar prod.
+-- Pattern BEGIN/ROLLBACK — seguro contra prod.
 --
 -- Estrategia:
---   - Setup y verification queries corren como service_role (bypass RLS).
---   - SET LOCAL role authenticated + claim sub solo cuando se llama el RPC,
---     para que is_super_admin() resuelva contra la session_authorization simulada.
---   - RESET role + claim entre tests para que los SELECTs de verificación no
---     caigan bajo RLS de demo_requests/organizations.
+--   - service_role bypass RLS, ideal para setup + verifications.
+--   - approve_demo_request ya NO depende de auth.uid(); el caller pasa
+--     p_approver_id explícitamente (signature actualizada en migration 043).
 
 BEGIN;
 
--- Setup (service_role): fake demo_request
+-- Setup: fake demo_request
 INSERT INTO demo_requests (id, nombre, email, empresa, telefono, sector, status)
 VALUES (
   '88888888-1111-1111-1111-111111111111',
-  'Test User',
-  'test@example.com',
-  'Test Empresa',
-  '+57 300 000 0000',
-  'salud',
-  'new'
+  'Test User', 'test@example.com', 'Test Empresa',
+  '+57 300 000 0000', 'salud', 'new'
 );
 
--- Test 1: super_admin (suv411@hotmail.com) puede aprobar
-SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claim.sub" TO '7e75517e-b3bd-4092-abaf-f9106a184a07';
-
+-- Test 1: super_admin (suv411@hotmail.com) puede aprobar pasando su id
 DO $$
 DECLARE result JSONB;
 BEGIN
@@ -34,38 +25,38 @@ BEGIN
     '88888888-1111-1111-1111-111111111111',
     'Test Empresa',
     'test-empresa-' || floor(random() * 100000)::TEXT,
-    'trial',
-    'test@example.com',
-    'Test',
-    'User'
+    'trial', 'test@example.com', 'Test', 'User',
+    '7e75517e-b3bd-4092-abaf-f9106a184a07'::UUID
   );
   ASSERT (result->>'success')::BOOLEAN = true, 'TEST 1 FAILED: success=false';
   ASSERT (result->>'organization_id') IS NOT NULL, 'TEST 1 FAILED: no org id';
   RAISE NOTICE 'TEST 1 PASSED: org % created', result->>'organization_id';
 END $$;
 
-RESET role;
-RESET "request.jwt.claim.sub";
-
--- Test 2: demo_request marcado approved + linked
+-- Test 2: approved_by audit populado en organizations Y demo_requests
 DO $$
 DECLARE
-  v_status TEXT;
-  v_approved_org UUID;
+  v_org_approved_by UUID;
+  v_req_approved_by UUID;
 BEGIN
-  SELECT status, approved_org_id INTO v_status, v_approved_org
-  FROM demo_requests WHERE id='88888888-1111-1111-1111-111111111111';
-  ASSERT v_status = 'approved', format('TEST 2 FAILED: status=%s', v_status);
-  ASSERT v_approved_org IS NOT NULL, 'TEST 2 FAILED: no approved_org_id';
-  RAISE NOTICE 'TEST 2 PASSED: demo_request status=approved, linked to org';
+  SELECT approved_by INTO v_req_approved_by
+    FROM demo_requests WHERE id='88888888-1111-1111-1111-111111111111';
+  SELECT approved_by INTO v_org_approved_by
+    FROM organizations
+    WHERE id=(SELECT approved_org_id FROM demo_requests WHERE id='88888888-1111-1111-1111-111111111111');
+  ASSERT v_req_approved_by = '7e75517e-b3bd-4092-abaf-f9106a184a07',
+    format('TEST 2 FAILED: demo_request.approved_by=%s', v_req_approved_by);
+  ASSERT v_org_approved_by = '7e75517e-b3bd-4092-abaf-f9106a184a07',
+    format('TEST 2 FAILED: organization.approved_by=%s', v_org_approved_by);
+  RAISE NOTICE 'TEST 2 PASSED: approved_by audit populado en ambos';
 END $$;
 
--- Test 3: organization tiene trial_ends_at ≈ now() + 30 days
+-- Test 3: trial_ends_at ≈ now() + 30 days
 DO $$
 DECLARE v_trial_ends TIMESTAMPTZ;
 BEGIN
   SELECT trial_ends_at INTO v_trial_ends FROM organizations
-  WHERE id=(SELECT approved_org_id FROM demo_requests WHERE id='88888888-1111-1111-1111-111111111111');
+    WHERE id=(SELECT approved_org_id FROM demo_requests WHERE id='88888888-1111-1111-1111-111111111111');
   ASSERT v_trial_ends > now() + INTERVAL '29 days',
     format('TEST 3 FAILED: trial_ends_at=%s', v_trial_ends);
   ASSERT v_trial_ends < now() + INTERVAL '31 days',
@@ -73,22 +64,19 @@ BEGIN
   RAISE NOTICE 'TEST 3 PASSED: trial_ends_at = %', v_trial_ends;
 END $$;
 
--- Setup TEST 4: admin no super_admin
+-- Test 4: admin (no super_admin) → exception insufficient_privilege
 INSERT INTO profiles (id, email, first_name, last_name, role, organization_id, is_active)
 VALUES ('44444444-4444-4444-4444-444444444444', 'admin-test@evi.co', 'Admin', 'Test', 'admin',
         '00000000-0000-0000-0000-000000000001', true);
 
-SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claim.sub" TO '44444444-4444-4444-4444-444444444444';
-
 DO $$
-DECLARE
-  call_failed BOOLEAN := false;
+DECLARE call_failed BOOLEAN := false;
 BEGIN
   BEGIN
     PERFORM approve_demo_request(
       '88888888-1111-1111-1111-111111111111',
-      'Hack Org', 'hack-org', 'trial', 'hack@test.com', 'Hack', 'Er'
+      'Hack Org', 'hack-org', 'trial', 'hack@test.com', 'Hack', 'Er',
+      '44444444-4444-4444-4444-444444444444'::UUID
     );
   EXCEPTION WHEN insufficient_privilege OR others THEN
     call_failed := true;
@@ -98,5 +86,4 @@ BEGIN
 END $$;
 
 ROLLBACK;
-
 SELECT 'All 4 approve_demo_request tests PASSED' AS result;
