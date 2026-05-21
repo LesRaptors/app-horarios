@@ -22,10 +22,14 @@ import {
   ChevronDown,
   LogOut,
   Wallet,
+  Inbox,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { isSuperAdmin } from "@/lib/auth/can-manage";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
+import type { UserRole } from "@/lib/types";
 import { AppLogo } from "@/components/shared/app-logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +61,10 @@ const payrollNavigation: NavItem[] = [
   { name: "Configuración", href: "/nomina/configuracion", icon: Wallet, roles: ["super_admin", "admin"] },
   { name: "Períodos", href: "/nomina/periodos", icon: FileText, roles: ["super_admin", "admin"] },
   { name: "Ausencias", href: "/nomina/ausencias", icon: CalendarDays, roles: ["super_admin", "admin", "manager"] },
+];
+
+const adminNavigation: NavItem[] = [
+  { name: "Solicitudes demo", href: "/admin/demo-requests", icon: Inbox, roles: ["super_admin"] },
 ];
 
 const configNavigation: NavItem[] = [
@@ -104,6 +112,15 @@ export function Sidebar() {
   useEffect(() => {
     if (payrollActive) setPayrollOpen(true);
   }, [payrollActive]);
+
+  const showAdminSection = isSuperAdmin((profile?.role ?? null) as UserRole | null);
+
+  const adminActive = adminNavigation.some((item) => pathname.startsWith(item.href));
+  const [adminOpen, setAdminOpen] = useState(adminActive);
+
+  useEffect(() => {
+    if (adminActive) setAdminOpen(true);
+  }, [adminActive]);
 
   const renderLink = (item: NavItem) => {
     const isActive = pathname.startsWith(item.href);
@@ -157,6 +174,32 @@ export function Sidebar() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-1 space-y-1 pl-3">
                 {filteredPayroll.map(renderLink)}
+              </CollapsibleContent>
+            </Collapsible>
+          </>
+        )}
+
+        {showAdminSection && (
+          <>
+            <div className="my-2 border-t" />
+            <Collapsible open={adminOpen} onOpenChange={setAdminOpen}>
+              <CollapsibleTrigger
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="flex-1 text-left">Admin SaaS</span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    adminOpen && "rotate-180"
+                  )}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1 space-y-1 pl-3">
+                {adminNavigation.map(renderLink)}
               </CollapsibleContent>
             </Collapsible>
           </>
