@@ -25,18 +25,22 @@ export async function resolveSlugCached(
     return cached.value;
   }
 
-  const { data, error } = await supabase
-    .from("organizations")
-    .select("id, slug")
-    .eq("slug", key)
-    .maybeSingle();
+  // RPC SECURITY DEFINER bypassa RLS de organizations (necesario porque el
+  // middleware corre sin sesión cuando un visitor entra a un subdomain).
+  // get_org_by_slug retorna SOLO {id, slug} — sin PII ni datos sensibles.
+  const { data, error } = await supabase.rpc("get_org_by_slug", {
+    p_slug: key,
+  });
 
   if (error) {
     console.error("[tenant-cache] DB error resolving slug:", error);
     return null;
   }
 
-  const value = data ?? null;
+  // RPC retorna setof TABLE → array, tomamos el primer row (UNIQUE constraint
+  // garantiza max 1).
+  const row = Array.isArray(data) ? data[0] : null;
+  const value = row ? { id: row.id, slug: row.slug } : null;
   cache.set(key, { value, expiresAt: now + TTL_MS });
   return value;
 }

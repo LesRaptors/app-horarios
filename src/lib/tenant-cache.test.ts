@@ -9,17 +9,12 @@ import {
 function makeFakeSupabase(rows: Array<{ id: string; slug: string }>) {
   let calls = 0;
   const client = {
-    from: () => ({
-      select: () => ({
-        eq: (_col: string, val: string) => ({
-          maybeSingle: async () => {
-            calls++;
-            const row = rows.find((r) => r.slug === val);
-            return { data: row ?? null, error: null };
-          },
-        }),
-      }),
-    }),
+    rpc: async (_fn: string, args: { p_slug: string }) => {
+      calls++;
+      const row = rows.find((r) => r.slug === args.p_slug);
+      // RPC retorna setof TABLE → array (vacío si no hay match)
+      return { data: row ? [row] : [], error: null };
+    },
   };
   return {
     client,

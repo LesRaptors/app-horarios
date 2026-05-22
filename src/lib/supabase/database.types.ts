@@ -1850,6 +1850,13 @@ export type Database = {
             }
             Returns: string
           }
+      get_org_by_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          slug: string
+        }[]
+      }
       get_user_location_id: { Args: never; Returns: string }
       get_user_org_id: { Args: never; Returns: string }
       get_user_role: { Args: never; Returns: string }
@@ -2016,3 +2023,4 @@ export const Constants = {
     },
   },
 } as const
+
