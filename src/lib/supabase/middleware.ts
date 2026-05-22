@@ -22,7 +22,12 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const search = request.nextUrl.search;
 
-  // Cookie domain: prod → .tushorarios.com, dev/preview → undefined (host actual)
+  // Cookie domain: prod → .tushorarios.com, dev/preview → undefined (host actual).
+  // Trade-off intencional: .tushorarios.com permite UNA sesión compartida entre raíz
+  // y subdomain del mismo user (UX seamless tras login centralizado). La seguridad
+  // cross-tenant NO depende del scope de cookie sino de:
+  //   (1) R7 (redirect silencioso si user accede a subdomain de otro tenant)
+  //   (2) RLS Postgres por organization_id (barrera real, OWASP BOLA mitigation)
   const cookieDomain = isProdRootDomain(rootDomain)
     ? ".tushorarios.com"
     : undefined;
@@ -87,7 +92,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // =============================================================================
-  // R3. Subdomain en URL pero NO existe org (slug fantasma) → redirect a apex
+  // R3. Subdomain en URL pero NO existe org (slug fantasma) → redirect a apex.
+  //     Path se descarta intencionalmente: el slug fantasma puede ser de un
+  //     attacker enumerando, o un typo. Si era typo, el usuario ve la landing
+  //     y elige su workspace. Preservar path filtraría info ("/dashboard
+  //     existe en el sistema") sin beneficio UX claro.
   //     (R2 — reserved — se trata como raíz, sigue al resto del flow)
   // =============================================================================
   if (subdomain && !isReservedSlug(subdomain) && !tenantOrg && rootDomain) {
@@ -174,13 +183,17 @@ export async function updateSession(request: NextRequest) {
   }
 
   // =============================================================================
-  // R7. User logueado en subdomain INCORRECTO → 308 silencioso al correcto
+  // R7. User logueado en subdomain INCORRECTO → 308 silencioso al correcto.
+  //     `!isReservedSlug(subdomain)` redundante (tenantOrg solo se resuelve si
+  //     no-reserved en line 64) — aserción explícita por defensa anti-drift.
   // =============================================================================
   if (
     user &&
     profile &&
     profile.role !== "super_admin" &&
     tenantOrg &&
+    subdomain &&
+    !isReservedSlug(subdomain) &&
     profile.organization_id !== tenantOrg.id &&
     profile.org_slug &&
     rootDomain
