@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/auth/can-manage";
 import { sendWelcomeEmail } from "@/lib/emails/send-welcome";
+import { isReservedSlug } from "@/lib/tenant-resolver";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { UserRole } from "@/lib/types";
@@ -59,6 +60,14 @@ export async function POST(request: NextRequest) {
       admin_last_name,
       send_welcome_email,
     } = parse.data;
+
+    // 2b. Validar slug no reservado (defense-in-depth además del DB CHECK)
+    if (isReservedSlug(org_slug)) {
+      return NextResponse.json(
+        { error: `El slug "${org_slug}" está reservado para uso interno` },
+        { status: 400 }
+      );
+    }
 
     const adminSupabase = createAdminClient();
 

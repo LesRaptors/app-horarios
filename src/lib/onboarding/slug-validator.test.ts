@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidSlug, sanitizeSlug } from "./slug-validator";
+import { isValidSlug, sanitizeSlug, checkSlugAllowed } from "./slug-validator";
 
 describe("isValidSlug", () => {
   it("acepta lowercase + numbers + hyphen", () => expect(isValidSlug("test-empresa-1")).toBe(true));
@@ -18,4 +18,17 @@ describe("sanitizeSlug", () => {
   it("colapsa espacios consecutivos", () => expect(sanitizeSlug("Mi   Empresa")).toBe("mi-empresa"));
   it("remueve chars especiales", () => expect(sanitizeSlug("Acme!@#")).toBe("acme"));
   it("trim hyphens al inicio/fin", () => expect(sanitizeSlug("--acme--")).toBe("acme"));
+});
+
+describe("checkSlugAllowed", () => {
+  it("slug válido y no-reservado → null (allowed)", () =>
+    expect(checkSlugAllowed("acme")).toBeNull());
+  it("formato inválido → 'invalid_format'", () =>
+    expect(checkSlugAllowed("Ab")).toBe("invalid_format"));
+  it("reservado → 'reserved'", () =>
+    expect(checkSlugAllowed("admin")).toBe("reserved"));
+  it("reservado case-insensitive → 'reserved'", () =>
+    expect(checkSlugAllowed("WWW")).toBe("invalid_format")); // uppercase falla en isValidSlug primero
+  it("lowercase 'www' → 'reserved'", () =>
+    expect(checkSlugAllowed("www")).toBe("reserved"));
 });

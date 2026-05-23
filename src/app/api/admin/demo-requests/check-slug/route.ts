@@ -1,7 +1,7 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSuperAdmin } from "@/lib/auth/can-manage";
-import { isValidSlug } from "@/lib/onboarding/slug-validator";
+import { checkSlugAllowed } from "@/lib/onboarding/slug-validator";
 import { NextRequest, NextResponse } from "next/server";
 import type { UserRole } from "@/lib/types";
 
@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug")?.trim() ?? "";
 
-  if (!isValidSlug(slug)) {
-    return NextResponse.json({ available: false, reason: "invalid_format" });
+  const rejection = checkSlugAllowed(slug);
+  if (rejection) {
+    return NextResponse.json({ available: false, reason: rejection });
   }
 
   const adminSupabase = createAdminClient();
