@@ -8,6 +8,11 @@ type CachedOrg = {
 };
 
 const TTL_MS = 60_000;
+// Cap defensivo contra enumeración de subdomains (attacker scanea miles de
+// slugs random → Map crece sin control). 5000 entries × ~80 bytes ≈ 400 KB,
+// muy debajo del límite de memoria de Vercel Fluid Compute. Eviction LRU
+// simple: la entry más antigua (primera del Map por insertion order) sale.
+const MAX_ENTRIES = 5000;
 
 const cache = new Map<string, CachedOrg>();
 
@@ -33,6 +38,7 @@ export async function resolveSlugCached(
   });
 
   if (error) {
+    // NO cachear errors transitorios — re-intentar siguiente request.
     console.error("[tenant-cache] DB error resolving slug:", error);
     return null;
   }
@@ -41,6 +47,15 @@ export async function resolveSlugCached(
   // garantiza max 1).
   const row = Array.isArray(data) ? data[0] : null;
   const value = row ? { id: row.id, slug: row.slug } : null;
+
+  // LRU eviction: si llegamos al cap, sacar la entry más antigua antes de
+  // insertar la nueva. Map preserva insertion order así que keys().next()
+  // devuelve la más vieja.
+  if (cache.size >= MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
+
   cache.set(key, { value, expiresAt: now + TTL_MS });
   return value;
 }

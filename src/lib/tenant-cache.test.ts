@@ -77,4 +77,21 @@ describe("resolveSlugCached", () => {
     await resolveSlugCached("wayne", fake.client as never);
     expect(fake.callCount).toBe(2);
   });
+
+  it("error de RPC NO se cachea — re-intenta siguiente request", async () => {
+    let calls = 0;
+    const erroringClient = {
+      rpc: async () => {
+        calls++;
+        return { data: null, error: { message: "DB down", code: "PGRST" } };
+      },
+    };
+    const r1 = await resolveSlugCached("acme", erroringClient as never);
+    const r2 = await resolveSlugCached("acme", erroringClient as never);
+    expect(r1).toBeNull();
+    expect(r2).toBeNull();
+    // Si cacheara errors, la 2da llamada usaría cache → calls === 1.
+    // Como NO los cachea (spec), ambas hacen RPC → calls === 2.
+    expect(calls).toBe(2);
+  });
 });

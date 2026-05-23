@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { sanitizeSlug, isValidSlug } from "@/lib/onboarding/slug-validator";
+import { sanitizeSlug, checkSlugAllowed } from "@/lib/onboarding/slug-validator";
 import { toast } from "sonner";
 import { Loader2, Check, AlertCircle } from "lucide-react";
 import type { Database } from "@/lib/supabase/database.types";
@@ -31,7 +31,7 @@ interface Props {
   onApproved: () => void;
 }
 
-type SlugStatus = "checking" | "available" | "taken" | "invalid";
+type SlugStatus = "checking" | "available" | "taken" | "invalid" | "reserved";
 
 export function ApproveDialog({ lead, onClose, onApproved }: Props) {
   const [orgName, setOrgName] = useState(lead.empresa);
@@ -51,8 +51,13 @@ export function ApproveDialog({ lead, onClose, onApproved }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isValidSlug(slug)) {
+    const rejection = checkSlugAllowed(slug);
+    if (rejection === "invalid_format") {
       setSlugStatus("invalid");
+      return;
+    }
+    if (rejection === "reserved") {
+      setSlugStatus("reserved");
       return;
     }
     setSlugStatus("checking");
@@ -61,8 +66,12 @@ export function ApproveDialog({ lead, onClose, onApproved }: Props) {
         const res = await fetch(
           `/api/admin/demo-requests/check-slug?slug=${encodeURIComponent(slug)}`
         );
-        const data = (await res.json()) as { available: boolean };
+        const data = (await res.json()) as {
+          available: boolean;
+          reason?: "invalid_format" | "reserved" | "taken";
+        };
         if (data.available) setSlugStatus("available");
+        else if (data.reason === "reserved") setSlugStatus("reserved");
         else setSlugStatus("taken");
       } catch {
         setSlugStatus("invalid");
@@ -148,7 +157,9 @@ export function ApproveDialog({ lead, onClose, onApproved }: Props) {
                     aria-label="Slug disponible"
                   />
                 )}
-                {(slugStatus === "taken" || slugStatus === "invalid") && (
+                {(slugStatus === "taken" ||
+                  slugStatus === "invalid" ||
+                  slugStatus === "reserved") && (
                   <AlertCircle
                     className="h-4 w-4 text-red-600"
                     aria-label="Slug no disponible"
@@ -165,6 +176,8 @@ export function ApproveDialog({ lead, onClose, onApproved }: Props) {
               {slugStatus === "taken" && "Slug en uso"}
               {slugStatus === "invalid" &&
                 "Formato inválido (lowercase + guiones, 3-50 chars)"}
+              {slugStatus === "reserved" &&
+                "Slug reservado para uso interno (www, admin, api, app, auth, mail, static)"}
             </p>
             <p id="slug-hint" className="mt-1 text-xs text-slate-500">
               Se usará como subdomain en sub-proy 5

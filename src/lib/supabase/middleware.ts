@@ -1,8 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
-import { extractSubdomain, isReservedSlug } from "@/lib/tenant-resolver";
+import {
+  extractSubdomain,
+  isProdRootDomain,
+  isReservedSlug,
+} from "@/lib/tenant-resolver";
 import { resolveSlugCached } from "@/lib/tenant-cache";
+import { buildRootUrl, buildTenantUrl } from "@/lib/urls";
 
 const PUBLIC_PATHS = ["/", "/gracias", "/forgot-password"];
 const PUBLIC_PREFIXES = ["/login", "/auth"];
@@ -12,15 +17,17 @@ function isPublicPath(path: string): boolean {
   return PUBLIC_PREFIXES.some((p) => path.startsWith(p));
 }
 
-function isProdRootDomain(rootDomain: string | null): boolean {
-  return rootDomain === "tushorarios.com";
-}
-
 export async function updateSession(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const { subdomain, rootDomain } = extractSubdomain(host);
   const path = request.nextUrl.pathname;
   const search = request.nextUrl.search;
+  const port = request.nextUrl.port || null;
+
+  // Hoists: cada predicate se evalúa UNA vez por request, no por cada uso.
+  const isProd = isProdRootDomain(rootDomain);
+  const subdomainReserved = subdomain ? isReservedSlug(subdomain) : false;
+  const pathIsPublic = isPublicPath(path);
 
   // Cookie domain: prod → .tushorarios.com, dev/preview → undefined (host actual).
   // Trade-off intencional: .tushorarios.com permite UNA sesión compartida entre raíz
@@ -28,9 +35,7 @@ export async function updateSession(request: NextRequest) {
   // cross-tenant NO depende del scope de cookie sino de:
   //   (1) R7 (redirect silencioso si user accede a subdomain de otro tenant)
   //   (2) RLS Postgres por organization_id (barrera real, OWASP BOLA mitigation)
-  const cookieDomain = isProdRootDomain(rootDomain)
-    ? ".tushorarios.com"
-    : undefined;
+  const cookieDomain = isProd ? ".tushorarios.com" : undefined;
 
   let supabaseResponse = NextResponse.next({ request });
 
@@ -64,27 +69,25 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Resolver tenant del subdomain (si aplica y no es reserved)
-  let tenantOrg: { id: string; slug: string } | null = null;
-  if (subdomain && !isReservedSlug(subdomain)) {
-    try {
-      tenantOrg = await resolveSlugCached(subdomain, supabase);
-    } catch (err) {
-      console.error("[middleware] tenant resolve failed:", err);
-      // Treat-as-root: no bloqueamos navegación
-    }
-  }
+  // Paralelizar getUser + resolveSlugCached. No tienen dependencia entre sí;
+  // hacerlas en serie suma ~50-100ms p95 en cache miss (DB roundtrip x2).
+  const tenantOrgP =
+    subdomain && !subdomainReserved
+      ? resolveSlugCached(subdomain, supabase).catch((err) => {
+          console.error("[middleware] tenant resolve failed:", err);
+          // Treat-as-root: no bloqueamos navegación
+          return null;
+        })
+      : Promise.resolve(null);
+  const userP = supabase.auth.getUser();
 
-  // Helpers para construir URLs de redirect
-  const proto = isProdRootDomain(rootDomain) ? "https" : "http";
-  const portStr = request.nextUrl.port;
-  const portSuffix =
-    !isProdRootDomain(rootDomain) && portStr ? `:${portStr}` : "";
+  const [tenantOrg, userResult] = await Promise.all([tenantOrgP, userP]);
+  const user = userResult.data.user;
 
   // =============================================================================
   // R1. www.tushorarios.com → apex (canonicalize, solo prod)
   // =============================================================================
-  if (subdomain === "www" && isProdRootDomain(rootDomain)) {
+  if (subdomain === "www" && isProd && rootDomain) {
     return NextResponse.redirect(
       `https://${rootDomain}${path}${search}`,
       308
@@ -99,18 +102,12 @@ export async function updateSession(request: NextRequest) {
   //     existe en el sistema") sin beneficio UX claro.
   //     (R2 — reserved — se trata como raíz, sigue al resto del flow)
   // =============================================================================
-  if (subdomain && !isReservedSlug(subdomain) && !tenantOrg && rootDomain) {
-    return NextResponse.redirect(`${proto}://${rootDomain}${portSuffix}/`, 308);
+  if (subdomain && !subdomainReserved && !tenantOrg && rootDomain) {
+    return NextResponse.redirect(buildRootUrl("/", rootDomain, port), 308);
   }
 
-  // =============================================================================
-  // Auth: getUser para resto de reglas
-  // =============================================================================
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Fetch profile + org slug (1 query con join) si hay user
+  // Fetch profile + org slug (1 query con join) si hay user.
+  // No se paraleliza con getUser porque depende de user.id.
   let profile: {
     role: string;
     organization_id: string | null;
@@ -129,7 +126,7 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
 
     if (data) {
-      // FK profiles_org_fk is isOneToOne: false → Supabase types join as array
+      // FK profiles_org_fk es isOneToOne: false → Supabase types join como array
       type OrgJoin = {
         slug: string | null;
         onboarding_completed_at: string | null;
@@ -157,7 +154,7 @@ export async function updateSession(request: NextRequest) {
   // =============================================================================
   if (user && profile?.role === "super_admin" && tenantOrg && rootDomain) {
     return NextResponse.redirect(
-      `${proto}://${rootDomain}${portSuffix}/admin/demo-requests`,
+      buildRootUrl("/admin/demo-requests", rootDomain, port),
       308
     );
   }
@@ -173,19 +170,19 @@ export async function updateSession(request: NextRequest) {
     profile.org_slug &&
     !subdomain &&
     path !== "/" &&
-    !isPublicPath(path) &&
+    !pathIsPublic &&
     rootDomain
   ) {
     return NextResponse.redirect(
-      `${proto}://${profile.org_slug}.${rootDomain}${portSuffix}${path}${search}`,
+      buildTenantUrl(profile.org_slug, `${path}${search}`, rootDomain, port),
       308
     );
   }
 
   // =============================================================================
   // R7. User logueado en subdomain INCORRECTO → 308 silencioso al correcto.
-  //     `!isReservedSlug(subdomain)` redundante (tenantOrg solo se resuelve si
-  //     no-reserved en line 64) — aserción explícita por defensa anti-drift.
+  //     `!subdomainReserved` redundante (tenantOrg solo se resuelve si
+  //     no-reserved arriba) — aserción explícita por defensa anti-drift.
   // =============================================================================
   if (
     user &&
@@ -193,13 +190,13 @@ export async function updateSession(request: NextRequest) {
     profile.role !== "super_admin" &&
     tenantOrg &&
     subdomain &&
-    !isReservedSlug(subdomain) &&
+    !subdomainReserved &&
     profile.organization_id !== tenantOrg.id &&
     profile.org_slug &&
     rootDomain
   ) {
     return NextResponse.redirect(
-      `${proto}://${profile.org_slug}.${rootDomain}${portSuffix}${path}${search}`,
+      buildTenantUrl(profile.org_slug, `${path}${search}`, rootDomain, port),
       308
     );
   }
@@ -209,7 +206,7 @@ export async function updateSession(request: NextRequest) {
   // =============================================================================
   if (tenantOrg && !user && path === "/" && rootDomain) {
     return NextResponse.redirect(
-      `${proto}://${tenantOrg.slug}.${rootDomain}${portSuffix}/login`,
+      buildTenantUrl(tenantOrg.slug, "/login", rootDomain, port),
       308
     );
   }
@@ -217,7 +214,7 @@ export async function updateSession(request: NextRequest) {
   // =============================================================================
   // R9. Lógica existente — auth/onboarding (sin cambios estructurales)
   // =============================================================================
-  if (!user && !isPublicPath(path)) {
+  if (!user && !pathIsPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -234,7 +231,7 @@ export async function updateSession(request: NextRequest) {
     user &&
     !path.startsWith("/onboarding") &&
     !path.startsWith("/auth") &&
-    !isPublicPath(path) &&
+    !pathIsPublic &&
     profile &&
     profile.role !== "super_admin" &&
     profile.organization_id &&

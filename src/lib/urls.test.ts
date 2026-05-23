@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTenantUrl } from "./urls";
+import { buildTenantUrl, buildRootUrl } from "./urls";
 
 describe("buildTenantUrl", () => {
   it("prod tushorarios.com — construye URL con subdomain", () => {
@@ -8,7 +8,7 @@ describe("buildTenantUrl", () => {
     );
   });
 
-  it("dev lvh.me — usa http (no https)", () => {
+  it("dev lvh.me — usa http y agrega puerto", () => {
     expect(buildTenantUrl("acme", "/dashboard", "lvh.me", 3000)).toBe(
       "http://acme.lvh.me:3000/dashboard"
     );
@@ -24,5 +24,37 @@ describe("buildTenantUrl", () => {
     expect(
       buildTenantUrl("acme", "/login?next=/employees", "tushorarios.com")
     ).toBe("https://acme.tushorarios.com/login?next=/employees");
+  });
+
+  it("prod ignora port (HTTPS estándar)", () => {
+    expect(
+      buildTenantUrl("acme", "/dashboard", "tushorarios.com", 443)
+    ).toBe("https://acme.tushorarios.com/dashboard");
+  });
+
+  it("port como string (de request.nextUrl.port)", () => {
+    expect(buildTenantUrl("acme", "/x", "lvh.me", "3000")).toBe(
+      "http://acme.lvh.me:3000/x"
+    );
+  });
+});
+
+describe("buildRootUrl", () => {
+  it("prod tushorarios.com — apex", () => {
+    expect(buildRootUrl("/", "tushorarios.com")).toBe(
+      "https://tushorarios.com/"
+    );
+  });
+
+  it("dev lvh.me con port", () => {
+    expect(buildRootUrl("/admin/demo-requests", "lvh.me", 3000)).toBe(
+      "http://lvh.me:3000/admin/demo-requests"
+    );
+  });
+
+  it("path sin slash — normaliza", () => {
+    expect(buildRootUrl("admin", "tushorarios.com")).toBe(
+      "https://tushorarios.com/admin"
+    );
   });
 });

@@ -10,11 +10,26 @@ export const RESERVED_SLUGS = new Set<string>([
   "static",
 ]);
 
-export const KNOWN_ROOT_DOMAINS = new Set<string>([
-  "tushorarios.com",
+// Root domain de producción (configurable via env para staging/preview futuros).
+// Default `tushorarios.com` para que el código funcione sin override en prod.
+export const PROD_ROOT_DOMAIN =
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN || "tushorarios.com";
+
+// Lista en orden de match (prod primero, dev después). Tuple `as const` evita
+// allocation por request en hot-path. Mantener en sync con KNOWN_ROOT_DOMAINS.
+const KNOWN_ROOT_DOMAINS_LIST = [
+  PROD_ROOT_DOMAIN,
   "lvh.me",
   "localhost",
-]);
+] as const;
+
+// Sufijos pre-computados con el "." para evitar concatenation por iteración.
+const KNOWN_ROOT_DOMAINS_SUFFIXED = KNOWN_ROOT_DOMAINS_LIST.map(
+  (root) => "." + root
+);
+
+// Set para O(1) membership desde otros módulos (urls.ts isLocalRootDomain).
+export const KNOWN_ROOT_DOMAINS = new Set<string>(KNOWN_ROOT_DOMAINS_LIST);
 
 export type SubdomainExtraction = {
   subdomain: string | null;
@@ -23,6 +38,10 @@ export type SubdomainExtraction = {
 
 export function isReservedSlug(slug: string): boolean {
   return RESERVED_SLUGS.has(slug.toLowerCase());
+}
+
+export function isProdRootDomain(rootDomain: string | null): boolean {
+  return rootDomain === PROD_ROOT_DOMAIN;
 }
 
 export function extractSubdomain(host: string): SubdomainExtraction {
@@ -36,15 +55,18 @@ export function extractSubdomain(host: string): SubdomainExtraction {
     return { subdomain: null, rootDomain: null };
   }
 
-  // Match against known root domains
-  for (const root of Array.from(KNOWN_ROOT_DOMAINS)) {
+  // Match against known root domains (tupla const, sin allocation per call)
+  for (let i = 0; i < KNOWN_ROOT_DOMAINS_LIST.length; i++) {
+    const root = KNOWN_ROOT_DOMAINS_LIST[i];
     if (hostWithoutPort === root) {
-      // Apex (sin subdomain)
       return { subdomain: null, rootDomain: root };
     }
-    if (hostWithoutPort.endsWith("." + root)) {
-      const subdomain = hostWithoutPort.slice(0, -("." + root).length);
-      return { subdomain, rootDomain: root };
+    const suffix = KNOWN_ROOT_DOMAINS_SUFFIXED[i];
+    if (hostWithoutPort.endsWith(suffix)) {
+      return {
+        subdomain: hostWithoutPort.slice(0, -suffix.length),
+        rootDomain: root,
+      };
     }
   }
 
