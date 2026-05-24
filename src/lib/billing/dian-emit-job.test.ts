@@ -410,8 +410,9 @@ describe("processDianEmitJobs", () => {
     });
     createAdminClientMock.mockReturnValue(supabase);
 
-    const provider = makeProvider();
-    provider.emitInvoice.mockResolvedValue({ externalId: "ext-acc", pdfUrl: null, status: "accepted" });
+    const provider = makeProvider({
+      emitInvoice: vi.fn().mockResolvedValue({ externalId: "ext-acc", pdfUrl: null, status: "accepted" }),
+    });
     getProviderMock.mockResolvedValue(provider);
 
     const { processDianEmitJobs } = await loadModule();
@@ -450,8 +451,9 @@ describe("processDianEmitJobs", () => {
     });
     createAdminClientMock.mockReturnValue(supabase);
 
-    const provider = makeProvider();
-    provider.emitInvoice.mockResolvedValue({ externalId: "ext-pend", pdfUrl: null, status: "pending" });
+    const provider = makeProvider({
+      emitInvoice: vi.fn().mockResolvedValue({ externalId: "ext-pend", pdfUrl: null, status: "pending" }),
+    });
     getProviderMock.mockResolvedValue(provider);
 
     const { processDianEmitJobs } = await loadModule();
