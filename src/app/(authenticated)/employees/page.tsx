@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useEquityRollups } from "@/hooks/use-equity-rollups";
 import { translateDbError } from "@/lib/utils";
-import { canManage } from "@/lib/auth/can-manage";
+import { canAdmin, canManage } from "@/lib/auth/can-manage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -786,7 +786,7 @@ export default function EmployeesPage() {
   // --------------------------------------------------------------------------
   // Salary permission flags
   // --------------------------------------------------------------------------
-  const canEditSalary = currentProfile?.role === "admin";
+  const canEditSalary = canAdmin(currentProfile?.role);
   const managerCanSee =
     currentProfile?.role === "manager" && appFlags.managers_can_see_salaries;
   const canReadAnySalary = canEditSalary || managerCanSee;
