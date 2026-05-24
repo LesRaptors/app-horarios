@@ -246,5 +246,44 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // =============================================================================
+  // R10. Org pausada → bloquea TODO excepto /facturacion + /api/* + public paths.
+  //      Flag-gated: si BILLING_ENABLED != "true" es un no-op completo y NO
+  //      emite el query extra a subscriptions (cero latencia añadida por request
+  //      cuando billing está deshabilitado). T27 solo enciende el flag.
+  //      Corre DESPUÉS de R9 a propósito: si la org tampoco terminó onboarding,
+  //      R9 ya redirigió a /onboarding antes de llegar aquí (onboarding precede).
+  //      Invariante billing_exempt: una org exenta (ej. LR) NUNCA llega a
+  //      status="paused" — el cron process-cycles la salta. Por eso basta con
+  //      chequear status==="paused"; no re-verificamos billing_exempt (evita un
+  //      join extra ya que el invariante se sostiene aguas arriba).
+  //      super_admin no entra: tiene organization_id null (o lo maneja R5).
+  // =============================================================================
+  if (
+    process.env.BILLING_ENABLED === "true" &&
+    user &&
+    profile?.organization_id
+  ) {
+    const { data: subData } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("organization_id", profile.organization_id)
+      .maybeSingle();
+    const subscriptionStatus = subData?.status ?? null;
+
+    if (
+      subscriptionStatus === "paused" &&
+      !path.startsWith("/facturacion") &&
+      !path.startsWith("/api/") &&
+      !pathIsPublic
+    ) {
+      // clone() preserva host/subdomain → tenant pausado en acme.tushorarios.com
+      // aterriza en acme.tushorarios.com/facturacion, no en el apex.
+      const url = request.nextUrl.clone();
+      url.pathname = "/facturacion";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
