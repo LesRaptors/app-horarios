@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const verifyWompiWebhookMock = vi.fn();
 const getTransactionMock = vi.fn();
 const createAdminClientMock = vi.fn();
+const enqueueDianEmitJobMock = vi.fn();
 
 vi.mock("@/lib/billing/wompi/webhook-verify", () => ({
   verifyWompiWebhook: (...args: unknown[]) => verifyWompiWebhookMock(...args),
@@ -21,6 +22,10 @@ vi.mock("@/lib/billing/wompi/client", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createAdminClientMock(),
+}));
+
+vi.mock("@/lib/billing/dian-emit-job", () => ({
+  enqueueDianEmitJob: (...args: unknown[]) => enqueueDianEmitJobMock(...args),
 }));
 
 /**
@@ -141,6 +146,8 @@ beforeEach(() => {
   verifyWompiWebhookMock.mockReset();
   getTransactionMock.mockReset();
   createAdminClientMock.mockReset();
+  enqueueDianEmitJobMock.mockReset();
+  enqueueDianEmitJobMock.mockResolvedValue(undefined);
   process.env.WOMPI_EVENTS_SECRET = "test-secret";
   // Reset module cache so re-importing ./route picks up fresh mocks
   vi.resetModules();

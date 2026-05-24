@@ -388,6 +388,47 @@ export type Database = {
           },
         ]
       }
+      dian_emit_jobs: {
+        Row: {
+          attempt_count: number
+          created_at: string | null
+          id: string
+          invoice_id: string
+          last_error: string | null
+          next_attempt_at: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          invoice_id: string
+          last_error?: string | null
+          next_attempt_at?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dian_emit_jobs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_equity_rollups: {
         Row: {
           employee_id: string

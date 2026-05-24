@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWompiWebhook, type WompiWebhookPayload } from "@/lib/billing/wompi/webhook-verify";
 import { getTransaction } from "@/lib/billing/wompi/client";
 import { calculateNextPeriodEnd } from "@/lib/billing/engine";
+import { enqueueDianEmitJob } from "@/lib/billing/dian-emit-job";
 
 export const runtime = "nodejs";
 
@@ -209,7 +210,7 @@ export async function POST(req: Request) {
       }
     }
 
-    fireDianEmitJob(invoice.id).catch((e) => console.error("[dian-emit-job]", e));
+    enqueueDianEmitJob(invoice.id).catch((e) => console.error("[dian-emit-job]", e));
     fireBillingEmail("payment-confirmed", invoice.organization_id, { invoiceId: invoice.id }).catch(
       (e) => console.error("[email]", e)
     );
@@ -251,10 +252,6 @@ function mapStatus(wompiStatus: string): PaymentStatus {
     default:
       return "pending";
   }
-}
-
-async function fireDianEmitJob(_invoiceId: string): Promise<void> {
-  /* Task 17 */
 }
 
 async function fireBillingEmail(
