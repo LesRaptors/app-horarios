@@ -795,7 +795,7 @@ export type Database = {
           approved_by: string | null
           approved_from_demo_request_id: string | null
           billing_email: string | null
-          billing_exempt: boolean | null
+          billing_exempt: boolean
           country: string
           created_at: string
           current_plan_id: string | null
@@ -821,7 +821,7 @@ export type Database = {
           approved_by?: string | null
           approved_from_demo_request_id?: string | null
           billing_email?: string | null
-          billing_exempt?: boolean | null
+          billing_exempt?: boolean
           country?: string
           created_at?: string
           current_plan_id?: string | null
@@ -847,7 +847,7 @@ export type Database = {
           approved_by?: string | null
           approved_from_demo_request_id?: string | null
           billing_email?: string | null
-          billing_exempt?: boolean | null
+          billing_exempt?: boolean
           country?: string
           created_at?: string
           current_plan_id?: string | null

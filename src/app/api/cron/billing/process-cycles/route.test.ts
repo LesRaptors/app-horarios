@@ -162,7 +162,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
     expect(body.error).toBe("unauthorized");
   });
 
-  it("2. sin suscripciones vencidas → { processed:0, charged:0, failed:0, paused:0 }", async () => {
+  it("2. sin suscripciones vencidas → { processed:0, charged:0, failed:0, declined:0, skipped:0 }", async () => {
     const supabase = makeSupabaseMock({
       subscriptions: { select: { data: [], error: null } },
     });
@@ -172,7 +172,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
     const res = await GET(makeRequest("Bearer supersecret"));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ processed: 0, charged: 0, failed: 0, paused: 0 });
+    expect(body).toEqual({ processed: 0, charged: 0, failed: 0, declined: 0, skipped: 0 });
   });
 
   it("3. suscripción sin payment_method_id → status past_due, results.failed++", async () => {
@@ -211,7 +211,13 @@ describe("GET /api/cron/billing/process-cycles", () => {
       },
       plans: { select: { data: PLAN, error: null } },
       payment_methods: { select: { data: PM, error: null } },
-      invoices: { insert: { data: INVOICE, error: null } },
+      // invoices: select[0] = no open invoice, then insert succeeds
+      invoices: {
+        select: [
+          { data: null, error: null },   // maybeSingle check: no open invoice
+        ],
+        insert: { data: INVOICE, error: null },
+      },
       payments: { insert: { data: null, error: null } },
     });
     createAdminClientMock.mockReturnValue(supabase);
@@ -227,6 +233,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
     const body = await res.json();
     expect(body.charged).toBe(1);
     expect(body.failed).toBe(0);
+    expect(body.skipped).toBe(0);
 
     // Verifica que se creó la factura con status "open"
     const invoiceInsert = supabase.__ops.find(
@@ -257,6 +264,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
       plans: { select: { data: PLAN, error: null } },
       payment_methods: { select: { data: PM, error: null } },
       invoices: {
+        select: [{ data: null, error: null }],  // no open invoice
         insert: { data: INVOICE, error: null },
         update: { data: null, error: null },
       },
@@ -298,7 +306,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("6. createTransaction retorna DECLINED → pago con status declined, charged sigue en 0", async () => {
+  it("6. createTransaction retorna DECLINED → pago con status declined, results.declined++, charged sigue en 0", async () => {
     const sub = makeSub();
     const supabase = makeSupabaseMock({
       subscriptions: {
@@ -307,7 +315,10 @@ describe("GET /api/cron/billing/process-cycles", () => {
       },
       plans: { select: { data: PLAN, error: null } },
       payment_methods: { select: { data: PM, error: null } },
-      invoices: { insert: { data: INVOICE, error: null } },
+      invoices: {
+        select: [{ data: null, error: null }],  // no open invoice
+        insert: { data: INVOICE, error: null },
+      },
       payments: { insert: { data: null, error: null } },
     });
     createAdminClientMock.mockReturnValue(supabase);
@@ -323,6 +334,7 @@ describe("GET /api/cron/billing/process-cycles", () => {
     const body = await res.json();
     expect(body.charged).toBe(0);
     expect(body.failed).toBe(0);
+    expect(body.declined).toBe(1);
 
     // Pago insertado con status "declined"
     const paymentInsert = supabase.__ops.find(
@@ -332,5 +344,123 @@ describe("GET /api/cron/billing/process-cycles", () => {
     expect(
       (paymentInsert!.payload as Record<string, unknown>).status
     ).toBe("declined");
+  });
+
+  it("7. sub ya tiene factura open → cron la salta (no llama a createTransaction, no inserta factura, skipped++)", async () => {
+    const sub = makeSub();
+    const supabase = makeSupabaseMock({
+      subscriptions: {
+        select: { data: [sub], error: null },
+      },
+      plans: { select: { data: PLAN, error: null } },
+      payment_methods: { select: { data: PM, error: null } },
+      invoices: {
+        // maybeSingle devuelve factura open existente
+        select: [{ data: { id: "inv-existing-open" }, error: null }],
+      },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const { GET } = await loadRoute();
+    const res = await GET(makeRequest("Bearer supersecret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(1);
+    expect(body.skipped).toBe(1);
+    expect(body.charged).toBe(0);
+    expect(body.failed).toBe(0);
+
+    // createTransaction NO debe haberse llamado
+    expect(createTransactionMock).not.toHaveBeenCalled();
+
+    // No debe haberse insertado ninguna factura nueva
+    const invoiceInsert = supabase.__ops.find(
+      (o) => o.table === "invoices" && o.op === "insert"
+    );
+    expect(invoiceInsert).toBeUndefined();
+  });
+
+  it("8. plan lookup retorna null → sub marcada failed, lote continúa con la siguiente sub", async () => {
+    const sub1 = makeSub({ id: "sub-null-plan", plan_id: "plan-deleted" });
+    const sub2 = makeSub({ id: "sub-2" });
+
+    // Contadores por tabla (cada tabla tiene su propio índice en el mock):
+    //   subscriptions.select[0] → [sub1, sub2]
+    //   invoices.select[0] → null (open-check sub1), [1] → null (open-check sub2)
+    //   plans.select[0] → null (sub1 plan no encontrado), [1] → PLAN (sub2 OK)
+    //   payment_methods.select[0] → PM (sub2 OK)
+    const supabase = makeSupabaseMock({
+      subscriptions: {
+        select: { data: [sub1, sub2], error: null },
+      },
+      invoices: {
+        select: [
+          { data: null, error: null },  // open-invoice check sub1
+          { data: null, error: null },  // open-invoice check sub2
+        ],
+        insert: { data: INVOICE, error: null },
+      },
+      plans: {
+        select: [
+          { data: null, error: null },  // sub1: plan eliminado
+          { data: PLAN, error: null },  // sub2: plan OK
+        ],
+      },
+      payment_methods: { select: { data: PM, error: null } },
+      payments: { insert: { data: null, error: null } },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+    createTransactionMock.mockResolvedValue({
+      id: "wompi-tx-ok",
+      status: "APPROVED",
+      reference: INVOICE.id,
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const { GET } = await loadRoute();
+    const res = await GET(makeRequest("Bearer supersecret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    // sub1 falla (plan null), sub2 se cobra
+    expect(body.processed).toBe(2);
+    expect(body.failed).toBe(1);
+    expect(body.charged).toBe(1);
+
+    // createTransaction se llamó exactamente una vez (para sub2)
+    expect(createTransactionMock).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("9. invoice insert retorna error 23505 (carrera concurrente) → skipped++, batch continúa", async () => {
+    const sub = makeSub();
+    const supabase = makeSupabaseMock({
+      subscriptions: {
+        select: { data: [sub], error: null },
+      },
+      plans: { select: { data: PLAN, error: null } },
+      payment_methods: { select: { data: PM, error: null } },
+      invoices: {
+        select: [{ data: null, error: null }],  // no open invoice al momento del check
+        insert: { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } },
+      },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const { GET } = await loadRoute();
+    const res = await GET(makeRequest("Bearer supersecret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(1);
+    expect(body.skipped).toBe(1);
+    expect(body.charged).toBe(0);
+    expect(body.failed).toBe(0);
+
+    // createTransaction NO debe haberse llamado
+    expect(createTransactionMock).not.toHaveBeenCalled();
   });
 });
