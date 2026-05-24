@@ -394,38 +394,133 @@ describe("POST /api/webhooks/wompi", () => {
     expect(invPayload.retry_count).toBe(2);
   });
 
-  it("11. idempotencia: mismo provider_transaction_id → UPDATE, no INSERT", async () => {
+  it("11. idempotencia terminal: APPROVED duplicado → short-circuit, NO side effects", async () => {
     verifyWompiWebhookMock.mockReturnValue(true);
-    const existingPayment = { id: "pay-existing", invoice_id: "inv-6", status: "pending" };
-    const invoice = {
-      id: "inv-6",
-      organization_id: "org-6",
-      payment_method_id: null,
-      period_start: "2026-05-01T00:00:00Z",
-      retry_count: 0,
-    };
+    // Pago ya está en status approved → mismo terminal status del webhook entrante
+    const existingPayment = { id: "pay-existing", invoice_id: "inv-6", status: "approved" };
     const supabase = makeSupabaseMock({
       payments: {
         select: { data: existingPayment, error: null },
-        update: { data: null, error: null },
+        // update no debe llamarse
         // insert no debe llamarse
       },
-      invoices: { select: { data: invoice, error: null }, update: { data: null, error: null } },
+      // Estas tablas no deben tocarse en absoluto
+      invoices: { select: { data: null, error: null }, update: { data: null, error: null } },
       payment_methods: { upsert: { data: { id: "pm-x" }, error: null } },
       subscriptions: { update: { data: null, error: null } },
     });
     createAdminClientMock.mockReturnValue(supabase);
 
-    getTransactionMock.mockResolvedValue({ data: {} });
+    const res = await (await loadRoute())(makeRequest(basePayload()));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ ok: true, idempotent: true });
+
+    const ops = supabase.__ops;
+    // No se debe haber tocado nada más que el lookup inicial de payments
+    expect(ops.find((o) => o.table === "payments" && o.op === "insert")).toBeUndefined();
+    expect(ops.find((o) => o.table === "payments" && o.op === "update")).toBeUndefined();
+    expect(ops.find((o) => o.table === "invoices" && o.op === "update")).toBeUndefined();
+    expect(ops.find((o) => o.table === "subscriptions" && o.op === "update")).toBeUndefined();
+    expect(ops.find((o) => o.table === "payment_methods")).toBeUndefined();
+    // Tampoco se debe haber consultado invoices ni llamado a getTransaction
+    expect(ops.find((o) => o.table === "invoices")).toBeUndefined();
+    expect(getTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("12. transición legítima: pending → APPROVED → UPDATE payment + side effects DO fire", async () => {
+    verifyWompiWebhookMock.mockReturnValue(true);
+    // Pago existe en pending; llega APPROVED por primera vez como terminal status
+    const existingPayment = { id: "pay-pending", invoice_id: "inv-7", status: "pending" };
+    const invoice = {
+      id: "inv-7",
+      organization_id: "org-7",
+      payment_method_id: null,
+      period_start: "2026-05-01T00:00:00Z",
+      retry_count: 0,
+      status: "open",
+    };
+    const supabase = makeSupabaseMock({
+      payments: {
+        select: { data: existingPayment, error: null },
+        update: { data: null, error: null },
+      },
+      invoices: { select: { data: invoice, error: null }, update: { data: null, error: null } },
+      payment_methods: { upsert: { data: { id: "pm-7" }, error: null } },
+      subscriptions: { update: { data: null, error: null } },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    getTransactionMock.mockResolvedValue({
+      data: {
+        payment_source_id: 9999,
+        payment_method: {
+          extra: { brand: "MC", last_four: "1111", exp_month: "06", exp_year: "29" },
+        },
+      },
+    });
 
     const res = await (await loadRoute())(makeRequest(basePayload()));
     expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ ok: true });
 
     const ops = supabase.__ops;
-    const paymentInsert = ops.find((o) => o.table === "payments" && o.op === "insert");
+    // UPDATE de payment ocurrió con re-stamp de completed_at (transición desde pending)
     const paymentUpdate = ops.find((o) => o.table === "payments" && o.op === "update");
-    expect(paymentInsert).toBeUndefined();
     expect(paymentUpdate).toBeDefined();
-    expect(paymentUpdate!.filters["eq:id"]).toBe("pay-existing");
+    expect(paymentUpdate!.filters["eq:id"]).toBe("pay-pending");
+    expect((paymentUpdate!.payload as Record<string, unknown>).status).toBe("approved");
+    expect((paymentUpdate!.payload as Record<string, unknown>).completed_at).toBeDefined();
+    // No se debe haber hecho insert
+    expect(ops.find((o) => o.table === "payments" && o.op === "insert")).toBeUndefined();
+    // Invoice debe haberse actualizado a paid con paid_at (factura no estaba paid)
+    const invUpdate = ops.find((o) => o.table === "invoices" && o.op === "update");
+    expect(invUpdate).toBeDefined();
+    expect((invUpdate!.payload as Record<string, unknown>).status).toBe("paid");
+    expect((invUpdate!.payload as Record<string, unknown>).paid_at).toBeDefined();
+    // Side effects ocurrieron: getTransaction, payment_methods upsert, subscriptions update
+    expect(getTransactionMock).toHaveBeenCalledWith("wompi-tx-1");
+    expect(ops.find((o) => o.table === "payment_methods" && o.op === "upsert")).toBeDefined();
+    const subUpdate = ops.find((o) => o.table === "subscriptions" && o.op === "update");
+    expect(subUpdate).toBeDefined();
+    expect((subUpdate!.payload as Record<string, unknown>).status).toBe("active");
+  });
+
+  it("13. DB error real en invoice lookup (no PGRST116) → 500 para que Wompi reintente", async () => {
+    verifyWompiWebhookMock.mockReturnValue(true);
+    const supabase = makeSupabaseMock({
+      payments: { select: { data: null, error: null } },
+      invoices: {
+        select: { data: null, error: { code: "08006", message: "connection terminated" } },
+      },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const res = await (await loadRoute())(makeRequest(basePayload()));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toMatch(/db error/i);
+
+    const ops = supabase.__ops;
+    // No se debe haber tocado nada más después del fallo
+    expect(ops.find((o) => o.table === "payments" && o.op === "insert")).toBeUndefined();
+    expect(ops.find((o) => o.table === "invoices" && o.op === "update")).toBeUndefined();
+  });
+
+  it("14. invoice no encontrada (PGRST116) → 200 con warn (no es error real)", async () => {
+    verifyWompiWebhookMock.mockReturnValue(true);
+    const supabase = makeSupabaseMock({
+      payments: { select: { data: null, error: null } },
+      invoices: {
+        select: { data: null, error: { code: "PGRST116", message: "no rows" } },
+      },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const res = await (await loadRoute())(makeRequest(basePayload()));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.warn).toMatch(/invoice not found/i);
   });
 });

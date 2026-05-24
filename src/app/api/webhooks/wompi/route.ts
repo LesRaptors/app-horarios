@@ -20,7 +20,10 @@ type InvoiceRow = {
   payment_method_id: string | null;
   period_start: string;
   retry_count: number | null;
+  status?: string | null;
 };
+
+type PaymentStatus = "pending" | "approved" | "declined" | "error" | "refunded";
 
 export async function POST(req: Request) {
   const raw = await req.text();
@@ -47,16 +50,39 @@ export async function POST(req: Request) {
   const supabase = createAdminClient();
 
   // Idempotencia: payment con provider_transaction_id UNIQUE
-  const { data: existing } = await supabase
+  const existingQuery = await supabase
     .from("payments")
     .select("id, invoice_id, status")
     .eq("provider_transaction_id", tx.id)
     .maybeSingle();
 
+  if (existingQuery.error) {
+    console.error("[webhook wompi] existing payment lookup failed", existingQuery.error);
+    return NextResponse.json({ error: "db error" }, { status: 500 });
+  }
+  const existing = existingQuery.data as
+    | { id: string; invoice_id: string; status: PaymentStatus }
+    | null;
+
+  // B2: short-circuit si ya procesamos este exact terminal status (evita
+  // re-disparar side effects DIAN/email en retries del webhook).
+  if (existing && existing.status === mapStatus(tx.status)) {
+    return NextResponse.json({ ok: true, idempotent: true });
+  }
+
   const invoiceQuery = existing
     ? await supabase.from("invoices").select("*").eq("id", existing.invoice_id).single()
     : await supabase.from("invoices").select("*").eq("id", tx.reference).single();
 
+  // B1: distinguir "no rows" (PGRST116) de errores DB reales.
+  // Si es un error real (RLS/connection/etc.), devolver 500 para que Wompi reintente.
+  if (
+    invoiceQuery.error &&
+    (invoiceQuery.error as { code?: string }).code !== "PGRST116"
+  ) {
+    console.error("[webhook wompi] invoice lookup failed", invoiceQuery.error);
+    return NextResponse.json({ error: "db error" }, { status: 500 });
+  }
   const invoice = invoiceQuery.data as InvoiceRow | null;
   if (!invoice) {
     console.error("[webhook wompi] invoice not found for reference", tx.reference);
@@ -65,16 +91,25 @@ export async function POST(req: Request) {
 
   // Insert/update payment row
   if (existing) {
-    await supabase
-      .from("payments")
-      .update({
-        status: mapStatus(tx.status),
-        failure_reason: tx.status_message ?? null,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
+    // I1: solo re-stamp completed_at en transición real (no en retries)
+    const paymentPatch: {
+      status: PaymentStatus;
+      failure_reason: string | null;
+      completed_at?: string;
+    } = {
+      status: mapStatus(tx.status),
+      failure_reason: tx.status_message ?? null,
+    };
+    if (existing.status !== "approved" && existing.status !== "refunded") {
+      paymentPatch.completed_at = new Date().toISOString();
+    }
+    const upd = await supabase.from("payments").update(paymentPatch).eq("id", existing.id);
+    if ((upd as { error?: unknown }).error) {
+      console.error("[webhook wompi] payments update failed", (upd as { error: unknown }).error);
+      return NextResponse.json({ error: "db error" }, { status: 500 });
+    }
   } else {
-    await supabase.from("payments").insert({
+    const ins = await supabase.from("payments").insert({
       invoice_id: invoice.id,
       payment_method_id: invoice.payment_method_id ?? null,
       provider: "wompi",
@@ -84,14 +119,27 @@ export async function POST(req: Request) {
       failure_reason: tx.status_message ?? null,
       completed_at: new Date().toISOString(),
     });
+    if ((ins as { error?: unknown }).error) {
+      console.error("[webhook wompi] payments insert failed", (ins as { error: unknown }).error);
+      return NextResponse.json({ error: "db error" }, { status: 500 });
+    }
   }
 
   // Side effects por status
   if (tx.status === "APPROVED") {
-    await supabase
+    // I1: solo re-stamp paid_at si la factura aún no está pagada
+    const invoicePaidPatch: { status: "paid"; paid_at?: string } = { status: "paid" };
+    if (invoice.status !== "paid") {
+      invoicePaidPatch.paid_at = new Date().toISOString();
+    }
+    const invUpd = await supabase
       .from("invoices")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update(invoicePaidPatch)
       .eq("id", invoice.id);
+    if ((invUpd as { error?: unknown }).error) {
+      console.error("[webhook wompi] invoices update failed", (invUpd as { error: unknown }).error);
+      return NextResponse.json({ error: "db error" }, { status: 500 });
+    }
 
     const fullTx = await getTransaction(tx.id).catch(() => null);
     const psId = fullTx?.data?.payment_source_id;
@@ -103,7 +151,7 @@ export async function POST(req: Request) {
       const expYearShort = parseInt(String(expYearRaw), 10);
       const expYear = expYearShort ? 2000 + expYearShort : null;
 
-      const { data: pm } = await supabase
+      const pmUpsert = await supabase
         .from("payment_methods")
         .upsert(
           {
@@ -121,8 +169,14 @@ export async function POST(req: Request) {
         .select("id")
         .single();
 
+      if (pmUpsert.error) {
+        console.error("[webhook wompi] payment_methods upsert failed", pmUpsert.error);
+        return NextResponse.json({ error: "db error" }, { status: 500 });
+      }
+
+      const pm = pmUpsert.data as { id: string } | null;
       if (pm) {
-        await supabase
+        const subUpd = await supabase
           .from("subscriptions")
           .update({
             payment_method_id: pm.id,
@@ -130,15 +184,29 @@ export async function POST(req: Request) {
             current_period_end: calculateNextPeriodEnd(new Date(invoice.period_start)).toISOString(),
           })
           .eq("organization_id", invoice.organization_id);
+        if ((subUpd as { error?: unknown }).error) {
+          console.error(
+            "[webhook wompi] subscriptions update failed",
+            (subUpd as { error: unknown }).error
+          );
+          return NextResponse.json({ error: "db error" }, { status: 500 });
+        }
       }
     } else {
-      await supabase
+      const subUpd = await supabase
         .from("subscriptions")
         .update({
           status: "active",
           current_period_end: calculateNextPeriodEnd(new Date(invoice.period_start)).toISOString(),
         })
         .eq("organization_id", invoice.organization_id);
+      if ((subUpd as { error?: unknown }).error) {
+        console.error(
+          "[webhook wompi] subscriptions update failed",
+          (subUpd as { error: unknown }).error
+        );
+        return NextResponse.json({ error: "db error" }, { status: 500 });
+      }
     }
 
     fireDianEmitJob(invoice.id).catch((e) => console.error("[dian-emit-job]", e));
@@ -146,22 +214,31 @@ export async function POST(req: Request) {
       (e) => console.error("[email]", e)
     );
   } else if (tx.status === "DECLINED" || tx.status === "ERROR" || tx.status === "VOIDED") {
-    await supabase
+    const invUpd = await supabase
       .from("invoices")
       .update({ status: "failed", retry_count: (invoice.retry_count ?? 0) + 1 })
       .eq("id", invoice.id);
-    await supabase
+    if ((invUpd as { error?: unknown }).error) {
+      console.error("[webhook wompi] invoices update failed", (invUpd as { error: unknown }).error);
+      return NextResponse.json({ error: "db error" }, { status: 500 });
+    }
+    const subUpd = await supabase
       .from("subscriptions")
       .update({ status: "past_due" })
       .eq("organization_id", invoice.organization_id);
+    if ((subUpd as { error?: unknown }).error) {
+      console.error(
+        "[webhook wompi] subscriptions update failed",
+        (subUpd as { error: unknown }).error
+      );
+      return NextResponse.json({ error: "db error" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ ok: true });
 }
 
-function mapStatus(
-  wompiStatus: string
-): "pending" | "approved" | "declined" | "error" | "refunded" {
+function mapStatus(wompiStatus: string): PaymentStatus {
   switch (wompiStatus) {
     case "APPROVED":
       return "approved";
