@@ -24,8 +24,13 @@ export async function getProvider(orgId: string): Promise<BillingProvider> {
   if (!data || !data.is_active) return new ManualProvider();
 
   switch (data.provider as DianProviderName) {
-    case "alegra":
-      return new AlegraProvider(decryptCreds(data.config as unknown as string));
+    case "alegra": {
+      const creds = decryptCreds(data.config as unknown as string);
+      return new AlegraProvider({
+        api_key: creds.api_key ?? "",
+        email_user: creds.email_user ?? "",
+      });
+    }
     case "manual":
       return new ManualProvider();
     default:
