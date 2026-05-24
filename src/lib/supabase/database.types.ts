@@ -1780,6 +1780,38 @@ export type Database = {
           },
         ]
       }
+      sent_reminders: {
+        Row: {
+          days_offset: number
+          id: string
+          organization_id: string
+          sent_at: string | null
+          template: string
+        }
+        Insert: {
+          days_offset: number
+          id?: string
+          organization_id: string
+          sent_at?: string | null
+          template: string
+        }
+        Update: {
+          days_offset?: number
+          id?: string
+          organization_id?: string
+          sent_at?: string | null
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sent_reminders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_swap_requests: {
         Row: {
           created_at: string

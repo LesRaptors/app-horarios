@@ -4,6 +4,7 @@ import { verifyWompiWebhook, type WompiWebhookPayload } from "@/lib/billing/womp
 import { getTransaction } from "@/lib/billing/wompi/client";
 import { calculateNextPeriodEnd } from "@/lib/billing/engine";
 import { enqueueDianEmitJob } from "@/lib/billing/dian-emit-job";
+import { sendBillingEmailToOrg } from "@/lib/emails/send-billing-emails";
 
 export const runtime = "nodejs";
 
@@ -211,7 +212,7 @@ export async function POST(req: Request) {
     }
 
     enqueueDianEmitJob(invoice.id).catch((e) => console.error("[dian-emit-job]", e));
-    fireBillingEmail("payment-confirmed", invoice.organization_id, { invoiceId: invoice.id }).catch(
+    sendBillingEmailToOrg("payment-confirmed", invoice.organization_id, { invoicePdfUrl: (invoice as unknown as Record<string, unknown>).dian_pdf_url ?? null }).catch(
       (e) => console.error("[email]", e)
     );
   } else if (tx.status === "DECLINED" || tx.status === "ERROR" || tx.status === "VOIDED") {
@@ -252,12 +253,4 @@ function mapStatus(wompiStatus: string): PaymentStatus {
     default:
       return "pending";
   }
-}
-
-async function fireBillingEmail(
-  _template: string,
-  _orgId: string,
-  _data: unknown
-): Promise<void> {
-  /* Task 18 */
 }

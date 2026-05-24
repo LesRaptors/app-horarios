@@ -11,6 +11,7 @@ const verifyWompiWebhookMock = vi.fn();
 const getTransactionMock = vi.fn();
 const createAdminClientMock = vi.fn();
 const enqueueDianEmitJobMock = vi.fn();
+const sendBillingEmailToOrgMock = vi.fn();
 
 vi.mock("@/lib/billing/wompi/webhook-verify", () => ({
   verifyWompiWebhook: (...args: unknown[]) => verifyWompiWebhookMock(...args),
@@ -26,6 +27,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/billing/dian-emit-job", () => ({
   enqueueDianEmitJob: (...args: unknown[]) => enqueueDianEmitJobMock(...args),
+}));
+
+vi.mock("@/lib/emails/send-billing-emails", () => ({
+  sendBillingEmailToOrg: (...args: unknown[]) => sendBillingEmailToOrgMock(...args),
 }));
 
 /**
@@ -148,6 +153,8 @@ beforeEach(() => {
   createAdminClientMock.mockReset();
   enqueueDianEmitJobMock.mockReset();
   enqueueDianEmitJobMock.mockResolvedValue(undefined);
+  sendBillingEmailToOrgMock.mockReset();
+  sendBillingEmailToOrgMock.mockResolvedValue(undefined);
   process.env.WOMPI_EVENTS_SECRET = "test-secret";
   // Reset module cache so re-importing ./route picks up fresh mocks
   vi.resetModules();
