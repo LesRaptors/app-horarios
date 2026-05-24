@@ -3,6 +3,8 @@ import { getProvider } from "./providers";
 
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000];
 const MAX_ATTEMPTS = 3;
+/** Tiempo tras el que un job en estado 'processing' se considera huérfano y se reintenta. */
+const STALE_PROCESSING_MS = 10 * 60_000; // buffer > duración máx. de cron en Vercel
 
 /**
  * Encola una factura para emisión DIAN asíncrona.
@@ -17,6 +19,11 @@ export async function enqueueDianEmitJob(invoiceId: string): Promise<void> {
  * Procesa los trabajos pendientes de emisión DIAN.
  * Diseñado para ejecutarse desde un cron (máx. 10 jobs por run).
  * Implementa backoff exponencial con hasta MAX_ATTEMPTS reintentos.
+ *
+ * Recupera también jobs en estado 'processing' que llevan más de
+ * STALE_PROCESSING_MS sin actualizarse (huérfanos por crash o timeout).
+ * El budget de reintentos se preserva porque attempt_count sólo se
+ * incrementa en el bloque catch, no al marcar 'processing'.
  */
 export async function processDianEmitJobs(): Promise<{
   processed: number;
@@ -24,12 +31,16 @@ export async function processDianEmitJobs(): Promise<{
   failed: number;
 }> {
   const supabase = createAdminClient();
+  const nowIso = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
 
   const { data: jobs } = await supabase
     .from("dian_emit_jobs")
     .select("*")
-    .in("status", ["pending"])
-    .lte("next_attempt_at", new Date().toISOString())
+    .or(
+      `and(status.eq.pending,next_attempt_at.lte.${nowIso}),` +
+      `and(status.eq.processing,updated_at.lte.${staleBefore})`
+    )
     .limit(10);
 
   let succeeded = 0;
@@ -106,7 +117,8 @@ export async function processDianEmitJobs(): Promise<{
       if (isMaxed) {
         console.error(
           "[dian-emit-job] max attempts reached for invoice",
-          job.invoice_id
+          job.invoice_id,
+          errMsg
         );
       }
     }

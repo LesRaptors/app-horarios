@@ -63,6 +63,10 @@ function makeSupabaseMock(responses: Record<string, TableResponses>) {
       chain.neq = passThrough("neq");
       chain.in = passThrough("in");
       chain.lte = passThrough("lte");
+      chain.or = (filter: string) => {
+        current.filters["or"] = filter; // PostgREST logical-operator nesting
+        return chain;
+      };
       chain.limit = (_n: number) => chain;
       chain.select = (_cols?: string) => chain;
 
@@ -368,10 +372,11 @@ describe("processDianEmitJobs", () => {
     expect(finalPayload.status).toBe("failed");
     expect(finalPayload.attempt_count).toBe(3);
 
-    // console.error debe haberse llamado con el mensaje esperado
+    // console.error debe haberse llamado con el mensaje esperado (incluye errMsg)
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "[dian-emit-job] max attempts reached for invoice",
-      "inv-fail-3"
+      "inv-fail-3",
+      "error definitivo"
     );
 
     consoleErrorSpy.mockRestore();
@@ -455,5 +460,74 @@ describe("processDianEmitJobs", () => {
     const ops = supabase.__ops;
     const invoiceUpdate = ops.find((o) => o.table === "invoices" && o.op === "update");
     expect((invoiceUpdate!.payload as Record<string, unknown>).dian_status).toBe("pending");
+  });
+
+  it("9. el filtro de selección incluye jobs pending vencidos y processing huérfanos (>10min)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+
+    const supabase = makeSupabaseMock({
+      dian_emit_jobs: { select: { data: [], error: null } },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const { processDianEmitJobs } = await loadModule();
+    await processDianEmitJobs();
+
+    const selectOp = supabase.__ops.find((o) => o.table === "dian_emit_jobs" && o.op === "select");
+    expect(selectOp).toBeDefined();
+    const orFilter = selectOp!.filters["or"] as string;
+
+    const nowIso = FIXED_NOW.toISOString();
+    const staleBefore = new Date(FIXED_NOW.getTime() - 10 * 60_000).toISOString();
+    // Cláusula 1: pending cuyo next_attempt_at ya venció
+    expect(orFilter).toContain(`and(status.eq.pending,next_attempt_at.lte.${nowIso})`);
+    // Cláusula 2: processing huérfano (updated_at más viejo que el buffer de 10min)
+    expect(orFilter).toContain(`and(status.eq.processing,updated_at.lte.${staleBefore})`);
+  });
+
+  it("10. un job processing huérfano devuelto por el query se reprocesa por el happy path (preserva attempt_count)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+
+    // Job que quedó atascado en 'processing' (crash previo). attempt_count sigue en 0.
+    const staleJob = {
+      id: "job-stale",
+      invoice_id: "inv-stale",
+      status: "processing",
+      attempt_count: 0,
+      next_attempt_at: new Date(FIXED_NOW.getTime() - 60_000).toISOString(),
+    };
+    const invoice = { id: "inv-stale", organization_id: "org-stale" };
+    const org = { id: "org-stale", name: "Stale Org" };
+
+    const supabase = makeSupabaseMock({
+      dian_emit_jobs: {
+        select: { data: [staleJob], error: null },
+        update: { data: null, error: null },
+      },
+      invoices: {
+        select: { data: invoice, error: null },
+        update: { data: null, error: null },
+      },
+      organizations: { select: { data: org, error: null } },
+      billing_providers: { select: { data: { provider: "alegra" }, error: null } },
+    });
+    createAdminClientMock.mockReturnValue(supabase);
+
+    const provider = makeProvider();
+    getProviderMock.mockResolvedValue(provider);
+
+    const { processDianEmitJobs } = await loadModule();
+    const result = await processDianEmitJobs();
+
+    expect(result).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(provider.emitInvoice).toHaveBeenCalledOnce();
+
+    const jobUpdates = supabase.__ops.filter((o) => o.table === "dian_emit_jobs" && o.op === "update");
+    const succeededUpdate = jobUpdates.find(
+      (u) => (u.payload as Record<string, unknown>).status === "succeeded"
+    );
+    expect(succeededUpdate).toBeDefined();
   });
 });
