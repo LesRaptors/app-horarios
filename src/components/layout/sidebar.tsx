@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useDemoRequestsCount } from "@/hooks/use-demo-requests-count";
 import { isSuperAdmin } from "@/lib/auth/can-manage";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
 import type { UserRole } from "@/lib/types";
@@ -114,6 +115,7 @@ export function Sidebar() {
   }, [payrollActive]);
 
   const showAdminSection = isSuperAdmin((profile?.role ?? null) as UserRole | null);
+  const demoRequestsCount = useDemoRequestsCount(showAdminSection);
 
   const adminActive = adminNavigation.some((item) => pathname.startsWith(item.href));
   const [adminOpen, setAdminOpen] = useState(adminActive);
@@ -122,7 +124,18 @@ export function Sidebar() {
     if (adminActive) setAdminOpen(true);
   }, [adminActive]);
 
-  const renderLink = (item: NavItem) => {
+  const renderBadge = (n: number) =>
+    n > 0 ? (
+      <span
+        role="status"
+        aria-label={`${n} solicitudes pendientes`}
+        className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+      >
+        {n > 99 ? "99+" : n}
+      </span>
+    ) : null;
+
+  const renderLink = (item: NavItem, badge?: React.ReactNode) => {
     const isActive = pathname.startsWith(item.href);
     return (
       <Link
@@ -136,7 +149,8 @@ export function Sidebar() {
         )}
       >
         <item.icon className="h-4 w-4" />
-        {item.name}
+        <span className="flex-1">{item.name}</span>
+        {badge}
       </Link>
     );
   };
@@ -151,7 +165,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav aria-label="Navegación principal" className="flex-1 space-y-1 overflow-y-auto p-4">
-        {filteredTop.map(renderLink)}
+        {filteredTop.map((item) => renderLink(item))}
 
         {filteredPayroll.length > 0 && (
           <>
@@ -173,7 +187,7 @@ export function Sidebar() {
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-1 space-y-1 pl-3">
-                {filteredPayroll.map(renderLink)}
+                {filteredPayroll.map((item) => renderLink(item))}
               </CollapsibleContent>
             </Collapsible>
           </>
@@ -191,6 +205,7 @@ export function Sidebar() {
               >
                 <ShieldCheck className="h-4 w-4" />
                 <span className="flex-1 text-left">Admin SaaS</span>
+                {renderBadge(demoRequestsCount)}
                 <ChevronDown
                   className={cn(
                     "h-4 w-4 transition-transform",
@@ -199,7 +214,14 @@ export function Sidebar() {
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-1 space-y-1 pl-3">
-                {adminNavigation.map(renderLink)}
+                {adminNavigation.map((item) =>
+                  renderLink(
+                    item,
+                    item.href === "/admin/demo-requests"
+                      ? renderBadge(demoRequestsCount)
+                      : undefined
+                  )
+                )}
               </CollapsibleContent>
             </Collapsible>
           </>
@@ -225,7 +247,7 @@ export function Sidebar() {
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-1 space-y-1 pl-3">
-                {filteredConfig.map(renderLink)}
+                {filteredConfig.map((item) => renderLink(item))}
               </CollapsibleContent>
             </Collapsible>
           </>
