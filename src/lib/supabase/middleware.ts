@@ -117,10 +117,13 @@ export async function updateSession(request: NextRequest) {
   } | null = null;
 
   if (user) {
+    // FK explícita evita PGRST201: hay dos relaciones profiles↔organizations
+    // (profiles_org_fk + organizations_approved_by_fkey desde migration 042).
+    // Sin disambiguar, .maybeSingle silenciosamente cae a null → R5/R6/R7 NO disparan.
     const { data } = await supabase
       .from("profiles")
       .select(
-        "role, organization_id, organizations(slug, onboarding_completed_at, onboarding_step)"
+        "role, organization_id, organizations!profiles_org_fk(slug, onboarding_completed_at, onboarding_step)"
       )
       .eq("id", user.id)
       .maybeSingle();
