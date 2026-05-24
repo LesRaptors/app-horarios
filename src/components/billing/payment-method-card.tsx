@@ -17,7 +17,7 @@ interface PaymentMethodsResponse {
   data: PaymentMethod[];
 }
 
-export function PaymentMethodCard() {
+export function PaymentMethodCard({ planId = "" }: { planId?: string }) {
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -86,9 +86,8 @@ export function PaymentMethodCard() {
           <p className="text-sm text-muted-foreground">
             Agrega una tarjeta para activar o renovar tu suscripción.
           </p>
-          {/* planId vacío — la página de facturación debe pasar el plan correcto;
-              aquí usamos un placeholder para el flujo de "agregar primera tarjeta" */}
-          <WompiWidgetButton planId="" label="Agregar tarjeta" />
+          {/* planId viene de la página de facturación (plan actual de la org) */}
+          <WompiWidgetButton planId={planId} label="Agregar tarjeta" />
         </CardContent>
       </Card>
     );
@@ -120,7 +119,7 @@ export function PaymentMethodCard() {
         </div>
 
         <div className="flex gap-2">
-          <WompiWidgetButton planId="" label="Cambiar tarjeta" />
+          <WompiWidgetButton planId={planId} label="Cambiar tarjeta" />
           <Button
             variant="outline"
             size="icon"
