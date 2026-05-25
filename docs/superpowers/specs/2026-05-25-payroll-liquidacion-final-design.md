@@ -29,9 +29,10 @@ El admin puede:
 | # | Decisión | Razón |
 |---|----------|-------|
 | D1 | **Cubre todos los motivos** de terminación (renuncia, mutuo acuerdo, justa causa, sin justa causa, fin de contrato) | El admin elige; la indemnización se calcula solo en `sin_justa_causa`, 0 en los demás (con warning). |
-| D2 | **Cálculo legal por períodos con fechas de corte** (no provisiones acumuladas) | Legalmente exacto. El admin ingresa `cesantias_cutoff` y días de vacaciones pendientes que el sistema no tiene. |
+| D2 | **Cálculo legal por períodos con fechas de corte** (no provisiones acumuladas) | Legalmente exacto. El admin ingresa `cesantias_cutoff` y `vacations_cutoff` (último disfrute) que el sistema no tiene. |
 | D3 | **Tipo de contrato + fecha fin en el formulario** (no en `profiles`) | Cero cambios al schema de empleados; consistente con las fechas de corte. |
 | D4 | **Base = último salario** de `salary_history` + override manual para variables | Correcto para salario fijo (mayoría); evita la complejidad de promediar variables. |
+| D8 | **El motor propone los días proporcionales de vacaciones** (desde `vacations_cutoff`), editable | Punto de partida útil para el admin: 15 días hábiles/año proporcional al tiempo desde el último disfrute. El admin ajusta si tomó días sueltos. |
 | D5 | **Tabla dedicada `liquidations`** + PDF | Una liquidación es un evento único por empleado, no encaja en `payroll_periods` (período-mensual-de-todos). |
 | D6 | **Cifras leídas de `payroll_settings`** vigente a `termination_date` | SMMLV/auxilio/UVT nunca hardcoded; el motor mensual ya tiene la tabla 2026 con la reforma. |
 | D7 | **Errors/warnings persistidos desde el inicio** (columnas jsonb) | Lección aprendida del motor mensual: no mostrar errores es un bug. |
@@ -62,7 +63,8 @@ Verificado mayo 2026 contra el texto de la **Ley 2466 de 2025** (Función Públi
 | `contract_end_date` | date NULL | requerido si `fijo`/`obra_labor` (validado en motor) |
 | `hire_date` | date NOT NULL | default `profiles.hire_date`, editable |
 | `cesantias_cutoff` | date NOT NULL | desde cuándo se deben cesantías |
-| `vacation_days_pending` | numeric(6,2) NOT NULL DEFAULT 0 | días pendientes (input admin) |
+| `vacations_cutoff` | date NOT NULL | último disfrute de vacaciones (o `hire_date` si nunca tomó) |
+| `vacation_days_pending` | numeric(6,2) NOT NULL DEFAULT 0 | días finales usados; prefill = proporcional desde `vacations_cutoff`, editable |
 | `base_salary` | numeric(12,2) NOT NULL | último salario; editable |
 | `status` | text NOT NULL CHECK IN ('draft','approved','paid') DEFAULT 'draft' | |
 | `compute_errors` | jsonb NOT NULL DEFAULT '[]' | |
@@ -88,11 +90,16 @@ interface LiquidacionInput {
   reason: 'renuncia'|'mutuo_acuerdo'|'justa_causa'|'sin_justa_causa'|'fin_contrato';
   contract_kind: 'indefinido'|'fijo'|'obra_labor';
   contract_end_date: string | null;
-  cesantias_cutoff: string; vacation_days_pending: number;
+  cesantias_cutoff: string; vacations_cutoff: string;
+  vacation_days_pending: number; // valor final (admin); el form lo prefill con suggestVacationDays()
   base_salary: number; is_integral_salary: boolean;
   settings: PayrollSettings; // vigente a termination_date (smmlv, aux_transport)
 }
 interface LiquidacionOutput { items: ComputedItem[]; total: number; errors: string[]; warnings: string[]; }
+
+// Helper puro reutilizado por el form para prefill (editable):
+// suggestVacationDays(vacations_cutoff, termination_date) = díasEntre(cutoff, term) × 15 / 360
+export function suggestVacationDays(cutoff: string, termination: string): number;
 ```
 
 ### Bases salariales (DIFERENCIADAS — error legal si se unifican)
@@ -104,7 +111,7 @@ interface LiquidacionOutput { items: ComputedItem[]; total: number; errors: stri
 1. **Cesantías** = `baseConAux × díasEntre(cesantias_cutoff, termination_date) / 360`
 2. **Intereses cesantías** = `cesantías × díasCesantías × 0.12 / 360`
 3. **Prima** = `baseConAux × díasDelSemestreActual / 360` (semestre: ene–jun o jul–dic que contiene `termination_date`, desde el inicio del semestre o `hire_date` si entró después)
-4. **Vacaciones** = `(baseSinAux / 30) × vacation_days_pending`
+4. **Vacaciones** = `(baseSinAux / 30) × vacation_days_pending`. El form prefill `vacation_days_pending` con `suggestVacationDays(vacations_cutoff, termination_date)` = `díasEntre × 15 / 360` (15 días hábiles/año proporcional), editable por el admin.
 5. **Indemnización** (solo `sin_justa_causa`; demás motivos → 0 + warning):
    - **Indefinido, base < 10×SMMLV:** 30 días por el 1er año + 20 días por año adicional, **proporcional por fracción** en la parte adicional.
    - **Indefinido, base ≥ 10×SMMLV:** 20 días + 15 por año adicional (proporcional).
@@ -113,7 +120,7 @@ interface LiquidacionOutput { items: ComputedItem[]; total: number; errors: stri
    - Valor del día indemnización = `baseSinAux / 30`.
 
 ### Errors (bloquean aprobar) vs Warnings
-**Errors:** sin `salary_history`/`base_salary`; `contract_kind` fijo/obra o `reason=fin_contrato` sin `contract_end_date`; `termination_date < hire_date`; `cesantias_cutoff > termination_date`; `vacation_days_pending < 0`.
+**Errors:** sin `salary_history`/`base_salary`; `contract_kind` fijo/obra o `reason=fin_contrato` sin `contract_end_date`; `termination_date < hire_date`; `cesantias_cutoff > termination_date`; `vacations_cutoff > termination_date`; `vacation_days_pending < 0`.
 **Warnings:** indemnización 0 por motivo ≠ sin_justa_causa; recordatorio de revisar indemnización moratoria (Art. 65) si el pago se demora; recordatorio de cesantías consignadas a fondo (descontar si ya se consignaron).
 
 ### Persistencia (builder `assembleLiquidacion`)
@@ -124,7 +131,7 @@ Async: lee settings vigente, llama `computeLiquidacion`, inserta `liquidation_it
 ## 6. UI
 
 - **`/nomina/liquidaciones`** (admin): lista (empleado, fecha terminación, motivo badge, total, estado) + filtros (año, estado) + "Nueva liquidación".
-- **Modal "Nueva liquidación"**: select empleado → prellena `hire_date` + `base_salary` (editables) → motivo, `contract_kind` (+ `contract_end_date` condicional), `cesantias_cutoff`, `vacation_days_pending` → "Calcular preview" → crea `draft` + redirige.
+- **Modal "Nueva liquidación"**: select empleado → prellena `hire_date` + `base_salary` (editables) → motivo, `contract_kind` (+ `contract_end_date` condicional), `cesantias_cutoff`, `vacations_cutoff` → al ingresar `vacations_cutoff` el form prefill `vacation_days_pending` con `suggestVacationDays(...)` (editable) → "Calcular preview" → crea `draft` + redirige.
 - **`/nomina/liquidaciones/[id]`**: desglose por concepto (base/días/monto), total, panel errores/warnings (patrón período), tab ajustes manuales, botones por estado (`draft`: recalcular/aprobar [bloqueado con errores]; `approved`: reabrir/marcar pagado; `paid`: solo lectura), "Descargar PDF".
 - **PDF** (`jspdf`/`jspdf-autotable`): membrete org, datos empleado, período laborado, tabla de conceptos, total, espacio de firma.
 - **Sidebar**: item "Liquidaciones" bajo grupo Nómina (admin/super_admin).
@@ -151,6 +158,7 @@ Async: lee settings vigente, llama `computeLiquidacion`, inserta `liquidation_it
 **Vitest** (`src/lib/liquidacion-engine.test.ts`) con vectores del research:
 - Indemnización: indefinido <10 SMMLV (30+20 proporcional), indefinido ≥10 SMMLV (20+15), fijo (tiempo restante), obra (mínimo 15 días), renuncia (0).
 - Cesantías/intereses/prima/vacaciones proporcionales con base correcta (con/sin auxilio).
+- `suggestVacationDays`: 1 año completo → 15 días; medio año → 7.5; cutoff = termination → 0.
 - Salario integral (sin cesantías/prima).
 - Errors: sin salario, fechas inválidas, contract_end_date faltante.
 
