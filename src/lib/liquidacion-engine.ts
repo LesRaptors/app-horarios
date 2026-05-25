@@ -95,6 +95,42 @@ export function computeLiquidacion(input: LiquidacionInput): LiquidacionOutput {
     description: `Vacaciones ${input.vacation_days_pending} días pendientes`,
   });
 
+  // 5. Indemnización por despido sin justa causa (Art. 64 CST)
+  const diaIndem = baseSinAux / 30;
+  if (input.reason === "sin_justa_causa") {
+    let diasIndem = 0;
+    if (input.contract_kind === "fijo") {
+      const diasRestantes = input.contract_end_date
+        ? days360(input.termination_date, input.contract_end_date)
+        : 0;
+      diasIndem = diasRestantes; // valor = baseSinAux × días/30 = diaIndem × días
+    } else if (input.contract_kind === "obra_labor") {
+      diasIndem = 15; // V1: mínimo legal; no se estima duración de la obra
+      warnings.push(
+        "Contrato de obra/labor: se aplicó el mínimo de 15 días. Verifique el tiempo restante estimado de la obra y ajuste con override manual si corresponde."
+      );
+    } else {
+      // indefinido
+      const aniosServicio = days360(input.hire_date, input.termination_date) / 360;
+      const altaRenta = baseSinAux >= 10 * smmlv;
+      const baseDias = altaRenta ? 20 : 30;
+      const adicional = altaRenta ? 15 : 20;
+      diasIndem =
+        aniosServicio <= 1 ? baseDias : baseDias + adicional * (aniosServicio - 1);
+    }
+    items.push({
+      concept: "indemnizacion",
+      base: baseSinAux,
+      days: Math.round(diasIndem),
+      amount: round(diaIndem * diasIndem),
+      description: `Indemnización (${input.contract_kind}, sin justa causa)`,
+    });
+  } else {
+    warnings.push(
+      `No se calcula indemnización: el motivo de terminación es "${input.reason}" (la indemnización del Art. 64 solo aplica a despido sin justa causa).`
+    );
+  }
+
   const total = items.reduce((acc, i) => acc + i.amount, 0);
   return { items, total, errors, warnings };
 }

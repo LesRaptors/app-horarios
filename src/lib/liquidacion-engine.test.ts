@@ -105,3 +105,55 @@ describe("computeLiquidacion — prestaciones (renuncia, sin indemnización)", (
     expect(out.total).toBe(sum);
   });
 });
+
+describe("computeLiquidacion — indemnización (Art. 64)", () => {
+  it("indefinido <10 SMMLV, 2 años, sin justa causa → 30 + 20 días", () => {
+    const out = computeLiquidacion(
+      baseInput({ reason: "sin_justa_causa", base_salary: 2_000_000 })
+    );
+    // años = días360(2024-04-01,2026-04-01)/360 = 720/360 = 2 → 30 + 20×1 = 50 días
+    // valor día = 2.000.000/30 = 66.666,67 ; 50 × = 3.333.333,33 → 3.333.333
+    expect(item(out, "indemnizacion")!.days).toBe(50);
+    expect(item(out, "indemnizacion")!.amount).toBe(3_333_333);
+  });
+
+  it("indefinido ≥10 SMMLV (20M), 2 años → 20 + 15 días", () => {
+    const out = computeLiquidacion(
+      baseInput({ reason: "sin_justa_causa", base_salary: 20_000_000 })
+    );
+    // 20 + 15×1 = 35 días ; valor día = 20.000.000/30 ; 35 × = 23.333.333,33 → 23.333.333
+    expect(item(out, "indemnizacion")!.days).toBe(35);
+    expect(item(out, "indemnizacion")!.amount).toBe(23_333_333);
+  });
+
+  it("fijo → salarios del tiempo restante hasta contract_end_date", () => {
+    const out = computeLiquidacion(
+      baseInput({
+        reason: "sin_justa_causa",
+        contract_kind: "fijo",
+        contract_end_date: "2026-10-01",
+      })
+    );
+    // díasRestantes = días360(2026-04-01,2026-10-01)=180 ; 2.000.000 × 180/30 = 12.000.000
+    expect(item(out, "indemnizacion")!.amount).toBe(12_000_000);
+  });
+
+  it("obra/labor → mínimo 15 días + warning", () => {
+    const out = computeLiquidacion(
+      baseInput({
+        reason: "sin_justa_causa",
+        contract_kind: "obra_labor",
+        contract_end_date: "2026-12-01",
+      })
+    );
+    // 2.000.000/30 × 15 = 1.000.000
+    expect(item(out, "indemnizacion")!.amount).toBe(1_000_000);
+    expect(out.warnings.some((w) => w.includes("obra"))).toBe(true);
+  });
+
+  it("renuncia → sin item de indemnización + warning", () => {
+    const out = computeLiquidacion(baseInput({ reason: "renuncia" }));
+    expect(item(out, "indemnizacion")).toBeUndefined();
+    expect(out.warnings.some((w) => w.includes("indemnización"))).toBe(true);
+  });
+});
