@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { days360, suggestVacationDays } from "./liquidacion-engine";
-import { computeLiquidacion } from "./liquidacion-engine";
+import { days360, suggestVacationDays, computeLiquidacion } from "./liquidacion-engine";
 import type { LiquidacionInput, PayrollSettings } from "./types";
 
 describe("days360 (convención 360 días)", () => {
@@ -117,6 +116,20 @@ describe("computeLiquidacion — indemnización (Art. 64)", () => {
     expect(item(out, "indemnizacion")!.amount).toBe(3_333_333);
   });
 
+  it("indefinido <10 SMMLV, 8 meses (<1 año) → piso de 30 días sin prorrateo", () => {
+    const out = computeLiquidacion(
+      baseInput({
+        reason: "sin_justa_causa",
+        hire_date: "2025-08-01",
+        termination_date: "2026-04-01",
+      })
+    );
+    // días360(2025-08-01,2026-04-01)=240 → 0,667 años ≤1 → 30 días
+    // 2.000.000/30 × 30 = 2.000.000
+    expect(item(out, "indemnizacion")!.days).toBe(30);
+    expect(item(out, "indemnizacion")!.amount).toBe(2_000_000);
+  });
+
   it("indefinido ≥10 SMMLV (20M), 2 años → 20 + 15 días", () => {
     const out = computeLiquidacion(
       baseInput({ reason: "sin_justa_causa", base_salary: 20_000_000 })
@@ -169,6 +182,17 @@ describe("computeLiquidacion — errors y warnings", () => {
       baseInput({ contract_kind: "fijo", contract_end_date: null })
     );
     expect(out.errors.some((e) => e.includes("fecha de finalización"))).toBe(true);
+  });
+
+  it("fijo con contract_end_date anterior a termination_date → error", () => {
+    const out = computeLiquidacion(
+      baseInput({
+        reason: "sin_justa_causa",
+        contract_kind: "fijo",
+        contract_end_date: "2026-01-01", // anterior a termination 2026-04-01
+      })
+    );
+    expect(out.errors.some((e) => e.includes("anterior a la fecha de terminación"))).toBe(true);
   });
 
   it("termination_date < hire_date → error", () => {

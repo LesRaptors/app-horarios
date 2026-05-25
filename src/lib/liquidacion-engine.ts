@@ -15,6 +15,8 @@ export function days360(from: string, to: string): number {
   const [y2, m2, d2raw] = to.split("-").map(Number);
   const d1 = Math.min(d1raw, 30);
   const d2 = Math.min(d2raw, 30);
+  // Variante simplificada (clamp ambos a 30), no la regla US/NASD de fin de mes.
+  // En esta app los cortes suelen caer en día 1, donde ambas coinciden.
   return (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
 }
 
@@ -65,6 +67,15 @@ export function computeLiquidacion(input: LiquidacionInput): LiquidacionOutput {
   if (needsEndDate && !input.contract_end_date) {
     errors.push(
       "Falta la fecha de finalización del contrato (requerida para contrato fijo/obra o motivo fin de contrato)."
+    );
+  }
+  if (
+    input.contract_kind === "fijo" &&
+    input.contract_end_date &&
+    input.contract_end_date < input.termination_date
+  ) {
+    errors.push(
+      "La fecha de finalización del contrato es anterior a la fecha de terminación."
     );
   }
   if (errors.length > 0) {
