@@ -90,17 +90,13 @@ export default function PeriodoDetallePage() {
     const fetchedEntries: PayrollEntry[] = entriesData ?? [];
     const fetchedCosts: PayrollEmployerCost[] = costsData ?? [];
 
-    // Derive errors/warnings from entries description field conventions
-    // (engine stores "ERROR:" and "WARNING:" prefixed descriptions in entries with amount=0)
-    const hardErrors: string[] = [];
-    const softWarnings: string[] = [];
-    for (const e of fetchedEntries) {
-      if (e.description?.startsWith("ERROR:")) {
-        hardErrors.push(e.description.replace("ERROR:", "").trim());
-      } else if (e.description?.startsWith("WARNING:")) {
-        softWarnings.push(e.description.replace("WARNING:", "").trim());
-      }
-    }
+    // Errores/advertencias del motor, persistidos por el builder en el período.
+    const hardErrors: string[] = Array.isArray(periodData.compute_errors)
+      ? (periodData.compute_errors as string[])
+      : [];
+    const softWarnings: string[] = Array.isArray(periodData.compute_warnings)
+      ? (periodData.compute_warnings as string[])
+      : [];
 
     // Narrow employees to those actually present in entries for this period
     const employeeIdsInPeriod = new Set(fetchedEntries.map((e) => e.employee_id));

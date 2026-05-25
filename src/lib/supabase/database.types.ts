@@ -1132,6 +1132,8 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          compute_errors: Json
+          compute_warnings: Json
           created_at: string
           frequency: string
           id: string
@@ -1146,6 +1148,8 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          compute_errors?: Json
+          compute_warnings?: Json
           created_at?: string
           frequency: string
           id?: string
@@ -1160,6 +1164,8 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          compute_errors?: Json
+          compute_warnings?: Json
           created_at?: string
           frequency?: string
           id?: string
