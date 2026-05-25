@@ -42,6 +42,35 @@ export function computeLiquidacion(input: LiquidacionInput): LiquidacionOutput {
   const errors: string[] = [];
   const warnings: string[] = [];
 
+  // ── Validaciones que bloquean la aprobación ──────────────────
+  if (input.base_salary <= 0) {
+    errors.push("Empleado sin salario vigente: no se puede calcular la liquidación.");
+  }
+  if (input.termination_date < input.hire_date) {
+    errors.push("La fecha de terminación es anterior a la fecha de ingreso.");
+  }
+  if (input.cesantias_cutoff > input.termination_date) {
+    errors.push("El corte de cesantías es posterior a la fecha de terminación.");
+  }
+  if (input.vacations_cutoff > input.termination_date) {
+    errors.push("El corte de vacaciones es posterior a la fecha de terminación.");
+  }
+  if (input.vacation_days_pending < 0) {
+    errors.push("Los días de vacaciones pendientes no pueden ser negativos.");
+  }
+  const needsEndDate =
+    input.contract_kind === "fijo" ||
+    input.contract_kind === "obra_labor" ||
+    input.reason === "fin_contrato";
+  if (needsEndDate && !input.contract_end_date) {
+    errors.push(
+      "Falta la fecha de finalización del contrato (requerida para contrato fijo/obra o motivo fin de contrato)."
+    );
+  }
+  if (errors.length > 0) {
+    return { items: [], total: 0, errors, warnings };
+  }
+
   const smmlv = input.settings.smmlv;
   const aux = input.settings.aux_transport;
 
@@ -130,6 +159,18 @@ export function computeLiquidacion(input: LiquidacionInput): LiquidacionOutput {
       `No se calcula indemnización: el motivo de terminación es "${input.reason}" (la indemnización del Art. 64 solo aplica a despido sin justa causa).`
     );
   }
+
+  if (input.is_integral_salary) {
+    warnings.push(
+      "Salario integral: no genera cesantías ni prima (van incluidas en el salario)."
+    );
+  }
+  warnings.push(
+    "Recordatorio: descuente las cesantías ya consignadas al fondo. Si el corte de cesantías está bien definido, el cálculo ya refleja solo lo pendiente."
+  );
+  warnings.push(
+    "Recordatorio: si el pago de la liquidación se demora, puede causarse indemnización moratoria (Art. 65 CST). Este motor no la calcula."
+  );
 
   const total = items.reduce((acc, i) => acc + i.amount, 0);
   return { items, total, errors, warnings };

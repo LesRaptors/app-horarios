@@ -157,3 +157,53 @@ describe("computeLiquidacion — indemnización (Art. 64)", () => {
     expect(out.warnings.some((w) => w.includes("indemnización"))).toBe(true);
   });
 });
+
+describe("computeLiquidacion — errors y warnings", () => {
+  it("base_salary <= 0 → error", () => {
+    const out = computeLiquidacion(baseInput({ base_salary: 0 }));
+    expect(out.errors.some((e) => e.includes("salario"))).toBe(true);
+  });
+
+  it("fijo sin contract_end_date → error", () => {
+    const out = computeLiquidacion(
+      baseInput({ contract_kind: "fijo", contract_end_date: null })
+    );
+    expect(out.errors.some((e) => e.includes("fecha de finalización"))).toBe(true);
+  });
+
+  it("termination_date < hire_date → error", () => {
+    const out = computeLiquidacion(
+      baseInput({ hire_date: "2026-05-01", termination_date: "2026-04-01" })
+    );
+    expect(out.errors.some((e) => e.includes("anterior a la fecha de ingreso"))).toBe(
+      true
+    );
+  });
+
+  it("cesantias_cutoff > termination_date → error", () => {
+    const out = computeLiquidacion(
+      baseInput({ cesantias_cutoff: "2026-05-01", termination_date: "2026-04-01" })
+    );
+    expect(out.errors.some((e) => e.includes("corte de cesantías"))).toBe(true);
+  });
+
+  it("vacation_days_pending < 0 → error", () => {
+    const out = computeLiquidacion(baseInput({ vacation_days_pending: -1 }));
+    expect(out.errors.some((e) => e.includes("días de vacaciones"))).toBe(true);
+  });
+
+  it("siempre emite recordatorio de cesantías consignadas a fondo", () => {
+    const out = computeLiquidacion(baseInput());
+    expect(out.warnings.some((w) => w.includes("consignad"))).toBe(true);
+  });
+
+  it("salario integral (25M ≥13 SMMLV): sin cesantías ni prima, sí vacaciones", () => {
+    const out = computeLiquidacion(
+      baseInput({ base_salary: 25_000_000, is_integral_salary: true, vacation_days_pending: 15 })
+    );
+    expect(item(out, "cesantias")).toBeUndefined();
+    expect(item(out, "prima")).toBeUndefined();
+    expect(item(out, "vacaciones")).toBeDefined();
+    expect(out.warnings.some((w) => w.includes("integral"))).toBe(true);
+  });
+});
