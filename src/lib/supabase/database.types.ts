@@ -704,6 +704,144 @@ export type Database = {
           },
         ]
       }
+      liquidation_items: {
+        Row: {
+          amount: number
+          base: number | null
+          concept: string
+          created_at: string
+          days: number | null
+          description: string | null
+          id: string
+          is_manual_override: boolean
+          liquidation_id: string
+          organization_id: string
+        }
+        Insert: {
+          amount: number
+          base?: number | null
+          concept: string
+          created_at?: string
+          days?: number | null
+          description?: string | null
+          id?: string
+          is_manual_override?: boolean
+          liquidation_id: string
+          organization_id: string
+        }
+        Update: {
+          amount?: number
+          base?: number | null
+          concept?: string
+          created_at?: string
+          days?: number | null
+          description?: string | null
+          id?: string
+          is_manual_override?: boolean
+          liquidation_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liquidations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          base_salary: number
+          cesantias_cutoff: string
+          compute_errors: Json
+          compute_warnings: Json
+          contract_end_date: string | null
+          contract_kind: string
+          created_at: string
+          employee_id: string
+          hire_date: string
+          id: string
+          organization_id: string
+          paid_at: string | null
+          paid_by: string | null
+          reason: string
+          status: string
+          termination_date: string
+          vacation_days_pending: number
+          vacations_cutoff: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          base_salary: number
+          cesantias_cutoff: string
+          compute_errors?: Json
+          compute_warnings?: Json
+          contract_end_date?: string | null
+          contract_kind: string
+          created_at?: string
+          employee_id: string
+          hire_date: string
+          id?: string
+          organization_id: string
+          paid_at?: string | null
+          paid_by?: string | null
+          reason: string
+          status?: string
+          termination_date: string
+          vacation_days_pending?: number
+          vacations_cutoff: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          base_salary?: number
+          cesantias_cutoff?: string
+          compute_errors?: Json
+          compute_warnings?: Json
+          contract_end_date?: string | null
+          contract_kind?: string
+          created_at?: string
+          employee_id?: string
+          hire_date?: string
+          id?: string
+          organization_id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          reason?: string
+          status?: string
+          termination_date?: string
+          vacation_days_pending?: number
+          vacations_cutoff?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           address: string
