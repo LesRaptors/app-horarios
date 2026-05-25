@@ -326,6 +326,7 @@ export async function assemblePayrollPeriod(
       entriesInsert.push({
         payroll_period_id: periodId,
         employee_id: employee.id,
+        organization_id: employee.organization_id,
         concept_type: entry.concept_type,
         is_income: entry.is_income,
         base: entry.base,
@@ -341,6 +342,7 @@ export async function assemblePayrollPeriod(
       provisionsInsert.push({
         payroll_period_id: periodId,
         employee_id: employee.id,
+        organization_id: employee.organization_id,
         concept: prov.concept,
         base: prov.base,
         rate: prov.rate,
@@ -354,6 +356,7 @@ export async function assemblePayrollPeriod(
     employerCostInsert.push({
       payroll_period_id: periodId,
       employee_id: employee.id,
+      organization_id: employee.organization_id,
       health_employer: ec.health_employer,
       pension_employer: ec.pension_employer,
       arl_employer: ec.arl_employer,
@@ -363,15 +366,20 @@ export async function assemblePayrollPeriod(
     });
   }
 
-  // 6. Batch insert
+  // 6. Batch insert. Captura errores: un fallo (RLS, NOT NULL) NO debe quedar
+  //    silencioso — se reporta en errors[] para que la UI lo muestre y el período
+  //    no quede "vacío sin explicación".
   if (entriesInsert.length > 0) {
-    await supabase.from("payroll_entries").insert(entriesInsert);
+    const { error } = await supabase.from("payroll_entries").insert(entriesInsert);
+    if (error) errors.push(`No se pudieron guardar los conceptos de nómina: ${error.message}`);
   }
   if (provisionsInsert.length > 0) {
-    await supabase.from("payroll_provisions").insert(provisionsInsert);
+    const { error } = await supabase.from("payroll_provisions").insert(provisionsInsert);
+    if (error) errors.push(`No se pudieron guardar las provisiones: ${error.message}`);
   }
   if (employerCostInsert.length > 0) {
-    await supabase.from("payroll_employer_cost").insert(employerCostInsert);
+    const { error } = await supabase.from("payroll_employer_cost").insert(employerCostInsert);
+    if (error) errors.push(`No se pudo guardar el costo empleador: ${error.message}`);
   }
 
   // 7. Belt-and-suspenders: if engine reported "Anticipo de Q1" but structural detection
