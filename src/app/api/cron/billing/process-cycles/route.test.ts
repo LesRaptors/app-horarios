@@ -151,6 +151,7 @@ beforeEach(() => {
   createAdminClientMock.mockReset();
   createTransactionMock.mockReset();
   process.env.CRON_SECRET = "supersecret";
+  process.env.BILLING_ENABLED = "true";
 });
 
 describe("GET /api/cron/billing/process-cycles", () => {
@@ -160,6 +161,15 @@ describe("GET /api/cron/billing/process-cycles", () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
+  });
+
+  it("1b. BILLING_ENABLED != 'true' → no-op { skipped: 'billing disabled' }", async () => {
+    process.env.BILLING_ENABLED = "false";
+    const { GET } = await loadRoute();
+    const res = await GET(makeRequest("Bearer supersecret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.skipped).toBe("billing disabled");
   });
 
   it("2. sin suscripciones vencidas → { processed:0, charged:0, failed:0, declined:0, skipped:0 }", async () => {

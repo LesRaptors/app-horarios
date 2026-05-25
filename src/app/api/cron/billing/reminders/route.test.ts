@@ -165,6 +165,7 @@ beforeEach(() => {
   processDianEmitJobsMock.mockResolvedValue(DIAN_RESULT);
   process.env.CRON_SECRET = "supersecret";
   process.env.NEXT_PUBLIC_SITE_URL = "https://www.tushorarios.com";
+  process.env.BILLING_ENABLED = "true";
 });
 
 describe("GET /api/cron/billing/reminders", () => {
@@ -174,6 +175,16 @@ describe("GET /api/cron/billing/reminders", () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
+  });
+
+  it("1b. BILLING_ENABLED != 'true' → no-op { skipped: 'billing disabled' }, no procesa DIAN", async () => {
+    process.env.BILLING_ENABLED = "false";
+    const { GET } = await loadRoute();
+    const res = await GET(makeRequest("Bearer supersecret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.skipped).toBe("billing disabled");
+    expect(processDianEmitJobsMock).not.toHaveBeenCalled();
   });
 
   it("2. sin suscripciones → devuelve emailsSent vacío + transitions vacío + dianResult; processDianEmitJobs se llama igual", async () => {

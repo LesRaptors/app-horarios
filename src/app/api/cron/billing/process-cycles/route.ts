@@ -33,6 +33,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // Soft launch: con billing OFF el cron es no-op (no cobra ni transiciona orgs).
+  if (process.env.BILLING_ENABLED !== "true") {
+    return NextResponse.json({ skipped: "billing disabled" });
+  }
+
   const supabase = createAdminClient();
   const now = new Date();
 
