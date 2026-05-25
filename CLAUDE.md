@@ -13,6 +13,7 @@ App Horarios is a workforce scheduling system (Spanish UI) for managing employee
 - **Build:** `npm run build`
 - **Lint:** `npm run lint` — Next.js lint (no ESLint config present, will prompt interactively)
 - **Test:** `npm run test` (Vitest; pure-logic only, `src/**/*.test.ts`)
+- **Wompi integration test (opcional):** `src/lib/billing/wompi/__tests__/integration.test.ts` hace llamadas de red reales al sandbox de Wompi. Se skipea salvo que `NEXT_PUBLIC_WOMPI_PUBLIC_KEY` (`pub_test_…`) y `WOMPI_PRIVATE_KEY` (`prv_test_…`) estén en el entorno. Correr: `NEXT_PUBLIC_WOMPI_PUBLIC_KEY=… WOMPI_PRIVATE_KEY=… npm run test -- integration`
 - **Test watch:** `npm run test:watch`
 - **Test UI:** `npm run test:ui`
 - **SQL tests:** scripts in `supabase/tests/*.sql` — run via Supabase MCP `execute_sql` or psql (all use `BEGIN ... ROLLBACK` pattern, safe against prod)
