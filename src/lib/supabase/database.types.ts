@@ -120,6 +120,41 @@ export type Database = {
           },
         ]
       }
+      billing_providers: {
+        Row: {
+          config: Json
+          configured_at: string | null
+          is_active: boolean | null
+          organization_id: string
+          provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          configured_at?: string | null
+          is_active?: boolean | null
+          organization_id: string
+          provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          configured_at?: string | null
+          is_active?: boolean | null
+          organization_id?: string
+          provider?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_providers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_rest_rules: {
         Row: {
           contract_type_id: string
@@ -353,6 +388,47 @@ export type Database = {
           },
         ]
       }
+      dian_emit_jobs: {
+        Row: {
+          attempt_count: number
+          created_at: string | null
+          id: string
+          invoice_id: string
+          last_error: string | null
+          next_attempt_at: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          invoice_id: string
+          last_error?: string | null
+          next_attempt_at?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dian_emit_jobs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_equity_rollups: {
         Row: {
           employee_id: string
@@ -543,6 +619,91 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_cop: number
+          created_at: string | null
+          dian_invoice_id: string | null
+          dian_pdf_url: string | null
+          dian_provider: string | null
+          dian_status: string | null
+          due_date: string
+          id: string
+          iva_cop: number
+          organization_id: string
+          paid_at: string | null
+          period_end: string
+          period_start: string
+          plan_id: string
+          retry_count: number | null
+          status: string
+          subscription_id: string
+          total_cop: number
+        }
+        Insert: {
+          amount_cop: number
+          created_at?: string | null
+          dian_invoice_id?: string | null
+          dian_pdf_url?: string | null
+          dian_provider?: string | null
+          dian_status?: string | null
+          due_date: string
+          id?: string
+          iva_cop?: number
+          organization_id: string
+          paid_at?: string | null
+          period_end: string
+          period_start: string
+          plan_id: string
+          retry_count?: number | null
+          status: string
+          subscription_id: string
+          total_cop: number
+        }
+        Update: {
+          amount_cop?: number
+          created_at?: string | null
+          dian_invoice_id?: string | null
+          dian_pdf_url?: string | null
+          dian_provider?: string | null
+          dian_status?: string | null
+          due_date?: string
+          id?: string
+          iva_cop?: number
+          organization_id?: string
+          paid_at?: string | null
+          period_end?: string
+          period_start?: string
+          plan_id?: string
+          retry_count?: number | null
+          status?: string
+          subscription_id?: string
+          total_cop?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           address: string
@@ -634,8 +795,10 @@ export type Database = {
           approved_by: string | null
           approved_from_demo_request_id: string | null
           billing_email: string | null
+          billing_exempt: boolean
           country: string
           created_at: string
+          current_plan_id: string | null
           id: string
           industry: string | null
           legal_name: string | null
@@ -658,8 +821,10 @@ export type Database = {
           approved_by?: string | null
           approved_from_demo_request_id?: string | null
           billing_email?: string | null
+          billing_exempt?: boolean
           country?: string
           created_at?: string
+          current_plan_id?: string | null
           id?: string
           industry?: string | null
           legal_name?: string | null
@@ -682,8 +847,10 @@ export type Database = {
           approved_by?: string | null
           approved_from_demo_request_id?: string | null
           billing_email?: string | null
+          billing_exempt?: boolean
           country?: string
           created_at?: string
+          current_plan_id?: string | null
           id?: string
           industry?: string | null
           legal_name?: string | null
@@ -715,6 +882,114 @@ export type Database = {
             columns: ["approved_from_demo_request_id"]
             isOneToOne: false
             referencedRelation: "demo_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_current_plan_id_fkey"
+            columns: ["current_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          card_brand: string | null
+          card_exp_month: number | null
+          card_exp_year: number | null
+          card_last4: string | null
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          organization_id: string
+          provider: string
+          provider_payment_source_id: string
+        }
+        Insert: {
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last4?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id: string
+          provider: string
+          provider_payment_source_id: string
+        }
+        Update: {
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last4?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id?: string
+          provider?: string
+          provider_payment_source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_cop: number
+          attempted_at: string | null
+          completed_at: string | null
+          failure_reason: string | null
+          id: string
+          invoice_id: string
+          payment_method_id: string | null
+          provider: string
+          provider_transaction_id: string | null
+          status: string
+        }
+        Insert: {
+          amount_cop: number
+          attempted_at?: string | null
+          completed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          invoice_id: string
+          payment_method_id?: string | null
+          provider: string
+          provider_transaction_id?: string | null
+          status: string
+        }
+        Update: {
+          amount_cop?: number
+          attempted_at?: string | null
+          completed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          invoice_id?: string
+          payment_method_id?: string | null
+          provider?: string
+          provider_transaction_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
         ]
@@ -1033,6 +1308,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      plans: {
+        Row: {
+          contact_sales: boolean | null
+          created_at: string | null
+          display_order: number
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          max_employees: number | null
+          name: string
+          price_cop: number
+          updated_at: string | null
+        }
+        Insert: {
+          contact_sales?: boolean | null
+          created_at?: string | null
+          display_order: number
+          features?: Json | null
+          id: string
+          is_active?: boolean | null
+          max_employees?: number | null
+          name: string
+          price_cop: number
+          updated_at?: string | null
+        }
+        Update: {
+          contact_sales?: boolean | null
+          created_at?: string | null
+          display_order?: number
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          max_employees?: number | null
+          name?: string
+          price_cop?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       positions: {
         Row: {
@@ -1466,6 +1780,38 @@ export type Database = {
           },
         ]
       }
+      sent_reminders: {
+        Row: {
+          days_offset: number
+          id: string
+          organization_id: string
+          sent_at: string | null
+          template: string
+        }
+        Insert: {
+          days_offset: number
+          id?: string
+          organization_id: string
+          sent_at?: string | null
+          template: string
+        }
+        Update: {
+          days_offset?: number
+          id?: string
+          organization_id?: string
+          sent_at?: string | null
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sent_reminders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_swap_requests: {
         Row: {
           created_at: string
@@ -1670,6 +2016,67 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          organization_id: string
+          payment_method_id: string | null
+          plan_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end: string
+          current_period_start: string
+          id?: string
+          organization_id: string
+          payment_method_id?: string | null
+          plan_id: string
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          organization_id?: string
+          payment_method_id?: string | null
+          plan_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
             referencedColumns: ["id"]
           },
         ]
@@ -2023,4 +2430,3 @@ export const Constants = {
     },
   },
 } as const
-

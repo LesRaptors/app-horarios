@@ -24,11 +24,14 @@ import {
   Wallet,
   Inbox,
   ShieldCheck,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useDemoRequestsCount } from "@/hooks/use-demo-requests-count";
-import { isSuperAdmin } from "@/lib/auth/can-manage";
+import { useBillingStatus } from "@/hooks/use-billing-status";
+import { isSuperAdmin, canAdmin } from "@/lib/auth/can-manage";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
 import type { UserRole } from "@/lib/types";
 import { AppLogo } from "@/components/shared/app-logo";
@@ -54,6 +57,7 @@ const topNavigation: NavItem[] = [
   { name: "Equidad", href: "/equidad", icon: BarChart3, roles: ["super_admin", "admin", "manager"] },
   { name: "Empleados", href: "/employees", icon: Users, roles: ["super_admin", "admin", "manager"] },
   { name: "Solicitudes", href: "/requests", icon: FileText, roles: ["super_admin", "admin", "manager", "employee"] },
+  { name: "Facturación", href: "/facturacion", icon: CreditCard, roles: ["super_admin", "admin"] },
   { name: "Mi pago", href: "/mi-pago", icon: Wallet, roles: ["super_admin", "admin", "manager", "employee"] },
   { name: "Notificaciones", href: "/notifications", icon: Bell, roles: ["super_admin", "admin", "manager", "employee"] },
 ];
@@ -84,7 +88,10 @@ export function Sidebar() {
   const { profile, signOut } = useAuth();
 
   const filteredTop = topNavigation.filter(
-    (item) => profile && item.roles.includes(profile.role as Role)
+    (item) =>
+      profile &&
+      item.roles.includes(profile.role as Role) &&
+      (item.href !== "/facturacion" || isBillingEnabled())
   );
   const filteredConfig = configNavigation.filter(
     (item) => profile && item.roles.includes(profile.role as Role)
@@ -116,6 +123,9 @@ export function Sidebar() {
 
   const showAdminSection = isSuperAdmin((profile?.role ?? null) as UserRole | null);
   const demoRequestsCount = useDemoRequestsCount(showAdminSection);
+
+  const showBillingBadge = canAdmin((profile?.role ?? null) as UserRole | null) && isBillingEnabled();
+  const { isPastDue } = useBillingStatus(showBillingBadge);
 
   const adminActive = adminNavigation.some((item) => pathname.startsWith(item.href));
   const [adminOpen, setAdminOpen] = useState(adminActive);
@@ -165,7 +175,14 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav aria-label="Navegación principal" className="flex-1 space-y-1 overflow-y-auto p-4">
-        {filteredTop.map((item) => renderLink(item))}
+        {filteredTop.map((item) =>
+          renderLink(
+            item,
+            item.href === "/facturacion" && isPastDue
+              ? renderBadge(1)
+              : undefined
+          )
+        )}
 
         {filteredPayroll.length > 0 && (
           <>

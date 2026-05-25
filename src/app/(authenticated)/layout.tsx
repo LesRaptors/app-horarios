@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { cn } from "@/lib/utils";
 import { AuthProvider } from "@/contexts/auth-context";
 import { NotificationsProvider } from "@/contexts/notifications-context";
+import { BillingBanner } from "@/components/billing/billing-banner";
 
 export default function AuthenticatedLayout({
   children,
@@ -46,6 +47,7 @@ export default function AuthenticatedLayout({
         <div className="flex flex-1 flex-col overflow-hidden">
           <Navbar onMenuClick={() => setSidebarOpen(true)} />
           <main id="contenido" tabIndex={-1} className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <BillingBanner />
             {children}
           </main>
         </div>
