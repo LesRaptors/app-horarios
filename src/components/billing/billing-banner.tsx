@@ -8,10 +8,11 @@ import { isBillingEnabled } from "@/lib/billing/feature-flag";
 
 export function BillingBanner() {
   const { profile } = useAuth();
-  const enabled = canAdmin(profile?.role);
+  // Gatear el query por el feature flag además del rol: con billing OFF no se
+  // consulta subscriptions (consistente con el badge del sidebar).
+  const enabled = canAdmin(profile?.role) && isBillingEnabled();
   const { isTrialingNearEnd, isPastDue, trialDaysLeft } = useBillingStatus(enabled);
 
-  if (!isBillingEnabled()) return null;
   if (!enabled) return null;
   if (!isTrialingNearEnd && !isPastDue) return null;
 
