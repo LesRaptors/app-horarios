@@ -19,8 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { notFound } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { canAdmin } from "@/lib/auth/can-manage";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { useBillingStatus } from "@/hooks/use-billing-status";
 import { PlanCard } from "@/components/billing/plan-card";
 import { WompiWidgetButton } from "@/components/billing/wompi-widget-button";
@@ -73,6 +75,11 @@ interface SubscriptionRow {
 
 export default function FacturacionPage() {
   const { profile } = useAuth();
+
+  // Gate: feature flag (soft launch)
+  if (!isBillingEnabled()) {
+    notFound();
+  }
 
   // Gate: only admin / super_admin
   if (!canAdmin(profile?.role as UserRole | null)) {

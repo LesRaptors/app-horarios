@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDemoRequestsCount } from "@/hooks/use-demo-requests-count";
 import { useBillingStatus } from "@/hooks/use-billing-status";
 import { isSuperAdmin, canAdmin } from "@/lib/auth/can-manage";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
 import type { UserRole } from "@/lib/types";
 import { AppLogo } from "@/components/shared/app-logo";
@@ -87,7 +88,10 @@ export function Sidebar() {
   const { profile, signOut } = useAuth();
 
   const filteredTop = topNavigation.filter(
-    (item) => profile && item.roles.includes(profile.role as Role)
+    (item) =>
+      profile &&
+      item.roles.includes(profile.role as Role) &&
+      (item.href !== "/facturacion" || isBillingEnabled())
   );
   const filteredConfig = configNavigation.filter(
     (item) => profile && item.roles.includes(profile.role as Role)
@@ -120,7 +124,7 @@ export function Sidebar() {
   const showAdminSection = isSuperAdmin((profile?.role ?? null) as UserRole | null);
   const demoRequestsCount = useDemoRequestsCount(showAdminSection);
 
-  const showBillingBadge = canAdmin((profile?.role ?? null) as UserRole | null);
+  const showBillingBadge = canAdmin((profile?.role ?? null) as UserRole | null) && isBillingEnabled();
   const { isPastDue } = useBillingStatus(showBillingBadge);
 
   const adminActive = adminNavigation.some((item) => pathname.startsWith(item.href));

@@ -4,12 +4,14 @@ import { AlertTriangle } from "lucide-react";
 import { useBillingStatus } from "@/hooks/use-billing-status";
 import { useAuth } from "@/hooks/use-auth";
 import { canAdmin } from "@/lib/auth/can-manage";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 
 export function BillingBanner() {
   const { profile } = useAuth();
   const enabled = canAdmin(profile?.role);
   const { isTrialingNearEnd, isPastDue, trialDaysLeft } = useBillingStatus(enabled);
 
+  if (!isBillingEnabled()) return null;
   if (!enabled) return null;
   if (!isTrialingNearEnd && !isPastDue) return null;
 
