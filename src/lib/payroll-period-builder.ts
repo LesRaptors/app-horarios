@@ -391,6 +391,13 @@ export async function assemblePayrollPeriod(
       .eq("id", periodId);
   }
 
+  // 8. Persistir errores/advertencias del motor en el período para que el tab
+  //    Resumen los muestre al recargar (no solo en el toast efímero).
+  await supabase
+    .from("payroll_periods")
+    .update({ compute_errors: errors, compute_warnings: warnings })
+    .eq("id", periodId);
+
   return { employeesProcessed: employees.length, warnings, errors };
 }
 
