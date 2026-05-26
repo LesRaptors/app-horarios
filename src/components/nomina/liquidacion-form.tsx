@@ -28,7 +28,8 @@ import {
 
 interface EmployeeOption {
   id: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   hire_date: string | null;
 }
 
@@ -63,9 +64,9 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
     void (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, hire_date")
+        .select("id, first_name, last_name, hire_date")
         .eq("is_active", true)
-        .order("full_name");
+        .order("first_name");
       setEmployees((data ?? []) as EmployeeOption[]);
     })();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -194,7 +195,7 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
               <SelectContent>
                 {employees.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.full_name}
+                    {e.first_name} {e.last_name}
                   </SelectItem>
                 ))}
               </SelectContent>

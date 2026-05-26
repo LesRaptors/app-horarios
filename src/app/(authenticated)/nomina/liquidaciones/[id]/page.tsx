@@ -59,7 +59,7 @@ export default function LiquidacionDetailPage() {
     const [{ data: liqData }, { data: itemsData }] = await Promise.all([
       supabase
         .from("liquidations")
-        .select("*, employee:profiles(full_name)")
+        .select("*, employee:profiles(first_name, last_name)")
         .eq("id", liqId)
         .maybeSingle(),
       supabase
@@ -70,7 +70,8 @@ export default function LiquidacionDetailPage() {
     ]);
     if (liqData) {
       setLiq(liqData as Liquidation);
-      setEmployeeName((liqData as any).employee?.full_name ?? ""); // eslint-disable-line @typescript-eslint/no-explicit-any
+      const emp = (liqData as any).employee; // eslint-disable-line @typescript-eslint/no-explicit-any
+      setEmployeeName([emp?.first_name, emp?.last_name].filter(Boolean).join(" "));
     }
     setItems((itemsData ?? []) as LiquidationItem[]);
     setLoading(false);

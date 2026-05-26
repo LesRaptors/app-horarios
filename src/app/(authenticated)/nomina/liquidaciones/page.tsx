@@ -22,7 +22,7 @@ interface Row {
   termination_date: string;
   reason: string;
   status: string;
-  employee: { full_name: string } | null;
+  employee: { first_name: string; last_name: string } | null;
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -72,7 +72,7 @@ export default function LiquidacionesPage() {
     setLoading(true);
     const { data } = await supabase
       .from("liquidations")
-      .select("id, termination_date, reason, status, employee:profiles(full_name)")
+      .select("id, termination_date, reason, status, employee:profiles(first_name, last_name)")
       .order("termination_date", { ascending: false });
     const list = (data ?? []) as Row[];
     setRows(list);
@@ -146,7 +146,7 @@ export default function LiquidacionesPage() {
                 className="cursor-pointer"
                 tabIndex={0}
                 role="button"
-                aria-label={`Ver liquidación de ${r.employee?.full_name ?? "empleado"}, ${r.termination_date}`}
+                aria-label={`Ver liquidación de ${[r.employee?.first_name, r.employee?.last_name].filter(Boolean).join(" ") || "empleado"}, ${r.termination_date}`}
                 onClick={() => router.push(`/nomina/liquidaciones/${r.id}`)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -155,7 +155,7 @@ export default function LiquidacionesPage() {
                   }
                 }}
               >
-                <TableCell>{r.employee?.full_name ?? "—"}</TableCell>
+                <TableCell>{[r.employee?.first_name, r.employee?.last_name].filter(Boolean).join(" ") || "—"}</TableCell>
                 <TableCell>{r.termination_date}</TableCell>
                 <TableCell>{REASON_LABELS[r.reason] ?? r.reason}</TableCell>
                 <TableCell className="text-right">{fmt(totals[r.id] ?? 0)}</TableCell>
