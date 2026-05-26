@@ -520,3 +520,91 @@ export interface EmployeeRestRule {
   created_at: string;
   updated_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Liquidación final (sub-spec 4) — terminación de contrato
+// ─────────────────────────────────────────────────────────────
+
+export type LiquidacionReason =
+  | "renuncia"
+  | "mutuo_acuerdo"
+  | "justa_causa"
+  | "sin_justa_causa"
+  | "fin_contrato";
+
+export type ContractKind = "indefinido" | "fijo" | "obra_labor";
+
+export type LiquidationStatus = "draft" | "approved" | "paid";
+
+export type LiquidacionConcept =
+  | "cesantias"
+  | "cesantias_interest"
+  | "prima"
+  | "vacaciones"
+  | "indemnizacion"
+  | "otro";
+
+export interface Liquidation {
+  id: string;
+  organization_id: string;
+  employee_id: string;
+  termination_date: string; // YYYY-MM-DD
+  reason: LiquidacionReason;
+  contract_kind: ContractKind;
+  contract_end_date: string | null;
+  hire_date: string;
+  cesantias_cutoff: string;
+  vacations_cutoff: string;
+  vacation_days_pending: number;
+  base_salary: number;
+  status: LiquidationStatus;
+  compute_errors: string[];
+  compute_warnings: string[];
+  approved_at: string | null;
+  approved_by: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  created_at: string;
+}
+
+export interface LiquidationItem {
+  id: string;
+  liquidation_id: string;
+  organization_id: string;
+  concept: LiquidacionConcept;
+  base: number | null;
+  days: number | null;
+  amount: number;
+  description: string | null;
+  is_manual_override: boolean;
+  created_at: string;
+}
+
+export interface LiquidacionInput {
+  termination_date: string;
+  hire_date: string;
+  reason: LiquidacionReason;
+  contract_kind: ContractKind;
+  contract_end_date: string | null;
+  cesantias_cutoff: string;
+  vacations_cutoff: string;
+  vacation_days_pending: number;
+  base_salary: number;
+  is_integral_salary: boolean;
+  settings: PayrollSettings; // vigente a termination_date
+}
+
+export interface ComputedLiquidacionItem {
+  concept: LiquidacionConcept;
+  base: number | null;
+  days: number | null;
+  amount: number;
+  description: string;
+}
+
+export interface LiquidacionOutput {
+  items: ComputedLiquidacionItem[];
+  total: number;
+  errors: string[];
+  warnings: string[];
+}
