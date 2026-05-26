@@ -65,6 +65,7 @@ const topNavigation: NavItem[] = [
 const payrollNavigation: NavItem[] = [
   { name: "Configuración", href: "/nomina/configuracion", icon: Wallet, roles: ["super_admin", "admin"] },
   { name: "Períodos", href: "/nomina/periodos", icon: FileText, roles: ["super_admin", "admin"] },
+  { name: "Liquidaciones", href: "/nomina/liquidaciones", icon: FileText, roles: ["super_admin", "admin"] },
   { name: "Ausencias", href: "/nomina/ausencias", icon: CalendarDays, roles: ["super_admin", "admin", "manager"] },
 ];
 
