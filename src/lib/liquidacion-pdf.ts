@@ -85,9 +85,15 @@ export function generateLiquidacionPdf(data: LiquidacionPdfData): Blob {
       formatCOP(Number(it.amount)),
     ]),
     foot: [["Total a pagar", "", "", formatCOP(total)]],
-    styles: { fontSize: 9, cellPadding: 2 },
+    styles: { fontSize: 9, cellPadding: 2.5 },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontSize: 9 },
-    footStyles: { fillColor: [239, 246, 255], fontStyle: "bold", fontSize: 9 },
+    footStyles: {
+      fillColor: [37, 99, 235],
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: 11,
+      cellPadding: 3.5,
+    },
     columnStyles: {
       0: { cellWidth: "auto" },
       1: { halign: "right" },
