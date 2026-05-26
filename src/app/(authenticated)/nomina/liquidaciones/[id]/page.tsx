@@ -34,7 +34,7 @@ export default function LiquidacionDetailPage() {
   const params = useParams<{ id: string }>();
   const liqId = params.id;
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
@@ -45,9 +45,14 @@ export default function LiquidacionDetailPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (profile && profile.role !== "admin" && profile.role !== "super_admin") {
+      router.replace("/dashboard");
+      return;
+    }
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liqId]);
+  }, [authLoading, profile, liqId]);
 
   async function load() {
     setLoading(true);
@@ -164,6 +169,17 @@ export default function LiquidacionDetailPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  if (authLoading || !profile) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 aria-hidden="true" className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="sr-only">Cargando…</span>
+      </div>
+    );
+  }
+
+  if (profile.role !== "admin" && profile.role !== "super_admin") return null;
 
   if (loading)
     return <p className="text-muted-foreground">Cargando…</p>;

@@ -106,6 +106,10 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
   }
 
   async function handleSave() {
+    if (!profile?.organization_id) {
+      toast.error("No se pudo determinar la organización. Recarga la página.");
+      return;
+    }
     if (
       !employeeId ||
       !terminationDate ||
@@ -130,7 +134,7 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
     const { data, error } = await supabase
       .from("liquidations")
       .insert({
-        organization_id: profile?.organization_id ?? "",
+        organization_id: profile.organization_id,
         employee_id: employeeId,
         termination_date: terminationDate,
         reason,
