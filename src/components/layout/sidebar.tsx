@@ -70,6 +70,7 @@ const payrollNavigation: NavItem[] = [
 ];
 
 const adminNavigation: NavItem[] = [
+  { name: "Panel SaaS", href: "/super-admin", icon: LayoutDashboard, roles: ["super_admin"] },
   { name: "Solicitudes demo", href: "/admin/demo-requests", icon: Inbox, roles: ["super_admin"] },
 ];
 
@@ -86,7 +87,7 @@ const configNavigation: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, activeOrg } = useAuth();
 
   const filteredTop = topNavigation.filter(
     (item) =>
@@ -232,14 +233,19 @@ export function Sidebar() {
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-1 space-y-1 pl-3">
-                {adminNavigation.map((item) =>
-                  renderLink(
-                    item,
-                    item.href === "/admin/demo-requests"
-                      ? renderBadge(demoRequestsCount)
-                      : undefined
+                {adminNavigation
+                  .filter(
+                    (item) =>
+                      item.href !== "/admin/demo-requests" || !activeOrg
                   )
-                )}
+                  .map((item) =>
+                    renderLink(
+                      item,
+                      item.href === "/admin/demo-requests"
+                        ? renderBadge(demoRequestsCount)
+                        : undefined
+                    )
+                  )}
               </CollapsibleContent>
             </Collapsible>
           </>
