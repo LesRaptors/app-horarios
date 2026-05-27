@@ -96,7 +96,11 @@ export default function SuperAdminPage() {
           {
             header: "Acción",
             cell: (org) => (
-              <Button size="sm" onClick={() => void enter(org.id)}>
+              <Button
+                size="sm"
+                aria-label={`Trabajar en ${org.name}`}
+                onClick={() => void enter(org.id)}
+              >
                 Trabajar en esta org
               </Button>
             ),
