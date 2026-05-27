@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -22,13 +22,16 @@ export default function SuperAdminPage() {
   const { loading: authLoading, isSuperAdmin, activeOrgId, setActiveOrg } =
     useAuth();
 
-  // Design decision: entering the panel = platform mode.
-  // Clear any active tenant on mount (loop-safe: only fires when activeOrgId is non-null).
+  // Design decision: entering the panel = platform mode → clear a pre-existing
+  // active tenant. This must run ONCE on mount (after auth loads), NOT react to
+  // activeOrgId: otherwise it would undo the tenant that `enter()` sets right
+  // before navigating to /dashboard (race → R11 bounces back to the panel).
+  const didClearOnMount = useRef(false);
   useEffect(() => {
-    if (!isSuperAdmin) return;
-    if (!activeOrgId) return;
-    void setActiveOrg(null);
-  }, [activeOrgId, isSuperAdmin, setActiveOrg]);
+    if (authLoading || didClearOnMount.current) return;
+    didClearOnMount.current = true;
+    if (isSuperAdmin && activeOrgId) void setActiveOrg(null);
+  }, [authLoading, isSuperAdmin, activeOrgId, setActiveOrg]);
 
   const { orgs, loading } = useOrganizations(isSuperAdmin && !authLoading);
 
