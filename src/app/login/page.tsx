@@ -36,7 +36,19 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    let dest = "/dashboard";
+    if (user) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (prof?.role === "super_admin") dest = "/super-admin";
+    }
+    router.push(dest);
     router.refresh();
   };
 

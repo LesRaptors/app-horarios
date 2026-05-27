@@ -156,11 +156,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // =============================================================================
-  // R5. Super_admin entró a un subdomain → redirect a raíz (landing super_admin)
+  // R5. Super_admin entró a un subdomain → redirect a raíz (panel super_admin)
   // =============================================================================
   if (user && profile?.role === "super_admin" && tenantOrg && rootDomain) {
     return NextResponse.redirect(
-      buildRootUrl("/admin/demo-requests", rootDomain, port),
+      buildRootUrl("/super-admin", rootDomain, port),
       308
     );
   }
@@ -228,7 +228,8 @@ export async function updateSession(request: NextRequest) {
 
   if (user && path.startsWith("/login")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname =
+      profile?.role === "super_admin" ? "/super-admin" : "/dashboard";
     return NextResponse.redirect(url);
   }
 
@@ -247,6 +248,33 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = `/onboarding/${step}`;
     return NextResponse.redirect(url);
+  }
+
+  // =============================================================================
+  // R11. super_admin sin tenant activo en ruta operativa → al panel.
+  //      En modo panel (sin super_admin_active_org) el super_admin no debe sentarse
+  //      sobre rutas operativas multi-tenant. Las rutas de plataforma
+  //      (/super-admin, /admin) y públicas/API se excluyen → sin loop: en
+  //      /super-admin el guard se salta por el startsWith check.
+  // =============================================================================
+  if (
+    user &&
+    profile?.role === "super_admin" &&
+    !path.startsWith("/super-admin") &&
+    !path.startsWith("/admin") &&
+    !path.startsWith("/api/") &&
+    !pathIsPublic
+  ) {
+    const { data: saao } = await supabase
+      .from("super_admin_active_org")
+      .select("active_org_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!saao) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/super-admin";
+      return NextResponse.redirect(url);
+    }
   }
 
   // =============================================================================
