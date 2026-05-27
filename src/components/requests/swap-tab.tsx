@@ -44,7 +44,7 @@ interface SwapWithDetails extends ShiftSwapRequest {
 }
 
 export function SwapTab() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [swaps, setSwaps] = useState<SwapWithDetails[]>([]);
@@ -157,7 +157,7 @@ export function SwapTab() {
       requester_entry_id: selectedMyEntry,
       target_entry_id: selectedTargetEntry,
       status: "pending" as const,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
 
     if (error) {

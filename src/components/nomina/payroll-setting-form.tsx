@@ -26,7 +26,7 @@ interface Props {
 
 export function PayrollSettingForm({ initial, open, onOpenChange, onSaved }: Props) {
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [smmlv, setSmmlv] = useState("");
@@ -78,7 +78,7 @@ export function PayrollSettingForm({ initial, open, onOpenChange, onSaved }: Pro
       ? await supabase.from("payroll_settings").update(payload).eq("id", initial.id)
       : await supabase
           .from("payroll_settings")
-          .insert({ ...payload, organization_id: profile?.organization_id ?? "" });
+          .insert({ ...payload, organization_id: effectiveOrgId ?? "" });
     setSaving(false);
     if (error) {
       toast.error(`No se pudo guardar: ${error.message}`);

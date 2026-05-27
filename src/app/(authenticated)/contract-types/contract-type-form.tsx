@@ -154,7 +154,7 @@ function defaultForm(initial: ContractType | null): FormState {
 
 export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props) {
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(() => defaultForm(initial));
 
@@ -241,7 +241,7 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
       available_sundays: form.available_sundays,
       available_holidays: form.available_holidays,
       available_nights: form.available_nights,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     };
 
     let contractTypeId: string | null = initial?.id ?? null;
@@ -282,7 +282,7 @@ export function ContractTypeForm({ open, onOpenChange, initial, onSaved }: Props
           contract_type_id: contractTypeId as string,
           rule_type: r.rule_type,
           params: r.params,
-          organization_id: profile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         }));
         const { error: ruleError } = await supabase
           .from("contract_rest_rules")

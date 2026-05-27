@@ -78,7 +78,7 @@ function todayISO(): string {
 }
 
 export function AbsenceForm({ employeeId, open, onOpenChange, onSaved }: Props) {
-  const { user, profile } = useAuth();
+  const { user, effectiveOrgId } = useAuth();
   const supabase = createClient();
 
   const [startDate, setStartDate] = useState(todayISO());
@@ -132,7 +132,7 @@ export function AbsenceForm({ employeeId, open, onOpenChange, onSaved }: Props) 
       payer,
       notes: notes.trim() || null,
       created_by: user?.id ?? null,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
     setSaving(false);
 

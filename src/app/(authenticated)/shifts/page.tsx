@@ -85,7 +85,7 @@ interface ShiftTemplateItem {
 }
 
 export default function ShiftsPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [shifts, setShifts] = useState<ShiftTemplateItem[]>([]);
@@ -205,7 +205,7 @@ export default function ShiftsPage() {
     } else {
       const { error } = await supabase.from("shift_templates").insert({
         ...payload,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       });
 
       if (error) {

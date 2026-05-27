@@ -197,7 +197,7 @@ function DemoBadge() {
 // PAGE COMPONENT
 // ===========================================================================
 export default function EmployeesPage() {
-  const { profile: currentProfile, loading: authLoading } = useAuth();
+  const { profile: currentProfile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   // ---- Data state ----------------------------------------------------------
@@ -538,7 +538,7 @@ export default function EmployeesPage() {
             posIdsToInsert.map((posId) => ({
               employee_id: editForm.id,
               position_id: posId,
-              organization_id: currentProfile?.organization_id ?? "",
+              organization_id: effectiveOrgId ?? "",
             }))
           );
 
@@ -559,7 +559,7 @@ export default function EmployeesPage() {
           employee_id: editForm.id,
           rule_type: r.rule_type as string,
           params: r.params as unknown as Database["public"]["Tables"]["employee_rest_rules"]["Insert"]["params"],
-          organization_id: currentProfile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         }));
         const { error: rrError } = await supabase
           .from("employee_rest_rules")

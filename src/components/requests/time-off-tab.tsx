@@ -31,7 +31,7 @@ import { canManage as canManageFn } from "@/lib/auth/can-manage";
 import type { TimeOffRequest } from "@/lib/types";
 
 export function TimeOffTab() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [requests, setRequests] = useState<TimeOffRequest[]>([]);
@@ -98,7 +98,7 @@ export function TimeOffTab() {
       end_date: endDate,
       reason: reason.trim(),
       status: "pending" as const,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
 
     if (error) {
