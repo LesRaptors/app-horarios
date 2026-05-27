@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganizations } from "@/hooks/use-organizations";
 import {
@@ -21,11 +22,15 @@ export function TenantSwitcher() {
   if (!isSuperAdmin) return null;
 
   async function onChange(value: string) {
-    await setActiveOrg(value === PANEL_VALUE ? null : value);
-    if (value === PANEL_VALUE) {
-      router.push("/super-admin");
-    } else {
-      router.refresh();
+    try {
+      await setActiveOrg(value === PANEL_VALUE ? null : value);
+      if (value === PANEL_VALUE) {
+        router.push("/super-admin");
+      } else {
+        router.refresh();
+      }
+    } catch {
+      toast.error("No se pudo cambiar de organización");
     }
   }
 
