@@ -35,7 +35,7 @@ export function SalaryCell({
   canRead,
   onSaved,
 }: Props) {
-  const { user, profile } = useAuth();
+  const { user, effectiveOrgId } = useAuth();
   const supabase = createClient();
   const today = todayISO();
   const current = getCurrentSalary(history, employeeId, today);
@@ -102,7 +102,7 @@ export function SalaryCell({
         change_reason: "Edición rápida",
         effective_from: today,
         created_by: user?.id ?? null,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       });
       setSaving(false);
       setEditing(false);

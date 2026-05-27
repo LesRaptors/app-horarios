@@ -48,7 +48,7 @@ import type {
 import { canManage as canManageFn, canAdmin } from "@/lib/auth/can-manage";
 
 export default function SchedulePage() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   // Core state
@@ -273,7 +273,7 @@ export default function SchedulePage() {
         year: year,
         status: "draft" as const,
         created_by: user.id,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       })
       .select()
       .single();
@@ -396,7 +396,7 @@ export default function SchedulePage() {
         end_time: data.end_time,
         shift_template_id: data.shift_template_id,
         notes: data.notes || null,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       });
 
       if (error) {

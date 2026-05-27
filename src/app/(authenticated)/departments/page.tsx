@@ -55,7 +55,7 @@ import {
 import { canManage, canAdmin } from "@/lib/auth/can-manage";
 
 export default function DepartmentsPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -207,7 +207,7 @@ export default function DepartmentsPage() {
       const { error } = await supabase.from("departments").insert({
         name: result.data.name,
         location_id: result.data.location_id,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       });
 
       if (error) {

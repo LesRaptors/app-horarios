@@ -123,7 +123,7 @@ export default function AusenciasPage() {
         .from("absence_records")
         .select("*")
         .order("start_date", { ascending: false }),
-      supabase.from("profiles").select("*"),
+      supabase.from("profiles").select("*").neq("role", "super_admin"),
       supabase.from("locations").select("*").order("name"),
       supabase.from("app_settings").select("value").eq("key", "app_flags").maybeSingle(),
     ]);

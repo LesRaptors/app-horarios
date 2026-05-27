@@ -41,7 +41,7 @@ import { Plus, Pencil, Trash2, Loader2, Search, MapPin } from "lucide-react";
 import { canAdmin } from "@/lib/auth/can-manage";
 
 export default function LocationsPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [locations, setLocations] = useState<Location[]>([]);
@@ -172,7 +172,7 @@ export default function LocationsPage() {
         .insert({
           name: result.data.name,
           address: result.data.address,
-          organization_id: profile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         });
 
       if (error) {

@@ -50,7 +50,7 @@ interface Props {
 export function PeriodOverrideForm({ open, onOpenChange, periodId, employees, onSaved }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
 
   const [employeeId, setEmployeeId] = useState("");
   const [conceptType, setConceptType] = useState<PayrollConceptType>("other_deduction");
@@ -97,7 +97,7 @@ export function PeriodOverrideForm({ open, onOpenChange, periodId, employees, on
       amount: parsedAmount,
       description: reason.trim(),
       is_manual_override: true,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
     setSaving(false);
 

@@ -30,7 +30,7 @@ function todayISO(): string {
 }
 
 export function TaxDeductionsForm({ employeeId, open, onOpenChange, onSaved }: Props) {
-  const { user, profile } = useAuth();
+  const { user, effectiveOrgId } = useAuth();
   const supabase = createClient();
 
   const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
@@ -78,7 +78,7 @@ export function TaxDeductionsForm({ employeeId, open, onOpenChange, onSaved }: P
       voluntary_pension_monthly: vPension,
       afc_monthly: afcVal,
       created_by: user?.id ?? null,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
     setSaving(false);
 

@@ -96,6 +96,7 @@ export default function DashboardPage() {
               .from("profiles")
               .select("id", { count: "exact", head: true })
               .eq("is_active", true)
+              .neq("role", "super_admin")
           );
           // 5. Pending requests
           queries.push(

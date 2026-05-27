@@ -18,7 +18,7 @@ import type { PaymentFrequency, PaymentMode } from "@/lib/types";
 
 export function PaymentFrequencySelector() {
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [frequency, setFrequency] = useState<PaymentFrequency>("mensual");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("independent");
@@ -58,7 +58,7 @@ export function PaymentFrequencySelector() {
         {
           key: "app_flags",
           value: merged as any,
-          organization_id: profile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         },
         { onConflict: "key" },
       );

@@ -73,7 +73,7 @@ interface PositionItem {
 }
 
 export default function PositionsPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, effectiveOrgId, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [positions, setPositions] = useState<PositionItem[]>([]);
@@ -185,7 +185,7 @@ export default function PositionsPage() {
     } else {
       const { error } = await supabase.from("positions").insert({
         ...payload,
-        organization_id: profile?.organization_id ?? "",
+        organization_id: effectiveOrgId ?? "",
       });
 
       if (error) {

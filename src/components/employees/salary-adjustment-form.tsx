@@ -32,7 +32,7 @@ function todayISO() {
 }
 
 export function SalaryAdjustmentForm({ employeeId, open, onOpenChange, onSaved }: Props) {
-  const { user, profile } = useAuth();
+  const { user, effectiveOrgId } = useAuth();
   const supabase = createClient();
   const [paymentDate, setPaymentDate] = useState(todayISO());
   const [conceptLabel, setConceptLabel] = useState("");
@@ -68,7 +68,7 @@ export function SalaryAdjustmentForm({ employeeId, open, onOpenChange, onSaved }
       is_salary_component: isSalary,
       description: description.trim() || null,
       created_by: user?.id ?? null,
-      organization_id: profile?.organization_id ?? "",
+      organization_id: effectiveOrgId ?? "",
     });
     setSaving(false);
     if (error) {

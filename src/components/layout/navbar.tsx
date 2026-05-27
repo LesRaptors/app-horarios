@@ -5,17 +5,26 @@ import { Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useNotifications } from "@/hooks/use-notifications";
+import { TenantSwitcher } from "@/components/layout/tenant-switcher";
+import { cn } from "@/lib/utils";
 
 interface NavbarProps {
   onMenuClick: () => void;
 }
 
 export function Navbar({ onMenuClick }: NavbarProps) {
-  const { profile } = useAuth();
+  const { profile, activeOrg } = useAuth();
   const { unreadCount } = useNotifications();
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center border-b bg-card px-4 lg:px-6">
+    <header
+      className={cn(
+        "sticky top-0 z-40 flex h-16 items-center border-b px-4 lg:px-6",
+        activeOrg
+          ? "bg-amber-50 border-amber-300 dark:bg-amber-950/40"
+          : "bg-card"
+      )}
+    >
       {/* Mobile menu button */}
       <Button
         variant="ghost"
@@ -26,6 +35,16 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       >
         <Menu className="size-5" aria-hidden="true" />
       </Button>
+
+      {/* Tenant switcher — desktop only, super_admin only */}
+      <div className="ml-2 hidden lg:block">
+        <TenantSwitcher />
+      </div>
+      {activeOrg && (
+        <span className="ml-3 text-sm font-medium text-amber-900 dark:text-amber-200">
+          Operando como {activeOrg.name}
+        </span>
+      )}
 
       <div className="flex-1" />
 

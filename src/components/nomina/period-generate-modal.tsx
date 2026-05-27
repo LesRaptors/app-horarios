@@ -57,7 +57,7 @@ interface Props {
 
 export function PeriodGenerateModal({ open, onOpenChange, frequency }: Props) {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
@@ -108,7 +108,7 @@ export function PeriodGenerateModal({ open, onOpenChange, frequency }: Props) {
           period_end: end,
           frequency,
           status: "draft",
-          organization_id: profile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         })
         .select("id")
         .single();

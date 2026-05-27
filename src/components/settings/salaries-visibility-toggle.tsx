@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 export function SalariesVisibilityToggle() {
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -46,7 +46,7 @@ export function SalariesVisibilityToggle() {
         {
           key: "app_flags",
           value: merged,
-          organization_id: profile?.organization_id ?? "",
+          organization_id: effectiveOrgId ?? "",
         },
         { onConflict: "key" },
       );
