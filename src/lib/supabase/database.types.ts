@@ -2225,6 +2225,32 @@ export type Database = {
           },
         ]
       }
+      super_admin_active_org: {
+        Row: {
+          active_org_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_org_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_org_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_admin_active_org_active_org_id_fkey"
+            columns: ["active_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_personal_deductions: {
         Row: {
           afc_monthly: number
@@ -2358,6 +2384,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _user_ctx: {
+        Args: never
+        Returns: {
+          active_org: string
+          own_org: string
+          raw_role: string
+        }[]
+      }
       approve_demo_request: {
         Args: {
           p_admin_email: string
@@ -2420,6 +2454,7 @@ export type Database = {
         Args: { p_location_id: string; p_rows: Json }
         Returns: Json
       }
+      set_active_org: { Args: { p_org_id: string }; Returns: undefined }
       slugify: { Args: { input: string }; Returns: string }
       suggest_unique_slug: { Args: { p_name: string }; Returns: string }
       unaccent: { Args: { "": string }; Returns: string }
