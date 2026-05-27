@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { DataTable } from "@/components/shared/data-table";
@@ -18,7 +17,6 @@ const SUBSCRIPTION_LABELS: Record<string, string> = {
 };
 
 export default function SuperAdminPage() {
-  const router = useRouter();
   const { loading: authLoading, isSuperAdmin, activeOrgId, setActiveOrg } =
     useAuth();
 
@@ -38,8 +36,9 @@ export default function SuperAdminPage() {
   async function enter(orgId: string) {
     try {
       await setActiveOrg(orgId);
-      router.push("/dashboard");
-      router.refresh();
+      // Full reload: garantiza que el AuthProvider y las queries client-side
+      // re-ejecuten con el nuevo tenant activo (router.push no re-monta el layout).
+      window.location.href = "/dashboard";
     } catch {
       toast.error("No se pudo cambiar de organización");
     }
