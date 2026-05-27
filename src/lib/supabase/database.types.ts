@@ -2446,6 +2446,21 @@ export type Database = {
       get_user_org_id: { Args: never; Returns: string }
       get_user_role: { Args: never; Returns: string }
       is_super_admin: { Args: never; Returns: boolean }
+      list_owner_organizations: {
+        Args: never
+        Returns: {
+          billing_exempt: boolean
+          current_plan_id: string
+          employee_count: number
+          id: string
+          location_count: number
+          name: string
+          onboarding_completed_at: string
+          slug: string
+          status: string
+          subscription_status: string
+        }[]
+      }
       recompute_equity_rollup: {
         Args: { p_employee_id: string; p_month: number; p_year: number }
         Returns: undefined
