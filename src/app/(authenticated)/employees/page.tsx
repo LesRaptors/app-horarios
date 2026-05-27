@@ -308,6 +308,7 @@ export default function EmployeesPage() {
             .select(
               "*, position:positions(id, name, department:departments(id, name, location_id)), location:locations(id, name), contract_type:contract_types(id, name, rest_rules:contract_rest_rules(*))"
             )
+            .neq("role", "super_admin")
             .order("last_name"),
           supabase.from("locations").select("*").order("name"),
           supabase.from("departments").select("*").order("name"),

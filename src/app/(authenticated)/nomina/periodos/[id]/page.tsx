@@ -77,7 +77,7 @@ export default function PeriodoDetallePage() {
       supabase.from("payroll_entries").select("*").eq("payroll_period_id", periodId),
       supabase.from("payroll_provisions").select("*").eq("payroll_period_id", periodId),
       supabase.from("payroll_employer_cost").select("*").eq("payroll_period_id", periodId),
-      supabase.from("profiles").select("*").eq("is_active", true).eq("is_terminated", false),
+      supabase.from("profiles").select("*").eq("is_active", true).eq("is_terminated", false).neq("role", "super_admin"),
       supabase.from("locations").select("*").order("name"),
     ]);
 
