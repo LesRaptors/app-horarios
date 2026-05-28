@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resend, FROM_NOREPLY, FROM_HOLA } from '@/lib/resend';
 import { demoRequestSchema } from '@/lib/landing/schema';
 import { checkRateLimit } from '@/lib/landing/rate-limit';
+import { classifyDemoSubmission } from '@/lib/landing/classify-demo';
 import DemoRequestConfirmationEmail from '@/emails/demo-request-confirmation';
 import DemoRequestNotificationEmail from '@/emails/demo-request-notification';
 
@@ -51,6 +52,38 @@ export async function POST(request: NextRequest) {
   const userAgent = request.headers.get('user-agent') ?? null;
 
   const supabase = createAdminClient();
+
+  // Detección de duplicados (dentro del endpoint con rate-limit → contiene enumeración)
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle();
+
+  const { data: pendingReq } = await supabase
+    .from("demo_requests")
+    .select("id")
+    .ilike("email", email)
+    .in("status", ["new", "contacted", "scheduled"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const outcome = classifyDemoSubmission(!!existingProfile, pendingReq?.id ?? null);
+
+  if (outcome === "existing_account") {
+    return NextResponse.json({ ok: true, outcome });
+  }
+
+  if (outcome === "duplicate_pending" && pendingReq) {
+    await supabase
+      .from("demo_requests")
+      .update({ nombre, empresa, telefono, sector, mensaje: mensaje || null })
+      .eq("id", pendingReq.id);
+    return NextResponse.json({ ok: true, outcome });
+  }
+  // outcome === "created" → continúa al INSERT + emails existentes
+
   const { data: row, error } = await supabase
     .from('demo_requests')
     .insert({
@@ -100,5 +133,5 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  return NextResponse.json({ ok: true, id: row.id });
+  return NextResponse.json({ ok: true, outcome: "created", id: row.id });
 }
