@@ -71,6 +71,34 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
+    // 2c. Guard: si el email ya tiene cuenta, NO crear org zombie.
+    const { data: existing } = await adminSupabase
+      .from("profiles")
+      .select("organization_id")
+      .ilike("email", admin_email)
+      .maybeSingle();
+
+    if (existing) {
+      let existingOrg: { name: string; slug: string; trial_ends_at: string | null } | null = null;
+      if (existing.organization_id) {
+        const { data: org } = await adminSupabase
+          .from("organizations")
+          .select("name, slug, trial_ends_at")
+          .eq("id", existing.organization_id)
+          .maybeSingle();
+        existingOrg = org ?? null;
+      }
+      return NextResponse.json(
+        {
+          error: existingOrg
+            ? `Este email ya tiene la organización "${existingOrg.name}". Usa "Reenviar acceso" para que recupere su contraseña.`
+            : 'Este email ya tiene una cuenta. Usa "Reenviar acceso".',
+          existingOrg,
+        },
+        { status: 409 }
+      );
+    }
+
     // 3. RPC atómica (p_approver_id explícito — service_role no tiene auth.uid())
     const { data: rpcResult, error: rpcError } = await adminSupabase.rpc(
       "approve_demo_request",

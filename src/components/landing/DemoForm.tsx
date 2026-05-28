@@ -1,6 +1,6 @@
 'use client';
 // src/components/landing/DemoForm.tsx
-import { cloneElement, isValidElement, useId, useState } from 'react';
+import { cloneElement, isValidElement, useId, useRef, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -9,7 +9,7 @@ import { SectionHeading } from './ui/SectionHeading';
 import { copy } from '@/lib/landing/copy';
 import { demoRequestSchema, type DemoRequestInput } from '@/lib/landing/schema';
 
-type Status = 'idle' | 'submitting' | 'error';
+type Status = 'idle' | 'submitting' | 'error' | 'existing_account';
 
 const input =
   'w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
@@ -51,6 +51,15 @@ export function DemoForm() {
   const router = useRouter();
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const existingAccountRef = useRef<HTMLDivElement>(null);
+
+  // Shift focus to the status block when it appears so screen-reader users
+  // receive the message without having to navigate to it (a11y: focus management).
+  useEffect(() => {
+    if (status === 'existing_account') {
+      existingAccountRef.current?.focus();
+    }
+  }, [status]);
 
   const {
     register,
@@ -72,6 +81,11 @@ export function DemoForm() {
       });
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload.error || 'unknown');
+      if (payload.outcome === 'existing_account') {
+        setStatus('existing_account');
+        return;
+      }
+      // created o duplicate_pending -> página de gracias
       router.push('/gracias');
     } catch (err) {
       setStatus('error');
@@ -140,6 +154,26 @@ export function DemoForm() {
               />
             </Field>
           </div>
+
+          {status === 'existing_account' ? (
+            <div
+              ref={existingAccountRef}
+              role="status"
+              aria-live="polite"
+              tabIndex={-1}
+              className="mt-5 flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-sm focus:outline-none"
+            >
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Parece que ya tienes una cuenta en Tus Horarios</p>
+                <p className="mt-1">Inicia sesión o recupera tu contraseña para entrar.</p>
+                <div className="mt-3 flex gap-3">
+                  <a href="/login" className="font-semibold underline">Iniciar sesión</a>
+                  <a href="/forgot-password" className="font-semibold underline">¿Olvidaste tu contraseña?</a>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {status === 'error' && errorMsg ? (
             <div role="alert" aria-live="polite" className="mt-5 flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
