@@ -29,6 +29,7 @@ export default function DemoRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [selectedLead, setSelectedLead] = useState<DemoRequest | null>(null);
+  const [emailsWithAccount, setEmailsWithAccount] = useState<Set<string>>(new Set());
   const supabase = createClient();
 
   const loadRequests = useCallback(async () => {
@@ -47,6 +48,13 @@ export default function DemoRequestsPage() {
     const { data, error } = await query;
     if (error) toast.error("Error cargando solicitudes");
     setRequests((data ?? []) as DemoRequest[]);
+    const emails = (data ?? []).map((r) => (r.email ?? "").toLowerCase()).filter(Boolean);
+    if (emails.length > 0) {
+      const { data: profs } = await supabase.from("profiles").select("email").in("email", emails);
+      setEmailsWithAccount(new Set((profs ?? []).map((p) => (p.email ?? "").toLowerCase())));
+    } else {
+      setEmailsWithAccount(new Set());
+    }
     setLoading(false);
   }, [supabase, statusFilter]);
 
@@ -57,16 +65,25 @@ export default function DemoRequestsPage() {
   }, [authLoading, profile?.role, loadRequests]);
 
   async function markStatus(id: string, status: string) {
-    const { error } = await supabase
-      .from("demo_requests")
-      .update({ status })
-      .eq("id", id);
+    const patch: { status: string; contacted_at?: string } = { status };
+    if (status === "contacted") patch.contacted_at = new Date().toISOString();
+    const { error } = await supabase.from("demo_requests").update(patch).eq("id", id);
     if (error) {
       toast.error("Error actualizando");
     } else {
       toast.success("Estado actualizado");
       void loadRequests();
     }
+  }
+
+  async function resendAccess(email: string) {
+    const res = await fetch("/api/admin/demo-requests/resend-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (res.ok) toast.success("Acceso reenviado (la persona recibirá un email)");
+    else toast.error("No se pudo reenviar el acceso");
   }
 
   if (authLoading) return <div className="p-6">Cargando…</div>;
@@ -131,36 +148,40 @@ export default function DemoRequestsPage() {
           },
           {
             header: "Acciones",
-            cell: (r) =>
-              ["new", "contacted", "scheduled"].includes(r.status ?? "") ? (
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setSelectedLead(r)}>
-                    Aprobar
-                  </Button>
-                  {r.status !== "contacted" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => markStatus(r.id, "contacted")}
-                    >
-                      Contactado
+            cell: (r) => {
+              const pending = ["new", "contacted", "scheduled"].includes(r.status ?? "");
+              const hasAccount = emailsWithAccount.has((r.email ?? "").toLowerCase());
+              if (pending && hasAccount) {
+                return (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                      Ya tiene cuenta
+                    </span>
+                    <Button size="sm" variant="outline" aria-label={`Reenviar acceso a ${r.email}`} onClick={() => resendAccess(r.email ?? "")}>
+                      Reenviar acceso
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => markStatus(r.id, "rejected")}
-                  >
-                    Rechazar
-                  </Button>
-                </div>
-              ) : r.status === "approved" && r.approved_org_id ? (
-                <span className="text-sm text-slate-500">
-                  &rarr; Org creada
-                </span>
-              ) : (
-                <span className="text-sm text-slate-400">—</span>
-              ),
+                    <Button size="sm" variant="outline" aria-label={`Descartar solicitud de ${r.empresa}`} onClick={() => markStatus(r.id, "spam")}>
+                      Descartar
+                    </Button>
+                  </div>
+                );
+              }
+              if (pending) {
+                return (
+                  <div className="flex gap-2">
+                    <Button size="sm" aria-label={`Aprobar ${r.empresa}`} onClick={() => setSelectedLead(r)}>Aprobar</Button>
+                    {r.status !== "contacted" && (
+                      <Button size="sm" variant="outline" aria-label={`Marcar ${r.empresa} como contactado`} onClick={() => markStatus(r.id, "contacted")}>Contactado</Button>
+                    )}
+                    <Button size="sm" variant="outline" aria-label={`Rechazar ${r.empresa}`} onClick={() => markStatus(r.id, "rejected")}>Rechazar</Button>
+                  </div>
+                );
+              }
+              if (r.status === "approved" && r.approved_org_id) {
+                return <span className="text-sm text-slate-500">&rarr; Org creada</span>;
+              }
+              return <span className="text-sm text-slate-400">—</span>;
+            },
           },
         ]}
       />
