@@ -7,6 +7,14 @@ import { isSuperAdmin } from "@/lib/auth/can-manage";
 import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ApproveDialog } from "./approve-dialog";
 import { toast } from "sonner";
 import type { Database } from "@/lib/supabase/database.types";
@@ -30,6 +38,10 @@ export default function DemoRequestsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [selectedLead, setSelectedLead] = useState<DemoRequest | null>(null);
   const [emailsWithAccount, setEmailsWithAccount] = useState<Set<string>>(new Set());
+  const [detailLead, setDetailLead] = useState<DemoRequest | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [approverName, setApproverName] = useState<string | null>(null);
+  const [approvedOrg, setApprovedOrg] = useState<{ name: string; slug: string } | null>(null);
   const supabase = createClient();
 
   const loadRequests = useCallback(async () => {
@@ -74,6 +86,28 @@ export default function DemoRequestsPage() {
       toast.success("Estado actualizado");
       void loadRequests();
     }
+  }
+
+  async function openDetail(r: DemoRequest) {
+    setDetailLead(r);
+    setNoteDraft(r.notes ?? "");
+    setApproverName(null);
+    setApprovedOrg(null);
+    if (r.approved_by) {
+      const { data: p } = await supabase.from("profiles").select("first_name, last_name").eq("id", r.approved_by).maybeSingle();
+      if (p) setApproverName(`${p.first_name} ${p.last_name}`.trim());
+    }
+    if (r.approved_org_id) {
+      const { data: o } = await supabase.from("organizations").select("name, slug").eq("id", r.approved_org_id).maybeSingle();
+      if (o) setApprovedOrg(o);
+    }
+  }
+
+  async function saveNotes() {
+    if (!detailLead) return;
+    const { error } = await supabase.from("demo_requests").update({ notes: noteDraft }).eq("id", detailLead.id);
+    if (error) { toast.error("Error guardando notas"); }
+    else { toast.success("Notas guardadas"); setDetailLead(null); void loadRequests(); }
   }
 
   async function resendAccess(email: string) {
@@ -147,6 +181,19 @@ export default function DemoRequestsPage() {
             ),
           },
           {
+            header: "",
+            cell: (r) => (
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Ver detalle de ${r.empresa}`}
+                onClick={() => void openDetail(r)}
+              >
+                Ver
+              </Button>
+            ),
+          },
+          {
             header: "Acciones",
             cell: (r) => {
               const pending = ["new", "contacted", "scheduled"].includes(r.status ?? "");
@@ -196,6 +243,91 @@ export default function DemoRequestsPage() {
           }}
         />
       )}
+
+      <Dialog open={!!detailLead} onOpenChange={(open) => { if (!open) setDetailLead(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Solicitud de {detailLead?.empresa}</DialogTitle>
+          </DialogHeader>
+
+          {detailLead && (
+            <div className="space-y-3 text-sm">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+                <dt className="font-medium text-slate-600">Nombre</dt>
+                <dd>{detailLead.nombre ?? "—"}</dd>
+
+                <dt className="font-medium text-slate-600">Email</dt>
+                <dd>{detailLead.email ?? "—"}</dd>
+
+                <dt className="font-medium text-slate-600">Teléfono</dt>
+                <dd>{detailLead.telefono ?? "—"}</dd>
+
+                <dt className="font-medium text-slate-600">Sector</dt>
+                <dd>{detailLead.sector ?? "—"}</dd>
+
+                {detailLead.mensaje && (
+                  <>
+                    <dt className="font-medium text-slate-600">Mensaje</dt>
+                    <dd className="whitespace-pre-wrap">{detailLead.mensaje}</dd>
+                  </>
+                )}
+
+                <dt className="font-medium text-slate-600">Estado</dt>
+                <dd className="capitalize">{STATUS_LABELS[detailLead.status ?? ""] ?? detailLead.status}</dd>
+
+                <dt className="font-medium text-slate-600">Fecha</dt>
+                <dd>{new Date(detailLead.created_at).toLocaleString("es-CO")}</dd>
+
+                {detailLead.contacted_at && (
+                  <>
+                    <dt className="font-medium text-slate-600">Contactado</dt>
+                    <dd>{new Date(detailLead.contacted_at).toLocaleString("es-CO")}</dd>
+                  </>
+                )}
+
+                {detailLead.approved_at && (
+                  <>
+                    <dt className="font-medium text-slate-600">Aprobado el</dt>
+                    <dd>
+                      {new Date(detailLead.approved_at).toLocaleString("es-CO")}
+                      {approverName && <span> por <strong>{approverName}</strong></span>}
+                    </dd>
+                  </>
+                )}
+
+                {approvedOrg && (
+                  <>
+                    <dt className="font-medium text-slate-600">Organización</dt>
+                    <dd>{approvedOrg.name} <span className="text-slate-400">({approvedOrg.slug})</span></dd>
+                  </>
+                )}
+              </dl>
+
+              <div className="pt-2">
+                <label htmlFor="detail-notes" className="mb-1 block font-medium text-slate-600">
+                  Notas internas
+                </label>
+                <Textarea
+                  id="detail-notes"
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  rows={3}
+                  placeholder="Agrega notas sobre este lead…"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailLead(null)}>
+              Cerrar
+            </Button>
+            <Button onClick={() => void saveNotes()}>
+              Guardar notas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
