@@ -291,6 +291,7 @@ export type Database = {
           sector: string
           status: string
           telefono: string
+          updated_at: string
           user_agent: string | null
         }
         Insert: {
@@ -309,6 +310,7 @@ export type Database = {
           sector: string
           status?: string
           telefono: string
+          updated_at?: string
           user_agent?: string | null
         }
         Update: {
@@ -327,6 +329,7 @@ export type Database = {
           sector?: string
           status?: string
           telefono?: string
+          updated_at?: string
           user_agent?: string | null
         }
         Relationships: [
