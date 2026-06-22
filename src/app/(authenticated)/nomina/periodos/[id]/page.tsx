@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { canAdmin } from "@/lib/auth/can-manage";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -121,7 +122,7 @@ export default function PeriodoDetallePage() {
 
   useEffect(() => {
     if (authLoading || !profile) return;
-    if (profile.role !== "admin") router.replace("/dashboard");
+    if (!canAdmin(profile.role)) router.replace("/dashboard");
   }, [profile, authLoading, router]);
 
   if (authLoading || !profile) {
@@ -131,7 +132,7 @@ export default function PeriodoDetallePage() {
       </div>
     );
   }
-  if (profile.role !== "admin") return null;
+  if (!canAdmin(profile.role)) return null;
 
   if (loading) {
     return (

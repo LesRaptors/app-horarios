@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { canAdmin } from "@/lib/auth/can-manage";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -35,7 +36,7 @@ export default function PayrollSettingsPage() {
 
   useEffect(() => {
     if (authLoading || !profile) return;
-    if (profile.role !== "admin") router.replace("/dashboard");
+    if (!canAdmin(profile.role)) router.replace("/dashboard");
   }, [profile, authLoading, router]);
 
   if (authLoading || !profile) {
@@ -45,7 +46,7 @@ export default function PayrollSettingsPage() {
       </div>
     );
   }
-  if (profile.role !== "admin") return null;
+  if (!canAdmin(profile.role)) return null;
 
   return (
     <div className="space-y-6 p-6">
