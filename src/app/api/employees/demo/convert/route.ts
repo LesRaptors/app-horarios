@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canManage } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import type { UserRole } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -37,6 +38,20 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
+    // Resolver org efectiva: un super_admin opera sobre el tenant activo
+    // (super_admin_active_org), no sobre su propio profile (organization_id null).
+    const callerOrg = await resolveEffectiveOrgId(adminSupabase, {
+      id: user.id,
+      role: callerProfile.role,
+      organization_id: callerProfile.organization_id,
+    });
+    if (!callerOrg) {
+      return NextResponse.json(
+        { error: "Selecciona un tenant activo para convertir empleados" },
+        { status: 400 }
+      );
+    }
+
     // 3. Fetch demo profile to verify is_demo=true
     const { data: demoProfile, error: fetchError } = await adminSupabase
       .from("profiles")
@@ -58,6 +73,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Cross-tenant guard: el demo debe pertenecer al org efectivo del caller.
+    if (demoProfile.organization_id !== callerOrg) {
+      return NextResponse.json(
+        { error: "Empleado fuera de tu organización" },
+        { status: 403 }
+      );
+    }
+
     // 4. Create auth user via invite (con organization_id + redirectTo a tushorarios.com)
     const appUrl =
       process.env.NEXT_PUBLIC_SITE_URL ??
@@ -70,7 +93,7 @@ export async function POST(request: NextRequest) {
           first_name: demoProfile.first_name,
           last_name: demoProfile.last_name,
           role: demoProfile.role,
-          organization_id: callerProfile.organization_id,
+          organization_id: callerOrg,
         },
         redirectTo: `${appUrl}/auth/set-password`,
       });

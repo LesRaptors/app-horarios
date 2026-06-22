@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import { canManage } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import type { UserRole } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -38,8 +39,21 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
+    // Resolver org efectiva: un super_admin opera sobre el tenant activo
+    // (super_admin_active_org), no sobre su propio profile (organization_id null).
+    const callerOrg = await resolveEffectiveOrgId(adminSupabase, {
+      id: user.id,
+      role: callerProfile.role,
+      organization_id: callerProfile.organization_id,
+    });
+    if (!callerOrg) {
+      return NextResponse.json(
+        { error: "Selecciona un tenant activo para transferir turnos" },
+        { status: 400 }
+      );
+    }
+
     // Validar que ambos profiles pertenezcan al org del caller (cross-tenant guard).
-    const callerOrg = callerProfile.organization_id;
     try {
       await assertSameOrg(adminSupabase, callerOrg, demo_id, "profiles");
       await assertSameOrg(adminSupabase, callerOrg, target_employee_id, "profiles");
