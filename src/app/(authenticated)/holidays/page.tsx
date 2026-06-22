@@ -23,7 +23,7 @@ import { canManage, canAdmin } from "@/lib/auth/can-manage";
 
 export default function HolidaysPage() {
   const supabase = createClient();
-  const { profile } = useAuth();
+  const { profile, effectiveOrgId } = useAuth();
   const [nacionales, setNacionales] = useState<HolidayDate[]>([]);
   const [sedes, setSedes] = useState<Location[]>([]);
   const [localHolidays, setLocalHolidays] = useState<HolidayDate[]>([]);
@@ -61,12 +61,18 @@ export default function HolidaysPage() {
 
   async function handleSave() {
     if (!formDate || !formName) return;
+    // Festivo por sede necesita la org efectiva (super_admin opera sobre el tenant
+    // activo; su profile.organization_id es null). Evita insertar un festivo huérfano.
+    if (!formIsNational && !effectiveOrgId) {
+      toast.error("Selecciona un tenant activo para crear un festivo por sede.");
+      return;
+    }
     setSaving(true);
     const payload = {
       date: formDate,
       name: formName,
       location_id: formIsNational ? null : (formSede || null),
-      organization_id: formIsNational ? null : (profile?.organization_id ?? null),
+      organization_id: formIsNational ? null : (effectiveOrgId ?? null),
     };
     const { error } = await supabase.from("holidays").insert(payload);
     if (error) toast.error(translateDbError(error.message, "Error al crear festivo"));
