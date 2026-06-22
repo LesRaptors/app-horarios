@@ -40,7 +40,7 @@ interface Props {
 
 export function LiquidacionForm({ open, onOpenChange }: Props) {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { effectiveOrgId } = useAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
@@ -107,7 +107,7 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
   }
 
   async function handleSave() {
-    if (!profile?.organization_id) {
+    if (!effectiveOrgId) {
       toast.error("No se pudo determinar la organización. Recarga la página.");
       return;
     }
@@ -135,7 +135,7 @@ export function LiquidacionForm({ open, onOpenChange }: Props) {
     const { data, error } = await supabase
       .from("liquidations")
       .insert({
-        organization_id: profile.organization_id,
+        organization_id: effectiveOrgId,
         employee_id: employeeId,
         termination_date: terminationDate,
         reason,

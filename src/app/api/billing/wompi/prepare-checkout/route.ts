@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAdmin } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import type { UserRole } from "@/lib/types";
 import { computeIntegrityHash } from "@/lib/billing/wompi/integrity-hash";
 import {
@@ -15,13 +16,6 @@ import {
 const Schema = z.object({ planId: z.string() });
 export const runtime = "nodejs";
 
-type OrgJoin = {
-  name: string | null;
-  nit: string | null;
-  billing_email: string | null;
-  billing_exempt: boolean | null;
-};
-
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -31,22 +25,36 @@ export async function POST(req: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "role, organization_id, organizations!profiles_org_fk(name, nit, billing_email, billing_exempt)"
-    )
+    .select("role, organization_id")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!profile || !canAdmin(profile.role as UserRole)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!profile.organization_id) {
-    return NextResponse.json({ error: "no org" }, { status: 400 });
+
+  const admin = createAdminClient();
+
+  // Org efectiva: super_admin opera sobre el tenant activo, no su propio profile.
+  const callerOrg = await resolveEffectiveOrgId(supabase, {
+    id: user.id,
+    role: profile.role,
+    organization_id: profile.organization_id,
+  });
+  if (!callerOrg) {
+    return NextResponse.json(
+      { error: "Selecciona un tenant activo para pagar" },
+      { status: 400 }
+    );
   }
 
-  const orgRaw = (profile as unknown as { organizations: OrgJoin | OrgJoin[] | null })
-    .organizations;
-  const org: OrgJoin | null = Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : (orgRaw ?? null);
+  // Datos de facturación de la org por callerOrg (el join del profile está vacío
+  // para super_admin, que tiene organization_id null en su propia fila).
+  const { data: org } = await admin
+    .from("organizations")
+    .select("name, nit, billing_email, billing_exempt")
+    .eq("id", callerOrg)
+    .maybeSingle();
 
   if (org?.billing_exempt) {
     return NextResponse.json({ error: "Org exenta de billing" }, { status: 400 });
@@ -59,7 +67,6 @@ export async function POST(req: Request) {
   }
 
   const body = Schema.parse(await req.json());
-  const admin = createAdminClient();
   const { data: plan, error: planErr } = await admin
     .from("plans")
     .select("*")
@@ -81,7 +88,7 @@ export async function POST(req: Request) {
   const { data: existingSub } = await admin
     .from("subscriptions")
     .select("id")
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", callerOrg)
     .maybeSingle();
 
   let subscriptionId: string;
@@ -92,7 +99,7 @@ export async function POST(req: Request) {
     const { data: newSub, error: subErr } = await admin
       .from("subscriptions")
       .insert({
-        organization_id: profile.organization_id,
+        organization_id: callerOrg,
         plan_id: body.planId,
         status: "trialing",
         current_period_start: periodStart.toISOString(),
@@ -110,7 +117,7 @@ export async function POST(req: Request) {
   const { data: invoice, error: invErr } = await admin
     .from("invoices")
     .insert({
-      organization_id: profile.organization_id,
+      organization_id: callerOrg,
       subscription_id: subscriptionId,
       plan_id: body.planId,
       period_start: periodStart.toISOString(),

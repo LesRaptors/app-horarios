@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { canAdmin } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import type { UserRole } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -16,17 +17,26 @@ export async function POST() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!canAdmin((profile?.role ?? null) as UserRole | null)) {
+  if (!profile || !canAdmin(profile.role as UserRole | null)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!profile?.organization_id) {
-    return NextResponse.json({ error: "no org" }, { status: 400 });
+  // Org efectiva: super_admin opera sobre el tenant activo (super_admin_active_org).
+  const callerOrg = await resolveEffectiveOrgId(supabase, {
+    id: user.id,
+    role: profile.role,
+    organization_id: profile.organization_id,
+  });
+  if (!callerOrg) {
+    return NextResponse.json(
+      { error: "Selecciona un tenant activo para cancelar la suscripción" },
+      { status: 400 }
+    );
   }
 
   const { data, error } = await supabase
     .from("subscriptions")
     .update({ cancel_at_period_end: true })
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", callerOrg)
     .select("current_period_end")
     .single();
 

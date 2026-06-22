@@ -46,6 +46,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Allowlist de rol: super_admin nunca es rol de empleado, y un manager no
+    // puede crear un demo "admin" (lo convertiría luego a un admin real,
+    // escalando por encima de su propio rol).
+    const allowedRoles =
+      callerProfile.role === "manager"
+        ? ["employee", "manager"]
+        : ["employee", "admin", "manager"];
+    if (role && !allowedRoles.includes(role)) {
+      return NextResponse.json(
+        { error: "No puedes asignar ese rol" },
+        { status: 403 }
+      );
+    }
+
     // 4. Generate UUID and insert demo profile
     const id = crypto.randomUUID();
     const adminSupabase = createAdminClient();
