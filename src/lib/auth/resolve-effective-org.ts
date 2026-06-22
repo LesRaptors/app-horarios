@@ -14,8 +14,10 @@ import type { Database } from "@/lib/supabase/database.types";
  * rutas que insertan filas org-scoped NO pueden usar `callerProfile.organization_id`
  * directo — violarían el CHECK `profiles_org_required` / el trigger handle_new_user.
  *
- * El admin client (service_role) bypassea RLS, así que la lectura de
- * `super_admin_active_org` siempre funciona.
+ * Funciona tanto con el admin client (service_role, que bypassa RLS) como con el
+ * client autenticado del usuario: el self-read de `super_admin_active_org` pasa la
+ * policy `saao_self` (USING user_id = auth.uid()), así que el super_admin siempre
+ * puede leer su propia fila.
  */
 export async function resolveEffectiveOrgId(
   adminSupabase: SupabaseClient<Database>,

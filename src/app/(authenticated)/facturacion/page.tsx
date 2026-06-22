@@ -74,7 +74,7 @@ interface SubscriptionRow {
 /* ─── page ─────────────────────────────────────────────────── */
 
 export default function FacturacionPage() {
-  const { profile } = useAuth();
+  const { profile, effectiveOrgId } = useAuth();
 
   // Gate: feature flag (soft launch)
   if (!isBillingEnabled()) {
@@ -90,7 +90,7 @@ export default function FacturacionPage() {
     );
   }
 
-  return <FacturacionContent orgId={profile?.organization_id ?? null} />;
+  return <FacturacionContent orgId={effectiveOrgId} />;
 }
 
 function FacturacionContent({ orgId }: { orgId: string | null }) {
@@ -178,6 +178,28 @@ function FacturacionContent({ orgId }: { orgId: string | null }) {
   };
 
   const isLoading = plansLoading || subLoading;
+
+  // super_admin en modo panel (sin tenant activo) → effectiveOrgId null. Sin esto
+  // los flags de loading nunca pasan a false y la pestaña Plan gira para siempre.
+  if (!orgId) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-3xl font-bold">Facturación</h1>
+          <p className="text-muted-foreground">
+            Gestiona tu plan, método de pago y facturas.
+          </p>
+        </header>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Selecciona un tenant activo para ver la facturación.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

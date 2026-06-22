@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 type BillingStatus = {
   subscription: { status: string; current_period_end: string; cancel_at_period_end: boolean | null } | null;
@@ -13,6 +14,7 @@ type BillingStatus = {
 const POLL_MS = 60_000;
 
 export function useBillingStatus(enabled: boolean): BillingStatus {
+  const { effectiveOrgId } = useAuth();
   const [state, setState] = useState<BillingStatus>({
     subscription: null,
     trialDaysLeft: null,
@@ -22,25 +24,15 @@ export function useBillingStatus(enabled: boolean): BillingStatus {
   });
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !effectiveOrgId) return;
     const supabase = createClient();
     let cancelled = false;
 
     const fetchOnce = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!profile?.organization_id) return;
       const { data: sub } = await supabase
         .from("subscriptions")
         .select("status, current_period_end, cancel_at_period_end")
-        .eq("organization_id", profile.organization_id)
+        .eq("organization_id", effectiveOrgId)
         .maybeSingle();
       if (cancelled) return;
       if (!sub) {
@@ -75,7 +67,7 @@ export function useBillingStatus(enabled: boolean): BillingStatus {
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-  }, [enabled]);
+  }, [enabled, effectiveOrgId]);
 
   return state;
 }

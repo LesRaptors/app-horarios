@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAdmin } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import { encryptCreds } from "@/lib/billing/crypto";
 import type { UserRole } from "@/lib/types";
 
@@ -24,16 +25,21 @@ export async function GET() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!canAdmin((profile?.role ?? null) as UserRole | null)) {
+  if (!profile || !canAdmin(profile.role as UserRole | null)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!profile?.organization_id) return NextResponse.json({ data: null });
+  const callerOrg = await resolveEffectiveOrgId(supabase, {
+    id: user.id,
+    role: profile.role,
+    organization_id: profile.organization_id,
+  });
+  if (!callerOrg) return NextResponse.json({ data: null });
 
   // SELECT solo metadata; NUNCA expone config (encrypted creds)
   const { data } = await supabase
     .from("billing_providers")
     .select("provider, is_active, configured_at")
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", callerOrg)
     .maybeSingle();
 
   return NextResponse.json({ data });
@@ -50,11 +56,19 @@ export async function PUT(req: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!canAdmin((profile?.role ?? null) as UserRole | null)) {
+  if (!profile || !canAdmin(profile.role as UserRole | null)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!profile?.organization_id) {
-    return NextResponse.json({ error: "no org" }, { status: 400 });
+  const callerOrg = await resolveEffectiveOrgId(supabase, {
+    id: user.id,
+    role: profile.role,
+    organization_id: profile.organization_id,
+  });
+  if (!callerOrg) {
+    return NextResponse.json(
+      { error: "Selecciona un tenant activo para configurar el proveedor" },
+      { status: 400 }
+    );
   }
 
   const body = Schema.parse(await req.json());
@@ -63,7 +77,7 @@ export async function PUT(req: Request) {
   const admin = createAdminClient();
   const { error } = await admin.from("billing_providers").upsert(
     {
-      organization_id: profile.organization_id,
+      organization_id: callerOrg,
       provider: body.provider,
       config: encrypted as unknown as never,    // JSONB column stores encrypted string
       is_active: true,
