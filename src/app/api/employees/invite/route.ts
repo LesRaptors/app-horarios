@@ -77,40 +77,65 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL ??
       "https://www.tushorarios.com";
 
-    const { data: newUser, error: inviteError } =
-      await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          first_name,
-          last_name,
-          role,
-          organization_id: callerOrg,
-        },
-        redirectTo: `${appUrl}/auth/set-password`,
-      });
+    let createdUserId: string | null = null;
+    try {
+      const { data: newUser, error: inviteError } =
+        await adminSupabase.auth.admin.inviteUserByEmail(email, {
+          data: {
+            first_name,
+            last_name,
+            role,
+            organization_id: callerOrg,
+          },
+          redirectTo: `${appUrl}/auth/set-password`,
+        });
 
-    if (inviteError) {
-      console.error("[invite] Supabase auth error:", inviteError.message);
-      const msg = inviteError.message.toLowerCase();
-      let userMessage = "Error al invitar el usuario. Por favor intenta de nuevo.";
+      if (inviteError) {
+        console.error("[invite] Supabase auth error:", inviteError.message);
+        const msg = inviteError.message.toLowerCase();
+        let userMessage = "Error al invitar el usuario. Por favor intenta de nuevo.";
 
-      if (msg.includes("already been registered") || msg.includes("already exists")) {
-        userMessage = "Ya existe un usuario registrado con ese correo electrónico.";
-      } else if (msg.includes("invalid") && msg.includes("email")) {
-        userMessage = "El formato del correo electrónico no es válido.";
-      } else if (msg.includes("database error")) {
-        userMessage = "No se pudo crear el usuario. Es posible que este correo ya haya sido registrado anteriormente. Contacta al administrador si el problema persiste.";
-      } else if (msg.includes("rate limit") || msg.includes("too many")) {
-        userMessage = "Se han enviado demasiadas invitaciones. Espera unos minutos e intenta de nuevo.";
+        if (msg.includes("already been registered") || msg.includes("already exists")) {
+          userMessage = "Ya existe un usuario registrado con ese correo electrónico.";
+        } else if (msg.includes("invalid") && msg.includes("email")) {
+          userMessage = "El formato del correo electrónico no es válido.";
+        } else if (msg.includes("database error")) {
+          userMessage = "No se pudo crear el usuario. Es posible que este correo ya haya sido registrado anteriormente. Contacta al administrador si el problema persiste.";
+        } else if (msg.includes("rate limit") || msg.includes("too many")) {
+          userMessage = "Se han enviado demasiadas invitaciones. Espera unos minutos e intenta de nuevo.";
+        }
+
+        return NextResponse.json(
+          { error: userMessage },
+          { status: 400 }
+        );
       }
-
-      return NextResponse.json(
-        { error: userMessage },
-        { status: 400 }
+      createdUserId = newUser?.user?.id ?? null;
+    } catch (e) {
+      // El envío SMTP puede tardar y abortar el cliente aunque GoTrue ya haya
+      // creado el usuario (su profile lo crea el trigger). Lo buscamos por email
+      // para completar la asignación de campos en vez de fallar a medias.
+      console.error(
+        "[invite] invite threw (posible timeout SMTP):",
+        e instanceof Error ? e.message : e
       );
+      const { data: existing } = await adminSupabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", email)
+        .eq("is_demo", false)
+        .maybeSingle();
+      createdUserId = (existing as { id: string } | null)?.id ?? null;
+      if (!createdUserId) {
+        return NextResponse.json(
+          { error: "Error al invitar el usuario. Por favor intenta de nuevo." },
+          { status: 400 }
+        );
+      }
     }
 
     // 4. Update profile with additional fields (trigger created basic profile)
-    if (newUser?.user) {
+    if (createdUserId) {
       const updateData: Record<string, unknown> = {};
       if (phone) updateData.phone = phone;
       if (position_id) updateData.position_id = position_id;
@@ -122,11 +147,11 @@ export async function POST(request: NextRequest) {
         await adminSupabase
           .from("profiles")
           .update(updateData)
-          .eq("id", newUser.user.id);
+          .eq("id", createdUserId);
       }
     }
 
-    return NextResponse.json({ success: true, user_id: newUser?.user?.id });
+    return NextResponse.json({ success: true, user_id: createdUserId });
   } catch {
     return NextResponse.json(
       { error: "Error interno del servidor" },

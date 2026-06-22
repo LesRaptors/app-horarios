@@ -87,19 +87,44 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL ??
       "https://www.tushorarios.com";
 
-    const { data: newUser, error: inviteError } =
-      await adminSupabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          first_name: demoProfile.first_name,
-          last_name: demoProfile.last_name,
-          role: demoProfile.role,
-          organization_id: callerOrg,
-        },
-        redirectTo: `${appUrl}/auth/set-password`,
-      });
+    let realUserId: string | null = null;
+    try {
+      const { data: newUser, error: inviteError } =
+        await adminSupabase.auth.admin.inviteUserByEmail(email, {
+          data: {
+            first_name: demoProfile.first_name,
+            last_name: demoProfile.last_name,
+            role: demoProfile.role,
+            organization_id: callerOrg,
+          },
+          redirectTo: `${appUrl}/auth/set-password`,
+        });
+      if (inviteError) {
+        console.error("[demo-convert] Invite error:", inviteError.message);
+        return NextResponse.json(
+          { error: "Error al invitar al usuario" },
+          { status: 400 }
+        );
+      }
+      realUserId = newUser?.user?.id ?? null;
+    } catch (e) {
+      // El envío SMTP puede tardar y abortar el cliente aunque GoTrue ya haya
+      // creado el usuario (su profile lo crea el trigger handle_new_user). Lo
+      // buscamos por email antes de fallar, para no dejar la conversión a medias.
+      console.error(
+        "[demo-convert] invite threw (posible timeout SMTP):",
+        e instanceof Error ? e.message : e
+      );
+      const { data: existing } = await adminSupabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", email)
+        .eq("is_demo", false)
+        .maybeSingle();
+      realUserId = (existing as { id: string } | null)?.id ?? null;
+    }
 
-    if (inviteError || !newUser?.user) {
-      console.error("[demo-convert] Invite error:", inviteError?.message);
+    if (!realUserId) {
       return NextResponse.json(
         { error: "Error al invitar al usuario" },
         { status: 400 }
@@ -112,7 +137,7 @@ export async function POST(request: NextRequest) {
       "convert_demo_to_real",
       {
         p_demo_id: demo_id,
-        p_real_id: newUser.user.id,
+        p_real_id: realUserId,
       }
     );
 
@@ -135,7 +160,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user_id: newUser.user.id,
+      user_id: realUserId,
       entries_migrated: result.entries_migrated,
     });
   } catch {
