@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { assertSameOrg, CrossTenantError } from "@/lib/auth/assert-same-org";
 import { canManage } from "@/lib/auth/can-manage";
+import { resolveEffectiveOrgId } from "@/lib/auth/resolve-effective-org";
 import type { UserRole } from "@/lib/types";
 import type { Database } from "@/lib/supabase/database.types";
 import { NextRequest, NextResponse } from "next/server";
@@ -45,9 +46,22 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Resolver org efectiva: un super_admin opera sobre el tenant activo
+    // (super_admin_active_org), no sobre su propio profile (organization_id null).
+    const callerOrg = await resolveEffectiveOrgId(adminSupabase, {
+      id: user.id,
+      role: callerProfile.role,
+      organization_id: callerProfile.organization_id,
+    });
+    if (!callerOrg) {
+      return NextResponse.json(
+        { error: "Selecciona un tenant activo para invitar empleados" },
+        { status: 400 }
+      );
+    }
+
     // Validar que IDs del body pertenezcan al org del caller (defense in depth
     // contra cross-tenant injection: el admin client bypassea RLS).
-    const callerOrg = callerProfile.organization_id;
     try {
       if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
       if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
@@ -69,7 +83,7 @@ export async function POST(request: NextRequest) {
           first_name,
           last_name,
           role,
-          organization_id: callerProfile.organization_id,
+          organization_id: callerOrg,
         },
         redirectTo: `${appUrl}/auth/set-password`,
       });
