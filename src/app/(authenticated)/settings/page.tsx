@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/hooks/use-auth";
+import { canAdmin } from "@/lib/auth/can-manage";
 import { LaborConstraintsForm } from "@/components/settings/labor-constraints-form";
 import { SalariesVisibilityToggle } from "@/components/settings/salaries-visibility-toggle";
 import { PaymentFrequencySelector } from "@/components/settings/payment-frequency-selector";
@@ -18,7 +19,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (profile?.role !== "admin") {
+  if (!canAdmin(profile?.role)) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">

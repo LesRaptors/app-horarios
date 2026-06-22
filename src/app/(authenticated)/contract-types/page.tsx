@@ -110,7 +110,7 @@ export default function ContractTypesPage() {
     );
   }
 
-  if (profile?.role !== "admin") return null;
+  if (!canAdmin(profile?.role)) return null;
 
   return (
     <div className="space-y-6">

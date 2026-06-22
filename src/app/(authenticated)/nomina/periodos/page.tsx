@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { canAdmin } from "@/lib/auth/can-manage";
 import { Loader2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,7 +128,7 @@ export default function PeriodosNominaPage() {
 
   useEffect(() => {
     if (authLoading || !profile) return;
-    if (profile.role !== "admin") router.replace("/dashboard");
+    if (!canAdmin(profile.role)) router.replace("/dashboard");
   }, [profile, authLoading, router]);
 
   const rows: PeriodRow[] = useMemo(() => {
@@ -167,7 +168,7 @@ export default function PeriodosNominaPage() {
       </div>
     );
   }
-  if (profile.role !== "admin") return null;
+  if (!canAdmin(profile.role)) return null;
 
   return (
     <div className="space-y-6 p-6">
