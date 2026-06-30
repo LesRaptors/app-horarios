@@ -18,7 +18,7 @@ import { ExportDropdown } from "@/components/schedule/export-dropdown";
 import { ScheduleHealthBanner } from "@/components/schedule/schedule-health-banner";
 import { ScheduleHealthPanel } from "@/components/schedule/schedule-health-panel";
 import { computeHealth } from "@/lib/schedule-health";
-import { isHoliday } from "@/lib/equity-helpers";
+import { isHoliday, effectiveShiftHours, suggestIsNight } from "@/lib/equity-helpers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -365,6 +365,15 @@ export default function SchedulePage() {
     if (!schedule) return;
     setSaving(true);
 
+    // Carácter nocturno EFECTIVO del turno que se guarda: con plantilla respeta su
+    // flag para horas normales y lo deriva para horas de festivo (consistente con el
+    // motor vía effectiveShiftHours); sin plantilla (turno manual) lo deriva de las
+    // horas reales que se persisten.
+    const tpl = shiftTemplates.find((t) => t.id === data.shift_template_id);
+    const isNight = tpl
+      ? effectiveShiftHours(tpl, dialogIsHolidayDate).isNight
+      : suggestIsNight(data.start_time, data.end_time);
+
     if (dialogEntry) {
       // Update existing
       const { error } = await supabase
@@ -375,6 +384,7 @@ export default function SchedulePage() {
           end_time: data.end_time,
           shift_template_id: data.shift_template_id,
           notes: data.notes || null,
+          is_night: isNight,
         })
         .eq("id", dialogEntry.id);
 
@@ -397,6 +407,7 @@ export default function SchedulePage() {
         end_time: data.end_time,
         shift_template_id: data.shift_template_id,
         notes: data.notes || null,
+        is_night: isNight,
         organization_id: effectiveOrgId ?? "",
       });
 

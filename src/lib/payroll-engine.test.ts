@@ -409,6 +409,7 @@ function mkEntry(overrides: {
     end_time: overrides.end_time,
     shift_template_id: null,
     notes: null,
+    is_night: null,
     exceeds_caps: [],
     overtime_status: overrides.overtime_status ?? "none",
     overtime_reviewed_by: null,

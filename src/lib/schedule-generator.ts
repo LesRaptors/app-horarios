@@ -472,7 +472,10 @@ export function generateSchedule(
     t.lastShiftDate = e.date;
     t.lastShiftStartTime = e.start_time;
     t.lastShiftEndTime = e.end_time;
-    t.lastShiftWasNight = tpl?.is_night ?? false;
+    // Lee el carácter nocturno EFECTIVO persistido en el entry; si es NULL (entries
+    // históricos o creados por código viejo) cae al flag de la plantilla — mismo
+    // COALESCE que el trigger recompute_equity_rollup.
+    t.lastShiftWasNight = e.is_night ?? tpl?.is_night ?? false;
   }
 
   const timeOffMap = buildTimeOffLookup(timeOff);
@@ -616,6 +619,9 @@ export function generateSchedule(
       schedule_id: config.scheduleId, employee_id: chosen, position_id: slot.positionId,
       date: slot.date, start_time: slot.startTime, end_time: slot.endTime,
       shift_template_id: slot.shiftTemplateId, notes: null,
+      // Persiste el carácter nocturno EFECTIVO del slot (deriva del horario real,
+      // incluido el horario especial de festivo), no del flag de la plantilla.
+      is_night: slot.isNight,
       exceeds_caps: overtimeCaps,
       overtime_status: overtimeCaps.length > 0 ? "pending" : "none",
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,

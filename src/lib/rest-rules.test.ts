@@ -99,6 +99,7 @@ function mkEntry(date: string, isNight: boolean): ScheduleEntry {
     start_time: isNight ? "22:00" : "09:00",
     end_time: isNight ? "06:00" : "17:00",
     shift_template_id: isNight ? "tpl-n" : "tpl-d",
+    is_night: isNight,
     notes: null, created_at: "", updated_at: "",
     exceeds_caps: [], overtime_status: "none",
     overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
