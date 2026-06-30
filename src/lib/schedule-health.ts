@@ -251,7 +251,7 @@ export function computeHealth(
 
       for (const day of days) {
         const blocked = effectiveRules.some((rule) =>
-          isRestDay(rule, day, dummyTemplate, empEntries),
+          isRestDay(rule, day, dummyTemplate, empEntries, (d) => isHoliday(d, locationId, holidays)),
         );
         if (blocked) restDaysList.push(day);
       }
