@@ -199,6 +199,36 @@ function DemoBadge() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Contract type Select (shared by invite / edit / demo dialogs)
+// ---------------------------------------------------------------------------
+function ContractTypeSelect({
+  value,
+  onValueChange,
+  id,
+  contracts,
+}: {
+  value: string;
+  onValueChange: (val: string) => void;
+  id: string;
+  contracts: ContractType[];
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger id={id} aria-required="true">
+        <SelectValue placeholder="Seleccionar tipo de contrato" />
+      </SelectTrigger>
+      <SelectContent>
+        {contracts.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // ===========================================================================
 // PAGE COMPONENT
 // ===========================================================================
@@ -1248,23 +1278,14 @@ export default function EmployeesPage() {
               <Label htmlFor="invite-contract">
                 Tipo de contrato <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <ContractTypeSelect
+                id="invite-contract"
                 value={inviteForm.contract_type_id}
                 onValueChange={(val) =>
                   setInviteForm((f) => ({ ...f, contract_type_id: val }))
                 }
-              >
-                <SelectTrigger id="invite-contract" aria-required="true">
-                  <SelectValue placeholder="Seleccionar tipo de contrato" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contracts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                contracts={contracts}
+              />
             </div>
 
             {/* Phone */}
@@ -1472,23 +1493,14 @@ export default function EmployeesPage() {
                 <Label htmlFor="edit-contract">
                   Tipo de contrato <span className="text-destructive">*</span>
                 </Label>
-                <Select
+                <ContractTypeSelect
+                  id="edit-contract"
                   value={editForm.contract_type_id}
                   onValueChange={(val) =>
                     setEditForm((f) => (f ? { ...f, contract_type_id: val } : f))
                   }
-                >
-                  <SelectTrigger id="edit-contract" aria-required="true">
-                    <SelectValue placeholder="Seleccionar tipo de contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contracts.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  contracts={contracts}
+                />
               </div>
 
               {/* Supernumerario switch + floater multi-pick */}
@@ -1982,23 +1994,14 @@ export default function EmployeesPage() {
               <Label htmlFor="demo-contract">
                 Tipo de contrato <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <ContractTypeSelect
+                id="demo-contract"
                 value={demoForm.contract_type_id}
                 onValueChange={(val) =>
                   setDemoForm((f) => ({ ...f, contract_type_id: val }))
                 }
-              >
-                <SelectTrigger id="demo-contract" aria-required="true">
-                  <SelectValue placeholder="Seleccionar tipo de contrato" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contracts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                contracts={contracts}
+              />
             </div>
 
             {/* Max hours */}

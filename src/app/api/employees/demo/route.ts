@@ -47,13 +47,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!contract_type_id) {
-      return NextResponse.json(
-        { error: "El tipo de contrato es obligatorio" },
-        { status: 400 }
-      );
-    }
-
     // Allowlist de rol: super_admin nunca es rol de empleado, y un manager no
     // puede crear un demo "admin" (lo convertiría luego a un admin real,
     // escalando por encima de su propio rol).
@@ -86,16 +79,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar que position_id/location_id pertenezcan al org del caller.
+    // Validar que position_id/location_id/contract_type_id pertenezcan al org del caller.
     try {
       if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
       if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
-      await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
+      if (contract_type_id) await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
     } catch (err) {
       if (err instanceof CrossTenantError) {
         return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
       }
       throw err;
+    }
+
+    // Resolver el tipo de contrato. Es OPCIONAL en este endpoint: si no viene,
+    // se cae al "Sin definir" del org (robustez; la UI sí lo exige).
+    let resolvedContractTypeId: string;
+    if (contract_type_id) {
+      resolvedContractTypeId = contract_type_id;
+    } else {
+      const { data: sinDef } = await adminSupabase
+        .from("contract_types")
+        .select("id")
+        .eq("organization_id", callerOrg)
+        .eq("name", "Sin definir")
+        .maybeSingle();
+      if (!sinDef) {
+        return NextResponse.json(
+          { error: "La organización no tiene tipos de contrato configurados" },
+          { status: 400 }
+        );
+      }
+      resolvedContractTypeId = sinDef.id;
     }
 
     const insertData = {
@@ -109,7 +123,7 @@ export async function POST(request: NextRequest) {
       position_id: position_id || null,
       location_id: location_id || null,
       max_hours_per_week: max_hours_per_week || null,
-      contract_type_id,
+      contract_type_id: resolvedContractTypeId,
       organization_id: callerOrg,
     } as Record<string, unknown>;
 

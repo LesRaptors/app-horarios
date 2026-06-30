@@ -61,24 +61,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!contract_type_id) {
-      return NextResponse.json(
-        { error: "El tipo de contrato es obligatorio" },
-        { status: 400 }
-      );
-    }
-
-    // Validar que IDs del body pertenezcan al org del caller (defense in depth
-    // contra cross-tenant injection: el admin client bypassea RLS).
+    // Validar que position_id/location_id del body pertenezcan al org del caller
+    // (defense in depth contra cross-tenant injection: el admin client bypassea RLS).
     try {
       if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
       if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
-      await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
     } catch (err) {
       if (err instanceof CrossTenantError) {
         return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
       }
       throw err;
+    }
+
+    // Resolver el tipo de contrato. Es OPCIONAL en este endpoint: el onboarding
+    // de equipo invita solo con email. Si viene en el body, se valida que
+    // pertenezca al org; si no, se cae al "Sin definir" del org (robustez).
+    let resolvedContractTypeId: string;
+    if (contract_type_id) {
+      try {
+        await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
+      } catch (err) {
+        if (err instanceof CrossTenantError) {
+          return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
+        }
+        throw err;
+      }
+      resolvedContractTypeId = contract_type_id;
+    } else {
+      const { data: sinDef } = await adminSupabase
+        .from("contract_types")
+        .select("id")
+        .eq("organization_id", callerOrg)
+        .eq("name", "Sin definir")
+        .maybeSingle();
+      if (!sinDef) {
+        return NextResponse.json(
+          { error: "La organización no tiene tipos de contrato configurados" },
+          { status: 400 }
+        );
+      }
+      resolvedContractTypeId = sinDef.id;
     }
 
     const appUrl =
@@ -146,8 +168,10 @@ export async function POST(request: NextRequest) {
     // 4. Update profile with additional fields (trigger created basic profile)
     if (createdUserId) {
       // El profile lo crea el trigger con el contrato default; aquí lo
-      // sobreescribimos siempre con el seleccionado (es obligatorio).
-      const updateData: Record<string, unknown> = { contract_type_id };
+      // sobreescribimos con el resuelto (el del body o el "Sin definir").
+      const updateData: Record<string, unknown> = {
+        contract_type_id: resolvedContractTypeId,
+      };
       if (phone) updateData.phone = phone;
       if (position_id) updateData.position_id = position_id;
       if (location_id) updateData.location_id = location_id;
@@ -155,10 +179,23 @@ export async function POST(request: NextRequest) {
         updateData.max_hours_per_week = max_hours_per_week;
 
       if (Object.keys(updateData).length > 0) {
-        await adminSupabase
+        const { error: updateError } = await adminSupabase
           .from("profiles")
           .update(updateData)
           .eq("id", createdUserId);
+        if (updateError) {
+          console.error(
+            "[invite] profile update error:",
+            updateError.message
+          );
+          return NextResponse.json(
+            {
+              error:
+                "El usuario se invitó pero no se pudieron guardar todos sus datos (tipo de contrato, sede, etc.). Edita el empleado o intenta de nuevo.",
+            },
+            { status: 500 }
+          );
+        }
       }
     }
 

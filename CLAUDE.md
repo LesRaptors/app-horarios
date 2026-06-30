@@ -74,7 +74,7 @@ Hooks in `src/hooks/` re-export from contexts for backward compatibility.
 - `/locations` (Sedes), `/departments`, `/positions`
 - `/shifts` (Turnos — plantillas horarias) — has `is_night` toggle with CST-based auto-suggestion
 - `/staffing` (Necesidades — matrix of position × shift × day)
-- `/contract-types` (**admin only**) — Full-time, Part-time, Fin de semana, Sin definir (default)
+- `/contract-types` (**admin only**) — Tiempo completo, Medio tiempo, Asistencial tiempo completo, Fin de semana, Sin definir (default)
 - `/holidays` — Nacionales (Colombia pre-seeded 2026-2028) + Por sede tabs
 - `/settings` (Ajustes) — labor constraints + scoring_weights (JSONB)
 
@@ -103,7 +103,7 @@ Sistema plug-in con dos fuentes de reglas:
 - **`contract_rest_rules`** (migración 036): por `contract_type` — default que aplica a todos los empleados con ese contrato.
 - **`employee_rest_rules`** (migración 037): por empleado individual — **override** total. Si un empleado tiene 1+ reglas individuales, esas se usan **en lugar de** las del contract; si no, fallback al contract.
 
-Override semántico permite rotación intra-equipo: dos empleados con el mismo Full-time pueden tener `weekend_rotation` con offsets opuestos (uno descansa findes pares, otro impares) sin que el motor los mande a descansar al mismo tiempo.
+Override semántico permite rotación intra-equipo: dos empleados con el mismo Tiempo completo pueden tener `weekend_rotation` con offsets opuestos (uno descansa findes pares, otro impares) sin que el motor los mande a descansar al mismo tiempo.
 
 5 tipos de regla soportados:
 - `work_cycle`: trabaja N días, descansa M (ej. 4×3, 7×7).
