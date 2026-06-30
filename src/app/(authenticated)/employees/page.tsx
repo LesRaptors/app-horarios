@@ -148,6 +148,9 @@ interface EditForm {
   floater_positions: string[];
   rest_rules: EmployeeRestRule[];
   contract_type_id: string;
+  available_sundays: boolean | null;
+  available_holidays: boolean | null;
+  available_nights: boolean | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -494,6 +497,9 @@ export default function EmployeesPage() {
       floater_positions: emp.is_floater ? secondaryIds : [],
       rest_rules: (restRulesData ?? []) as unknown as EmployeeRestRule[],
       contract_type_id: emp.contract_type_id ?? "",
+      available_sundays: emp.available_sundays ?? null,
+      available_holidays: emp.available_holidays ?? null,
+      available_nights: emp.available_nights ?? null,
     });
     setEditOpen(true);
   }
@@ -530,6 +536,9 @@ export default function EmployeesPage() {
           arl_risk_class: editForm.arl_risk_class,
           is_floater: editForm.is_floater,
           contract_type_id: editForm.contract_type_id,
+          available_sundays: editForm.available_sundays,
+          available_holidays: editForm.available_holidays,
+          available_nights: editForm.available_nights,
         })
         .eq("id", editForm.id);
 
@@ -1603,6 +1612,67 @@ export default function EmployeesPage() {
                     setEditForm((f) => (f ? { ...f, rest_rules: rules } : f))
                   }
                 />
+              </div>
+
+              {/* Disponibilidad (override por empleado del tipo de contrato) */}
+              <div className="grid gap-3 rounded-md border p-3 bg-muted/20">
+                <Label>Disponibilidad</Label>
+                <p className="text-xs text-muted-foreground">
+                  Pisa la disponibilidad del tipo de contrato para este empleado.
+                </p>
+                {(
+                  [
+                    ["available_sundays", "Domingos"],
+                    ["available_holidays", "Festivos"],
+                    ["available_nights", "Noches"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const current = editForm[key];
+                  const asStr =
+                    current === null || current === undefined
+                      ? "inherit"
+                      : current
+                        ? "yes"
+                        : "no";
+                  const labelId = `edit-${key}-label`;
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span id={labelId} className="text-sm">
+                        {label}
+                      </span>
+                      <Select
+                        value={asStr}
+                        onValueChange={(v) =>
+                          setEditForm((f) =>
+                            f
+                              ? {
+                                  ...f,
+                                  [key]: v === "inherit" ? null : v === "yes",
+                                }
+                              : f
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-48"
+                          aria-labelledby={labelId}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">
+                            Hereda del contrato
+                          </SelectItem>
+                          <SelectItem value="yes">Disponible</SelectItem>
+                          <SelectItem value="no">No disponible</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Phone */}
