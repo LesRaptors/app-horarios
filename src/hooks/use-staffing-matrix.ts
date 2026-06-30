@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isHoliday } from "@/lib/equity-helpers";
 import { makeCellKey, type CellKey } from "@/lib/staffing-helpers";
 import type {
+  HolidayDate,
   Position,
   ShiftTemplate,
   StaffingRequirement,
@@ -38,24 +40,34 @@ export function useStaffingMatrix(locationId: string | null): UseStaffingMatrixR
     setLoading(true);
 
     (async () => {
-      // 1-3 en paralelo: requirements, positions (con filtro location), shift_templates.
-      const [reqRes, posRes, stRes] = await Promise.all([
+      // 1-4 en paralelo: requirements, positions (con filtro location), shift_templates, festivos.
+      const [reqRes, posRes, stRes, holRes] = await Promise.all([
         supabase.from("staffing_requirements").select("*").eq("location_id", locationId),
         supabase
           .from("positions")
           .select("*, department:departments(location_id)")
           .order("name"),
         supabase.from("shift_templates").select("*").eq("location_id", locationId).order("name"),
+        // Festivos nacionales (location_id null) + por sede; RLS scopea al org.
+        supabase.from("holidays").select("*"),
       ]);
 
       if (cancelled) return;
 
       const reqs = ((reqRes.data ?? []) as StaffingRequirement[]);
+      const holidays = (holRes.data ?? []) as HolidayDate[];
       const persistedMap: Record<CellKey, number> = {};
       for (const r of reqs) {
         persistedMap[makeCellKey(r.position_id, r.shift_template_id, r.day_of_week, r.is_holiday ?? false)] = r.required_count;
       }
       setPersisted(persistedMap);
+
+      // Posiciones con perfil de demanda festiva (≥1 fila is_holiday=true): la cobertura
+      // reciente de un turno trabajado en festivo pasado se atribuye a la celda Festivo,
+      // no a la del día de la semana.
+      const holidayDemandPositions = new Set(
+        reqs.filter((r) => r.is_holiday).map((r) => r.position_id),
+      );
 
       const allPositions = (posRes.data ?? []) as (Position & { department: { location_id: string } | null })[];
       const locationPositions = allPositions.filter(
@@ -119,7 +131,14 @@ export function useStaffingMatrix(locationId: string | null): UseStaffingMatrixR
         const weekIdx = Math.floor((today.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000));
         if (weekIdx < 0 || weekIdx > 3) continue;
         const bucketIdx = 3 - weekIdx;  // 0 = w-3, 3 = esta semana
-        const key = makeCellKey(row.position_id, row.shift_template_id, dow, false);
+        // Si la fecha fue festivo y la posición tiene perfil festivo, la cobertura cuenta
+        // para la celda Festivo (dow=0 sentinela, is_holiday=true); si no, al día de semana.
+        const countsAsHoliday =
+          holidayDemandPositions.has(row.position_id) &&
+          isHoliday(row.date, locationId, holidays);
+        const key = countsAsHoliday
+          ? makeCellKey(row.position_id, row.shift_template_id, 0, true)
+          : makeCellKey(row.position_id, row.shift_template_id, dow, false);
         if (!coverageBuckets[key]) coverageBuckets[key] = [0, 0, 0, 0];
         coverageBuckets[key][bucketIdx]++;
       }

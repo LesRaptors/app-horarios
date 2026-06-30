@@ -130,6 +130,65 @@ export function StaffingTabHeatmap({
               const shiftLabel = `${shift.name} · ${formatTime(shift.start_time)}–${formatTime(shift.end_time)}`;
               return positions.map((position, posIdx) => {
                 const isFirstRow = posIdx === 0;
+
+                // Render compartido por celda (día de semana y Festivo) para que
+                // cualquier cambio de a11y/teclado/edición llegue a ambas columnas.
+                const renderCell = (
+                  reactKey: React.Key,
+                  cellKey: string,
+                  label: string,
+                  opts: { weekend?: boolean; holiday?: boolean } = {}
+                ) => {
+                  const value = draft[cellKey] ?? persisted[cellKey] ?? 0;
+                  const isEditing = editingKey === cellKey;
+                  const baseAria = `${position.name} ${label} ${shift.name}`;
+                  return (
+                    <td
+                      key={reactKey}
+                      className={cn(
+                        "px-1 py-1 text-center",
+                        opts.holiday && "bg-amber-50/40",
+                        opts.weekend && !isEditing && "bg-opacity-80"
+                      )}
+                    >
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          min={0}
+                          max={99}
+                          value={editingValue}
+                          autoFocus
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={() => commitEdit(cellKey)}
+                          onKeyDown={(e) => handleKeyDown(e, cellKey)}
+                          className="w-10 h-7 text-center text-sm rounded border border-input px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                          aria-label={baseAria}
+                        />
+                      ) : (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => startEdit(cellKey, value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              startEdit(cellKey, value);
+                            }
+                          }}
+                          className={cn(
+                            "mx-auto w-10 h-7 flex items-center justify-center rounded text-sm font-medium cursor-pointer select-none transition-colors hover:opacity-80",
+                            demandColor(value)
+                          )}
+                          title={`${position.name} — ${label} — ${shift.name}: ${value}`}
+                          aria-label={`${baseAria}: ${value}. Clic para editar.`}
+                        >
+                          {value > 0 ? value : "–"}
+                        </div>
+                      )}
+                    </td>
+                  );
+                };
+
                 return (
                   <tr
                     key={`${shift.id}-${position.id}`}
@@ -157,101 +216,20 @@ export function StaffingTabHeatmap({
                         {position.name}
                       </span>
                     </td>
-                    {DAY_ORDER.map((dayIndex) => {
-                      const key = makeCellKey(position.id, shift.id, dayIndex, false);
-                      const value = draft[key] ?? persisted[key] ?? 0;
-                      const isEditing = editingKey === key;
-                      const isWeekend = dayIndex === 0 || dayIndex === 6;
-
-                      return (
-                        <td
-                          key={dayIndex}
-                          className={cn(
-                            "px-1 py-1 text-center",
-                            isWeekend && !isEditing && "bg-opacity-80"
-                          )}
-                        >
-                          {isEditing ? (
-                            <input
-                              type="number"
-                              min={0}
-                              max={99}
-                              value={editingValue}
-                              autoFocus
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => commitEdit(key)}
-                              onKeyDown={(e) => handleKeyDown(e, key)}
-                              className="w-10 h-7 text-center text-sm rounded border border-input px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
-                              aria-label={`${position.name} ${DAY_OF_WEEK_SHORT[dayIndex]} ${shift.name}`}
-                            />
-                          ) : (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => startEdit(key, value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  startEdit(key, value);
-                                }
-                              }}
-                              className={cn(
-                                "mx-auto w-10 h-7 flex items-center justify-center rounded text-sm font-medium cursor-pointer select-none transition-colors hover:opacity-80",
-                                demandColor(value)
-                              )}
-                              title={`${position.name} — ${DAY_OF_WEEK_SHORT[dayIndex]} — ${shift.name}: ${value}`}
-                              aria-label={`${position.name} ${DAY_OF_WEEK_SHORT[dayIndex]} ${shift.name}: ${value}. Clic para editar.`}
-                            >
-                              {value > 0 ? value : "–"}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                    {(() => {
-                      const key = makeCellKey(position.id, shift.id, 0, true);
-                      const value = draft[key] ?? persisted[key] ?? 0;
-                      const isEditing = editingKey === key;
-
-                      return (
-                        <td className="px-1 py-1 text-center bg-amber-50/40">
-                          {isEditing ? (
-                            <input
-                              type="number"
-                              min={0}
-                              max={99}
-                              value={editingValue}
-                              autoFocus
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onBlur={() => commitEdit(key)}
-                              onKeyDown={(e) => handleKeyDown(e, key)}
-                              className="w-10 h-7 text-center text-sm rounded border border-input px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
-                              aria-label={`${position.name} Festivo ${shift.name}`}
-                            />
-                          ) : (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => startEdit(key, value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  startEdit(key, value);
-                                }
-                              }}
-                              className={cn(
-                                "mx-auto w-10 h-7 flex items-center justify-center rounded text-sm font-medium cursor-pointer select-none transition-colors hover:opacity-80",
-                                demandColor(value)
-                              )}
-                              title={`${position.name} — Festivo — ${shift.name}: ${value}`}
-                              aria-label={`${position.name} Festivo ${shift.name}: ${value}. Clic para editar.`}
-                            >
-                              {value > 0 ? value : "–"}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })()}
+                    {DAY_ORDER.map((dayIndex) =>
+                      renderCell(
+                        dayIndex,
+                        makeCellKey(position.id, shift.id, dayIndex, false),
+                        DAY_OF_WEEK_SHORT[dayIndex],
+                        { weekend: dayIndex === 0 || dayIndex === 6 }
+                      )
+                    )}
+                    {renderCell(
+                      "festivo",
+                      makeCellKey(position.id, shift.id, 0, true),
+                      "Festivo",
+                      { holiday: true }
+                    )}
                   </tr>
                 );
               });

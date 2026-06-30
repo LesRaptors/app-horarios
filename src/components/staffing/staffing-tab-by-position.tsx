@@ -164,56 +164,61 @@ export function StaffingTabByPosition({
                   </tr>
                 </thead>
                 <tbody>
-                  {shiftTemplates.map((shift) => (
-                    <tr key={shift.id} className="border-b last:border-0">
-                      <td className="px-4 py-2 max-w-[176px]">
-                        <span
-                          className="block truncate text-sm"
-                          title={`${shift.name} · ${formatTime(shift.start_time)}–${formatTime(shift.end_time)}`}
+                  {shiftTemplates.map((shift) => {
+                    // Render compartido por celda (día de semana y Festivo) para que
+                    // cualquier cambio de a11y/teclado/edición llegue a ambas columnas.
+                    const renderCell = (
+                      reactKey: React.Key,
+                      cellKey: string,
+                      ariaLabel: string,
+                      holiday = false
+                    ) => {
+                      const value = draft[cellKey] ?? persisted[cellKey] ?? 0;
+                      return (
+                        <td
+                          key={reactKey}
+                          className={holiday ? "px-1 py-1.5 bg-amber-50/40" : "px-1 py-1.5"}
                         >
-                          {shift.name}{" "}
-                          <span className="text-muted-foreground text-xs">
-                            {formatTime(shift.start_time)}–{formatTime(shift.end_time)}
+                          <StaffingCell
+                            value={value}
+                            capacity={posCapacity}
+                            recentCoverage={recentCoverage[cellKey] ?? []}
+                            onChange={(v) => onCellChange(cellKey, v)}
+                            ariaLabel={ariaLabel}
+                          />
+                        </td>
+                      );
+                    };
+
+                    return (
+                      <tr key={shift.id} className="border-b last:border-0">
+                        <td className="px-4 py-2 max-w-[176px]">
+                          <span
+                            className="block truncate text-sm"
+                            title={`${shift.name} · ${formatTime(shift.start_time)}–${formatTime(shift.end_time)}`}
+                          >
+                            {shift.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {formatTime(shift.start_time)}–{formatTime(shift.end_time)}
+                            </span>
                           </span>
-                        </span>
-                      </td>
-                      {DAY_ORDER.map((dayIndex) => {
-                        const key = makeCellKey(
-                          position.id,
-                          shift.id,
-                          dayIndex,
-                          false
-                        );
-                        const value = draft[key] ?? persisted[key] ?? 0;
-                        return (
-                          <td key={dayIndex} className="px-1 py-1.5">
-                            <StaffingCell
-                              value={value}
-                              capacity={posCapacity}
-                              recentCoverage={recentCoverage[key] ?? []}
-                              onChange={(v) => onCellChange(key, v)}
-                              ariaLabel={`${position.name} ${shift.name} ${DAY_OF_WEEK_SHORT[dayIndex]}`}
-                            />
-                          </td>
-                        );
-                      })}
-                      <td className="px-1 py-1.5 bg-amber-50/40">
-                        {(() => {
-                          const key = makeCellKey(position.id, shift.id, 0, true);
-                          const value = draft[key] ?? persisted[key] ?? 0;
-                          return (
-                            <StaffingCell
-                              value={value}
-                              capacity={posCapacity}
-                              recentCoverage={[]}
-                              onChange={(v) => onCellChange(key, v)}
-                              ariaLabel={`${position.name} ${shift.name} Festivo`}
-                            />
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        {DAY_ORDER.map((dayIndex) =>
+                          renderCell(
+                            dayIndex,
+                            makeCellKey(position.id, shift.id, dayIndex, false),
+                            `${position.name} ${shift.name} ${DAY_OF_WEEK_SHORT[dayIndex]}`
+                          )
+                        )}
+                        {renderCell(
+                          "festivo",
+                          makeCellKey(position.id, shift.id, 0, true),
+                          `${position.name} ${shift.name} Festivo`,
+                          true
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </CardContent>
