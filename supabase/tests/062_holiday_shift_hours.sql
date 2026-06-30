@@ -20,6 +20,10 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'holiday_start_time no es de tipo time'; END IF;
 
   PERFORM 1 FROM information_schema.columns
+  WHERE table_name = 'shift_templates' AND column_name = 'holiday_end_time' AND data_type = 'time without time zone';
+  IF NOT FOUND THEN RAISE EXCEPTION 'holiday_end_time no es de tipo time'; END IF;
+
+  PERFORM 1 FROM information_schema.columns
   WHERE table_name = 'shift_templates' AND column_name = 'holiday_break_minutes' AND data_type = 'integer';
   IF NOT FOUND THEN RAISE EXCEPTION 'holiday_break_minutes no es de tipo integer'; END IF;
 END $$;

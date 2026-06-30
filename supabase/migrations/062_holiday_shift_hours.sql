@@ -1,8 +1,10 @@
--- 062_holiday_shift_hours.sql
--- Horario especial en festivos por turno (opcional).
--- Cuando holiday_start_time está definido, el motor de generación usa estas horas
--- para los turnos que caen en días festivos, en vez de start_time/end_time normales.
--- NULL = sin horario especial (comportamiento actual intacto). No toca RLS.
+-- Migration 062: horario especial en festivos por turno (opcional)
+-- ¿Qué hace? Agrega 3 columnas nullable a shift_templates. Cuando holiday_start_time
+-- está definido, el motor de generación usa estas horas para los turnos que caen en
+-- días festivos, en vez de start_time/end_time normales.
+-- NULL = sin horario especial (comportamiento actual intacto). Solo ADD COLUMN: no toca RLS.
+
+BEGIN;
 
 ALTER TABLE shift_templates
   ADD COLUMN IF NOT EXISTS holiday_start_time    time,
@@ -15,3 +17,5 @@ COMMENT ON COLUMN shift_templates.holiday_end_time IS
   'Hora de fin cuando el turno cae en festivo. NULL = usa end_time normal.';
 COMMENT ON COLUMN shift_templates.holiday_break_minutes IS
   'Minutos de descanso cuando el turno cae en festivo. NULL = 0.';
+
+COMMIT;

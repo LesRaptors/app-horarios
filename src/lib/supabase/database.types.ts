@@ -2053,6 +2053,9 @@ export type Database = {
           color: string
           created_at: string
           end_time: string
+          holiday_break_minutes: number | null
+          holiday_end_time: string | null
+          holiday_start_time: string | null
           id: string
           is_night: boolean
           location_id: string
@@ -2065,6 +2068,9 @@ export type Database = {
           color?: string
           created_at?: string
           end_time: string
+          holiday_break_minutes?: number | null
+          holiday_end_time?: string | null
+          holiday_start_time?: string | null
           id?: string
           is_night?: boolean
           location_id: string
@@ -2077,6 +2083,9 @@ export type Database = {
           color?: string
           created_at?: string
           end_time?: string
+          holiday_break_minutes?: number | null
+          holiday_end_time?: string | null
+          holiday_start_time?: string | null
           id?: string
           is_night?: boolean
           location_id?: string
