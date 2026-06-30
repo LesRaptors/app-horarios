@@ -126,13 +126,19 @@ function buildDemandSlots(
 
   const pushSlot = (
     dateStr: string, dow: number, posId: string, template: ShiftTemplate, count: number,
+    isHolidayDate: boolean,
   ) => {
     if (count <= 0) return;
-    const duration = calcDurationHours(template.start_time, template.end_time, template.break_minutes);
+    const useHol =
+      isHolidayDate && template.holiday_start_time != null && template.holiday_end_time != null;
+    const startTime = useHol ? template.holiday_start_time! : template.start_time;
+    const endTime = useHol ? template.holiday_end_time! : template.end_time;
+    const breakMin = useHol ? (template.holiday_break_minutes ?? 0) : template.break_minutes;
+    const duration = calcDurationHours(startTime, endTime, breakMin);
     for (let i = 0; i < count; i++) {
       slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
-        shiftTemplateId: template.id, startTime: template.start_time,
-        endTime: template.end_time, breakMinutes: template.break_minutes,
+        shiftTemplateId: template.id, startTime,
+        endTime, breakMinutes: breakMin,
         durationHours: duration, template });
     }
   };
@@ -141,8 +147,10 @@ function buildDemandSlots(
     const dateStr = formatDateISO(date);
     const dow = date.getDay();
     if (config.excludeDates.includes(dateStr)) continue;
-    // isHoliday() sólo depende de la fecha: calcular una vez por fecha (no por template).
-    const isHol = hasDemand && isHoliday(dateStr, locationId, holidays);
+    // isHolidayDate: ¿la fecha es festivo? (decide las HORAS del turno).
+    // isHol: además hay demanda (decide si aplica el PERFIL de festivo de Necesidades).
+    const isHolidayDate = isHoliday(dateStr, locationId, holidays);
+    const isHol = hasDemand && isHolidayDate;
 
     if (hasDemand) {
       for (const posId of config.positionIds) {
@@ -153,7 +161,7 @@ function buildDemandSlots(
           for (const { shiftTemplateId, count } of holidayDemand.get(posId) ?? []) {
             const template = templateMap.get(shiftTemplateId);
             if (!template) continue;
-            pushSlot(dateStr, dow, posId, template, count);
+            pushSlot(dateStr, dow, posId, template, count, isHolidayDate);
           }
         } else {
           // Día de semana (o festivo sin perfil): demanda por día de semana, limitada a
@@ -161,7 +169,7 @@ function buildDemandSlots(
           for (const templateId of config.shiftTemplateIds) {
             const template = templateMap.get(templateId);
             if (!template) continue;
-            pushSlot(dateStr, dow, posId, template, reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0);
+            pushSlot(dateStr, dow, posId, template, reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0, isHolidayDate);
           }
         }
       }
@@ -170,7 +178,7 @@ function buildDemandSlots(
         const template = templateMap.get(templateId);
         if (!template) continue;
         for (const posId of config.positionIds) {
-          pushSlot(dateStr, dow, posId, template, 1);
+          pushSlot(dateStr, dow, posId, template, 1, isHolidayDate);
         }
       }
     }
