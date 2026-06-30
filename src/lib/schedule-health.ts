@@ -223,6 +223,9 @@ export function computeHealth(
       location_id: locationId,
       is_night: false,
       break_minutes: 0,
+      holiday_start_time: null,
+      holiday_end_time: null,
+      holiday_break_minutes: null,
       created_at: "",
     };
 

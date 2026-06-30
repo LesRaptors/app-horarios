@@ -127,7 +127,9 @@ describe("isNightShift", () => {
     const t: ShiftTemplate = {
       id: "t1", name: "X", start_time: "09:00", end_time: "18:00",
       break_minutes: 0, color: "#000", location_id: "l1",
-      is_night: true, created_at: "",
+      is_night: true,
+      holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
+      created_at: "",
     };
     expect(isNightShift(t)).toBe(true);
     expect(isNightShift({ ...t, is_night: false })).toBe(false);

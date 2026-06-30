@@ -108,7 +108,9 @@ function mkEntry(date: string, isNight: boolean): ScheduleEntry {
 const nightTemplate: ShiftTemplate = {
   id: "tpl-n", name: "Noche", start_time: "22:00", end_time: "06:00",
   break_minutes: 0, color: "#000", location_id: "loc-1",
-  is_night: true, created_at: "",
+  is_night: true,
+  holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
+  created_at: "",
 };
 
 const _dayTemplate: ShiftTemplate = {

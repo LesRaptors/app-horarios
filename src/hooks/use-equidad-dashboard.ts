@@ -189,7 +189,7 @@ export function useEquidadDashboard(
       setProfiles((profsRes.data ?? []) as Profile[]);
       setPositions((posRes.data ?? []) as Position[]);
       setStaffingReqs((srRes.data ?? []) as StaffingRequirement[]);
-      setShiftTemplates((stRes.data ?? []) as ShiftTemplate[]);
+      setShiftTemplates((stRes.data ?? []) as unknown as ShiftTemplate[]);
       setRollups((rollRes.data ?? []) as EmployeeEquityRollup[]);
       setHolidays((holRes.data ?? []) as HolidayDate[]);
 

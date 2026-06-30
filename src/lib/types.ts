@@ -77,6 +77,9 @@ export interface ShiftTemplate {
   is_night: boolean;
   color: string;
   location_id: string;
+  holiday_start_time: string | null;
+  holiday_end_time: string | null;
+  holiday_break_minutes: number | null;
   created_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   location?: any;

@@ -169,7 +169,7 @@ export default function SchedulePage() {
       setSchedule(scheduleData);
       setEmployees((empResult.data as Profile[]) || []);
       setPositions((posResult.data as Position[]) || []);
-      setShiftTemplates(shiftResult.data || []);
+      setShiftTemplates((shiftResult.data as unknown as ShiftTemplate[]) || []);
       setSecondaryPositions((secondaryResult.data as EmployeeSecondaryPosition[]) || []);
 
       // Query 6 depends on schedule existing

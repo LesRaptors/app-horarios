@@ -74,7 +74,7 @@ export function useStaffingMatrix(locationId: string | null): UseStaffingMatrixR
         (p) => p.department?.location_id === locationId
       );
       setPositions(locationPositions);
-      setShiftTemplates((stRes.data ?? []) as ShiftTemplate[]);
+      setShiftTemplates((stRes.data ?? []) as unknown as ShiftTemplate[]);
 
       // 4. Capacidad teórica: count de profiles activos por position_id (primaria + secundaria) en sede.
       const positionIds = locationPositions.map((p) => p.id);
