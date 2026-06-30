@@ -31,8 +31,10 @@ function keyLabel(emp: EmployeeForGrouping, level: Exclude<GroupBy, "none">): { 
 }
 
 function sortEmployees<T extends EmployeeForGrouping>(emps: T[]): T[] {
+  // Orden por apellido → nombre, igual que el resto de la app (la query usa
+  // `.order("last_name")`). Mantiene /employees consistente con las demás pantallas.
   return [...emps].sort((a, b) =>
-    `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, "es"),
+    `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, "es"),
   );
 }
 

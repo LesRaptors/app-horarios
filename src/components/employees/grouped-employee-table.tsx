@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Table,
@@ -27,8 +34,8 @@ interface Props<T> {
   /** Columnas visibles (las de los criterios agrupados ya vienen filtradas). */
   columns: GroupedTableColumn[];
   renderRow: (emp: T) => ReactNode;
-  /** Al activarse una búsqueda/filtro, todos los grupos se abren una sola vez
-      (luego el usuario puede colapsar/expandir libremente). */
+  /** Al activarse una búsqueda/filtro, todos los grupos se abren una sola vez y
+      el colapso manual previo se restaura al limpiarla (ver `GroupedEmployeeTable`). */
   searchActive: boolean;
 }
 
@@ -68,6 +75,51 @@ function headerTone(depth: number): string {
   return "bg-muted/20 hover:bg-muted/40";
 }
 
+interface LeafTableProps<T> {
+  /** Etiqueta accesible de la región scrollable (nombre del grupo, o genérico). */
+  label: string;
+  columns: GroupedTableColumn[];
+  employees: T[];
+  renderRow: (emp: T) => ReactNode;
+}
+
+/** Tabla hoja: el wrapper scrollable y enfocable + la `<Table>` con sus filas.
+    Compartida por la vista plana (sin agrupar) y por cada hoja del árbol, así
+    ambas obtienen el mismo `content-visibility` (difiere el render fuera de
+    pantalla) y el mismo contenedor de scroll horizontal.
+
+    Memoizada: el estado de colapso vive en `GroupedEmployeeTable`, así que abrir/
+    cerrar un grupo re-renderiza los `<summary>` pero NO las filas de las demás
+    hojas — sus props (`columns`/`employees`/`renderRow`) conservan identidad y
+    `memo` corta el re-render. */
+function LeafTableInner<T>({ label, columns, employees, renderRow }: LeafTableProps<T>) {
+  // Región scrollable y enfocable por teclado (tabIndex + role/aria-label): en
+  // pantallas angostas la tabla (min-width) desborda y este contenedor hace
+  // scroll horizontal en vez de aplastar las columnas. Se neutraliza el wrapper
+  // interno de shadcn ([&>div]:overflow-visible) para tener un único contenedor
+  // de scroll, el enfocable.
+  // content-visibility difiere el render de hojas fuera de pantalla;
+  // contain-intrinsic-size evita saltos de scroll cuando se omite.
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      tabIndex={0}
+      className="overflow-x-auto [&>div]:overflow-visible"
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 600px",
+      }}
+    >
+      <Table className="table-fixed min-w-[1000px]">
+        <HeaderRow columns={columns} />
+        <TableBody>{employees.map((e) => renderRow(e))}</TableBody>
+      </Table>
+    </div>
+  );
+}
+const LeafTable = memo(LeafTableInner) as unknown as typeof LeafTableInner;
+
 interface GroupNodeViewProps<T> {
   node: GroupNode<T>;
   depth: number;
@@ -80,11 +132,15 @@ interface GroupNodeViewProps<T> {
 }
 
 /** Render recursivo de un nodo del árbol. Nodo interno → `<details>` con sus
-    hijos recursivos; nodo hoja → `<details>` con la tabla scrollable + diferida.
-    Se usa `<details>` NATIVO a propósito: la búsqueda del navegador (Find in
-    page) encuentra y revela empleados aunque el grupo esté cerrado, cosa que
-    `display:none` rompería. */
-function GroupNodeView<T>({
+    hijos recursivos; nodo hoja → `<details>` con `<LeafTable>` (scrollable +
+    diferida). Se usa `<details>` NATIVO a propósito: en navegadores Chromium la
+    búsqueda del navegador (Buscar en página) auto-expande un grupo cerrado y
+    revela la coincidencia, cosa que `display:none` rompería. (Firefox/Safari no
+    auto-expanden `<details>`; ahí la coincidencia oculta no se revela sola.)
+
+    Memoizado: en re-renders del padre por motivos ajenos al colapso (props
+    estables) corta el trabajo; el aislamiento de filas lo garantiza `LeafTable`. */
+function GroupNodeViewInner<T>({
   node,
   depth,
   path,
@@ -139,32 +195,17 @@ function GroupNodeView<T>({
           />
         ))
       ) : (
-        // Región scrollable y enfocable por teclado (tabIndex + role/aria-label):
-        // en pantallas angostas la tabla (min-width) desborda y este contenedor
-        // hace scroll horizontal en vez de aplastar las columnas. Se neutraliza
-        // el wrapper interno de shadcn ([&>div]:overflow-visible) para tener un
-        // único contenedor de scroll, el enfocable.
-        // content-visibility difiere el render de hojas fuera de pantalla;
-        // contain-intrinsic-size evita saltos de scroll cuando se omite.
-        <div
-          role="group"
-          aria-label={node.label}
-          tabIndex={0}
-          className="overflow-x-auto [&>div]:overflow-visible"
-          style={{
-            contentVisibility: "auto",
-            containIntrinsicSize: "auto 600px",
-          }}
-        >
-          <Table className="table-fixed min-w-[1000px]">
-            <HeaderRow columns={columns} />
-            <TableBody>{node.employees?.map((e) => renderRow(e))}</TableBody>
-          </Table>
-        </div>
+        <LeafTable
+          label={node.label}
+          columns={columns}
+          employees={node.employees ?? []}
+          renderRow={renderRow}
+        />
       )}
     </details>
   );
 }
+const GroupNodeView = memo(GroupNodeViewInner) as unknown as typeof GroupNodeViewInner;
 
 export function GroupedEmployeeTable<T>({
   nodes,
@@ -175,12 +216,23 @@ export function GroupedEmployeeTable<T>({
 }: Props<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // Al activarse una búsqueda/filtro, abrir todos los grupos una sola vez para
-  // que ninguna coincidencia quede oculta. Después el usuario puede colapsar/
-  // expandir con total libertad: `open`/`onToggle` derivan SIEMPRE de `collapsed`.
+  // Búsqueda/filtro: al pasar de inactiva→activa guardamos el colapso manual y
+  // abrimos todos los grupos (para no ocultar coincidencias). Durante la búsqueda
+  // el usuario puede colapsar/expandir libremente. Al pasar de activa→inactiva
+  // restauramos el colapso que tenía antes de buscar. `open`/`onToggle` derivan
+  // SIEMPRE de `collapsed`, así que no hay divergencia con el DOM.
+  const prevSearchActive = useRef(searchActive);
+  const savedCollapsed = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (searchActive) setCollapsed(new Set());
-  }, [searchActive]);
+    const was = prevSearchActive.current;
+    if (!was && searchActive) {
+      savedCollapsed.current = collapsed;
+      setCollapsed(new Set());
+    } else if (was && !searchActive) {
+      setCollapsed(savedCollapsed.current);
+    }
+    prevSearchActive.current = searchActive;
+  }, [searchActive, collapsed]);
 
   const handleToggle = useCallback((nodePath: string, open: boolean) => {
     setCollapsed((prev) => {
@@ -194,17 +246,12 @@ export function GroupedEmployeeTable<T>({
   // Sin agrupar: una sola tabla plana (idéntica a la vista clásica).
   if (!isGrouped) {
     return (
-      <div
-        role="group"
-        aria-label="Empleados"
-        tabIndex={0}
-        className="overflow-x-auto [&>div]:overflow-visible"
-      >
-        <Table className="table-fixed min-w-[1000px]">
-          <HeaderRow columns={columns} />
-          <TableBody>{nodes[0]?.employees?.map((e) => renderRow(e))}</TableBody>
-        </Table>
-      </div>
+      <LeafTable
+        label="Empleados"
+        columns={columns}
+        employees={nodes[0]?.employees ?? []}
+        renderRow={renderRow}
+      />
     );
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useEquityRollups } from "@/hooks/use-equity-rollups";
@@ -112,6 +112,35 @@ interface InviteForm {
 
 // Referencia estable para filas sin historial salarial (evita recrear arrays).
 const EMPTY_SALARY_HISTORY: SalaryHistory[] = [];
+
+const VALID_GROUP_BYS: GroupBy[] = ["location", "department", "position", "none"];
+
+// Normaliza un `groupLevels` que viene de localStorage (o de migración) a una
+// estructura siempre válida para el motor de agrupación:
+//   - descarta tokens desconocidos;
+//   - "none" solo sobrevive si es el ÚNICO criterio (= "sin agrupar");
+//   - quita duplicados y limita a 2 niveles;
+//   - si tras sanitizar queda vacío o inválido, cae a ["location"].
+// Evita la desincronización entre `isGrouped` (derivado de groupLevels[0]) y
+// `groupEmployeesMulti` (que usa TODOS los niveles ≠ "none"), que podía hacer
+// "desaparecer" empleados.
+function sanitizeGroupLevels(arr: unknown): GroupBy[] {
+  if (!Array.isArray(arr)) return ["location"];
+  const valid = arr.filter(
+    (x): x is GroupBy => typeof x === "string" && VALID_GROUP_BYS.includes(x as GroupBy),
+  );
+  // "none" mezclado con criterios reales no tiene sentido; solo vale como único.
+  if (valid.length > 0 && valid.every((x) => x === "none")) return ["none"];
+  const seen = new Set<GroupBy>();
+  const levels: GroupBy[] = [];
+  for (const x of valid) {
+    if (x === "none" || seen.has(x)) continue;
+    seen.add(x);
+    levels.push(x);
+    if (levels.length === 2) break;
+  }
+  return levels.length > 0 ? levels : ["location"];
+}
 
 const emptyInviteForm: InviteForm = {
   email: "",
@@ -274,13 +303,8 @@ export default function EmployeesPage() {
     if (rawNew) {
       try {
         const parsed = JSON.parse(rawNew);
-        if (
-          Array.isArray(parsed) &&
-          parsed.every((x) =>
-            ["location", "department", "position", "none"].includes(x)
-          )
-        ) {
-          setGroupLevels(parsed.length ? parsed : ["none"]);
+        if (Array.isArray(parsed)) {
+          setGroupLevels(sanitizeGroupLevels(parsed));
           return;
         }
       } catch {
@@ -294,16 +318,22 @@ export default function EmployeesPage() {
       old === "position" ||
       old === "none"
     ) {
-      setGroupLevels([old]);
+      setGroupLevels(sanitizeGroupLevels([old]));
     }
   }, []);
+  // Persistencia: salta el primer render (escribir el default antes de que la
+  // migración resuelva sería redundante); luego persiste cada cambio real.
+  const groupLevelsPersistReady = useRef(false);
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        "employees:groupLevels",
-        JSON.stringify(groupLevels)
-      );
+    if (typeof window === "undefined") return;
+    if (!groupLevelsPersistReady.current) {
+      groupLevelsPersistReady.current = true;
+      return;
     }
+    window.localStorage.setItem(
+      "employees:groupLevels",
+      JSON.stringify(groupLevels)
+    );
   }, [groupLevels]);
 
   // ---- Demo create dialog ----------------------------------------------------
@@ -490,6 +520,14 @@ export default function EmployeesPage() {
     }
     return map;
   }, [salaryHistory]);
+
+  // Índice contrato por id: lookup O(1) por fila en `renderEmployeeRow` (antes
+  // un `contracts.find` O(filas×contratos) que se reejecutaba en cada render).
+  const contractById = useMemo(() => {
+    const map = new Map<string, ContractType>();
+    for (const c of contracts) map.set(c.id, c);
+    return map;
+  }, [contracts]);
 
   // --------------------------------------------------------------------------
   // Agrupación de empleados (según el criterio seleccionado)
@@ -992,7 +1030,9 @@ export default function EmployeesPage() {
   // su columna está oculta para mantener la alineación con `visibleColumns`.
   // --------------------------------------------------------------------------
   function renderEmployeeRow(emp: ProfileWithJoins) {
-    const contract = contracts.find((c) => c.id === emp.contract_type_id);
+    const contract = emp.contract_type_id
+      ? contractById.get(emp.contract_type_id)
+      : undefined;
     const isSinDefinir = contract?.name === "Sin definir";
     return (
       <TableRow
@@ -2452,9 +2492,11 @@ export default function EmployeesPage() {
                 position={
                   positions.find((p) => p.id === panelEmp.position_id) ?? null
                 }
-                contract={contracts.find(
-                  (c) => c.id === panelEmp.contract_type_id
-                )}
+                contract={
+                  panelEmp.contract_type_id
+                    ? contractById.get(panelEmp.contract_type_id)
+                    : undefined
+                }
                 rollups={rollups.filter((r) => r.employee_id === panelEmp.id)}
                 currentYear={new Date().getFullYear()}
                 currentMonth={new Date().getMonth() + 1}
