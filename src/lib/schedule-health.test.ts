@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeHealth, type HealthSummary } from "./schedule-health";
 import type {
-  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints,
+  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, HolidayDate,
 } from "./types";
 
 const constraints: LaborConstraints = {
@@ -117,5 +117,27 @@ describe("computeHealth", () => {
     const h = computeHealth(entries, [E1, E2], [], constraints, "loc-1", 2026, 4);
     const e1Sat = h.saturatedEmployees.find((s) => s.employeeId === "e1");
     expect(e1Sat?.flags).toContain("near_weekly_cap");
+  });
+
+  it("fila is_holiday (dow=0 sentinela) no cuenta en domingos normales, sí en un festivo con perfil", () => {
+    // Fila de perfil de festivo: dow=0 sentinela + is_holiday=true para pos-1.
+    const holidayRow: StaffingRequirement[] = [
+      { id: "srh-1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+        day_of_week: 0, required_count: 1, is_holiday: true, created_at: "", updated_at: "" },
+    ];
+
+    // Sin festivos: la fila festiva NO debe contar en los domingos del mes (fantasma).
+    const noHol = computeHealth([], [E1, E2], holidayRow, constraints, "loc-1", 2026, 4);
+    expect(noHol.totalRequired).toBe(0);
+
+    // Con un festivo dentro del mes generado (month=4 → mayo 2026): la posición con
+    // perfil usa SOLO el perfil de festivo → cuenta 1 en ese día.
+    const holidays: HolidayDate[] = [
+      { id: "h1", date: "2026-05-07", name: "Test", location_id: null, created_at: "" },
+    ];
+    const withHol = computeHealth(
+      [], [E1, E2], holidayRow, constraints, "loc-1", 2026, 4, [], [], [], holidays,
+    );
+    expect(withHol.totalRequired).toBe(1);
   });
 });

@@ -1,7 +1,8 @@
 import type {
-  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, RestRule, ContractType, ShiftTemplate, EmployeeRestRule,
+  Profile, ScheduleEntry, StaffingRequirement, LaborConstraints, RestRule, ContractType, ShiftTemplate, EmployeeRestRule, HolidayDate,
 } from "./types";
 import { isRestDay } from "./rest-rules";
+import { isHoliday } from "./equity-helpers";
 
 export interface SaturatedEmployee {
   employeeId: string;
@@ -65,18 +66,29 @@ export function computeHealth(
   restRules: RestRule[] = [],
   contractTypes: ContractType[] = [],
   employeeRestRules: EmployeeRestRule[] = [],
+  holidays: HolidayDate[] = [],
 ): HealthSummary {
   // Filtrar entries que cuentan: no rejected
   const counted = entries.filter((e) => e.overtime_status !== "rejected");
+
+  // Posiciones con perfil de festivo (≥1 fila is_holiday=true) para esta sede.
+  // En un festivo, estas posiciones REEMPLAZAN su demanda con SOLO el perfil de festivo.
+  const holidayPositions = new Set(
+    staffing.filter((s) => s.location_id === locationId && s.is_holiday).map((s) => s.position_id),
+  );
 
   // Total required del mes: sumar staffing × ocurrencias del day_of_week en el mes
   const days = getDaysInMonth(year, month);
   let totalRequired = 0;
   for (const day of days) {
     const dow = new Date(day + "T00:00:00Z").getUTCDay();
+    const isHol = isHoliday(day, locationId, holidays);
     for (const sr of staffing) {
       if (sr.location_id !== locationId) continue;
-      if (sr.day_of_week === dow) totalRequired += sr.required_count;
+      const usesHolidayProfile = isHol && holidayPositions.has(sr.position_id);
+      const applies = usesHolidayProfile ? sr.is_holiday : (!sr.is_holiday && sr.day_of_week === dow);
+      if (!applies) continue;
+      totalRequired += sr.required_count;
     }
   }
 
@@ -89,9 +101,12 @@ export function computeHealth(
   const gapsByDay: HealthGap[] = [];
   for (const day of days) {
     const dow = new Date(day + "T00:00:00Z").getUTCDay();
+    const isHol = isHoliday(day, locationId, holidays);
     for (const sr of staffing) {
       if (sr.location_id !== locationId) continue;
-      if (sr.day_of_week !== dow) continue;
+      const usesHolidayProfile = isHol && holidayPositions.has(sr.position_id);
+      const applies = usesHolidayProfile ? sr.is_holiday : (!sr.is_holiday && sr.day_of_week === dow);
+      if (!applies) continue;
       const assignedHere = counted.filter(
         (e) => e.date === day && e.position_id === sr.position_id && e.shift_template_id === sr.shift_template_id,
       ).length;

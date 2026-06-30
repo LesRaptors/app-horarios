@@ -747,4 +747,93 @@ describe("demanda de festivos", () => {
     expect(onHoliday.length).toBe(1);
     expect(onHoliday[0].start_time).toBe("09:00:00"); // turno de festivo, no el normal 08:00
   });
+
+  it("perfil de festivo con required_count=0 para un turno no genera slots de ese turno", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    const tplZero = makeTemplate({ id: "tpl-fz", start_time: "06:00:00", end_time: "10:00:00" });
+    const tplActive = makeTemplate({ id: "tpl-fa", start_time: "09:00:00", end_time: "13:00:00" });
+    const emp = makeEmployee({ id: "e1", position_id: "pos-1" });
+    // Perfil de festivo: tpl-fz con req 0 (no debe generar slots) + tpl-fa con req 1
+    // (la posición tiene perfil porque ≥1 fila is_holiday=true existe).
+    const reqs: StaffingRequirement[] = [
+      { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-fz",
+        day_of_week: 0, required_count: 0, is_holiday: true, created_at: "", updated_at: "" },
+      { id: "r2", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-fa",
+        day_of_week: 0, required_count: 1, is_holiday: true, created_at: "", updated_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-fz", "tpl-fa"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tplZero, tplActive], [], [],
+      defaultConstraints, reqs, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onHoliday = result.entries.filter((e) => e.date === "2026-04-09");
+    // El turno con count 0 no genera slots; sólo el turno activo (req 1) se asigna.
+    expect(onHoliday).toHaveLength(1);
+    expect(onHoliday[0].shift_template_id).toBe("tpl-fa");
+    expect(onHoliday.some((e) => e.shift_template_id === "tpl-fz")).toBe(false);
+  });
+
+  it("posición SIN perfil de festivo se comporta como día de semana en un festivo (retrocompat)", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    const tplNormal = makeTemplate({ id: "tpl-norm", start_time: "08:00:00", end_time: "17:00:00" });
+    const emp = makeEmployee({ id: "e1", position_id: "pos-1" });
+    // Sólo demanda de día de semana (jueves=4); ninguna fila is_holiday → posición sin perfil.
+    const reqs: StaffingRequirement[] = [
+      { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-norm",
+        day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-norm"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [emp], [tplNormal], [], [],
+      defaultConstraints, reqs, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onHoliday = result.entries.filter((e) => e.date === "2026-04-09");
+    // Sin perfil de festivo, el festivo usa la demanda del jueves (retrocompat).
+    expect(onHoliday).toHaveLength(1);
+    expect(onHoliday[0].start_time).toBe("08:00:00");
+  });
+
+  it("fecha NO festiva ignora el perfil de festivo y usa la demanda de día de semana", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    const tplNormal = makeTemplate({ id: "tpl-norm", start_time: "08:00:00", end_time: "17:00:00" });
+    const tplFest = makeTemplate({ id: "tpl-fest", start_time: "09:00:00", end_time: "13:00:00" });
+    const emp = makeEmployee({ id: "e1", position_id: "pos-1" });
+    const reqs: StaffingRequirement[] = [
+      { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-norm",
+        day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+      { id: "r2", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-fest",
+        day_of_week: 0, required_count: 1, is_holiday: true, created_at: "", updated_at: "" },
+    ];
+
+    // Jueves 2026-04-02 NO es festivo (el festivo es el 09).
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-norm", "tpl-fest"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-02"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [emp], [tplNormal, tplFest], [], [],
+      defaultConstraints, reqs, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onDay = result.entries.filter((e) => e.date === "2026-04-02");
+    // Día normal: usa el turno de día de semana (08:00), NO el perfil de festivo.
+    expect(onDay).toHaveLength(1);
+    expect(onDay[0].shift_template_id).toBe("tpl-norm");
+    expect(onDay[0].start_time).toBe("08:00:00");
+  });
 });

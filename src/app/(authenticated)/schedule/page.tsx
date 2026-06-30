@@ -570,8 +570,9 @@ export default function SchedulePage() {
       restRules,
       contractTypes,
       employeeRestRules,
+      holidays,
     );
-  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month, restRules, contractTypes, employeeRestRules]);
+  }, [entries, employees, staffingRequirements, constraints, selectedLocationId, year, month, restRules, contractTypes, employeeRestRules, holidays]);
 
   // Build entry map for grid
   const entryMap = buildEntryMap(entries);
