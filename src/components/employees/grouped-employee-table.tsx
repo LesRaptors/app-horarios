@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Table,
@@ -24,7 +24,8 @@ interface Props<T> {
   /** Columnas visibles (la del criterio agrupado ya viene filtrada). */
   columns: GroupedTableColumn[];
   renderRow: (emp: T) => ReactNode;
-  /** Cuando hay búsqueda/filtros activos, todos los grupos se fuerzan abiertos. */
+  /** Al activarse una búsqueda/filtro, todos los grupos se abren una sola vez
+      (luego el usuario puede colapsar/expandir libremente). */
   searchActive: boolean;
 }
 
@@ -51,17 +52,31 @@ export function GroupedEmployeeTable<T>({
 }: Props<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
+  // Al activarse una búsqueda/filtro, abrir todos los grupos una sola vez para
+  // que ninguna coincidencia quede oculta. Después el usuario puede colapsar/
+  // expandir con total libertad: `open` y `onToggle` derivan SIEMPRE de
+  // `collapsed`, así el estado de React y el DOM nunca divergen.
+  useEffect(() => {
+    if (searchActive) setCollapsed(new Set());
+  }, [searchActive]);
+
   // Sin agrupar: una sola tabla plana (idéntica a la vista clásica).
   if (groupBy === "none") {
     return (
-      <Table className="table-fixed">
-        <HeaderRow columns={columns} />
-        <TableBody>{groups[0]?.employees.map((e) => renderRow(e))}</TableBody>
-      </Table>
+      <div
+        role="group"
+        aria-label="Empleados"
+        tabIndex={0}
+        className="overflow-x-auto [&>div]:overflow-visible"
+      >
+        <Table className="table-fixed min-w-[1000px]">
+          <HeaderRow columns={columns} />
+          <TableBody>{groups[0]?.employees.map((e) => renderRow(e))}</TableBody>
+        </Table>
+      </div>
     );
   }
 
-  const isOpen = (key: string) => (searchActive ? true : !collapsed.has(key));
   const allKeys = groups.map((g) => g.key);
   const allCollapsed = allKeys.length > 0 && allKeys.every((k) => collapsed.has(k));
 
@@ -71,7 +86,6 @@ export function GroupedEmployeeTable<T>({
         <Button
           variant="ghost"
           size="sm"
-          disabled={searchActive}
           onClick={() =>
             setCollapsed(allCollapsed ? new Set() : new Set(allKeys))
           }
@@ -83,10 +97,8 @@ export function GroupedEmployeeTable<T>({
       {groups.map((group) => (
         <details
           key={group.key}
-          open={isOpen(group.key)}
+          open={!collapsed.has(group.key)}
           onToggle={(e) => {
-            // Durante una búsqueda, la apertura la controla `searchActive`.
-            if (searchActive) return;
             const open = e.currentTarget.open;
             setCollapsed((prev) => {
               const next = new Set(prev);
@@ -104,15 +116,24 @@ export function GroupedEmployeeTable<T>({
               · {group.employees.length}
             </span>
           </summary>
-          {/* content-visibility difiere el render de grupos fuera de pantalla;
+          {/* Región scrollable y enfocable por teclado (tabIndex + role/aria-label):
+              en pantallas angostas la tabla (min-width) desborda y este contenedor
+              hace scroll horizontal en vez de aplastar las columnas. Se neutraliza
+              el wrapper interno de shadcn ([&>div]:overflow-visible) para tener un
+              único contenedor de scroll, el enfocable.
+              content-visibility difiere el render de grupos fuera de pantalla;
               contain-intrinsic-size evita saltos de scroll cuando se omite. */}
           <div
+            role="group"
+            aria-label={group.label}
+            tabIndex={0}
+            className="overflow-x-auto [&>div]:overflow-visible"
             style={{
               contentVisibility: "auto",
               containIntrinsicSize: "auto 600px",
             }}
           >
-            <Table className="table-fixed">
+            <Table className="table-fixed min-w-[1000px]">
               <HeaderRow columns={columns} />
               <TableBody>{group.employees.map((e) => renderRow(e))}</TableBody>
             </Table>

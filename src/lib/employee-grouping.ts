@@ -17,7 +17,13 @@ export interface EmployeeGroup<T> {
 
 const UNASSIGNED = "__unassigned__";
 
-function keyLabel(emp: EmployeeForGrouping, groupBy: GroupBy): { key: string; label: string } {
+// `none` se resuelve antes de llamar a `keyLabel` (ver `groupEmployees`), así que
+// aquí el criterio nunca es "none" — el tipo lo excluye para mantener el switch
+// exhaustivo sin ramas inalcanzables.
+function keyLabel(
+  emp: EmployeeForGrouping,
+  groupBy: Exclude<GroupBy, "none">,
+): { key: string; label: string } {
   switch (groupBy) {
     case "location":
       return emp.location ? { key: emp.location.id, label: emp.location.name } : { key: UNASSIGNED, label: "Sin asignar" };
@@ -27,8 +33,6 @@ function keyLabel(emp: EmployeeForGrouping, groupBy: GroupBy): { key: string; la
     }
     case "position":
       return emp.position ? { key: emp.position.id, label: emp.position.name } : { key: UNASSIGNED, label: "Sin asignar" };
-    case "none":
-      return { key: "all", label: "" };
   }
 }
 

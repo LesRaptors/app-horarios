@@ -110,6 +110,9 @@ interface InviteForm {
   contract_type_id: string;
 }
 
+// Referencia estable para filas sin historial salarial (evita recrear arrays).
+const EMPTY_SALARY_HISTORY: SalaryHistory[] = [];
+
 const emptyInviteForm: InviteForm = {
   email: "",
   first_name: "",
@@ -403,10 +406,28 @@ export default function EmployeesPage() {
   }, [supabase]);
 
   // --------------------------------------------------------------------------
+  // Sede efectiva: si el empleado no tiene `location` directa, se resuelve desde
+  // la posición (`position.department.location_id`) — el mismo fallback que usa
+  // `openEditDialog`. Enriquecer aquí garantiza que tanto el filtro de Sede como
+  // `groupEmployees(..., "location")` usen la misma sede y no caigan en falsos
+  // "Sin asignar".
+  // --------------------------------------------------------------------------
+  const employeesWithEffectiveLocation = useMemo(() => {
+    return employees.map((e) => {
+      if (e.location) return e;
+      const locId = e.position?.department?.location_id;
+      if (!locId) return e;
+      const loc = locations.find((l) => l.id === locId);
+      if (!loc) return e;
+      return { ...e, location: { id: loc.id, name: loc.name } };
+    });
+  }, [employees, locations]);
+
+  // --------------------------------------------------------------------------
   // Filtered employees (client-side search)
   // --------------------------------------------------------------------------
   const filteredEmployees = useMemo(() => {
-    let result = employees;
+    let result = employeesWithEffectiveLocation;
 
     // Demo filter
     if (demoFilter === "real") {
@@ -416,7 +437,7 @@ export default function EmployeesPage() {
     }
 
     if (filterLocationId !== "all")
-      result = result.filter((e) => e.location_id === filterLocationId);
+      result = result.filter((e) => e.location?.id === filterLocationId);
     if (filterDepartmentId !== "all")
       result = result.filter(
         (e) => e.position?.department?.id === filterDepartmentId
@@ -429,7 +450,26 @@ export default function EmployeesPage() {
       const email = e.email?.toLowerCase() ?? "";
       return fullName.includes(q) || email.includes(q);
     });
-  }, [employees, search, demoFilter, filterLocationId, filterDepartmentId]);
+  }, [
+    employeesWithEffectiveLocation,
+    search,
+    demoFilter,
+    filterLocationId,
+    filterDepartmentId,
+  ]);
+
+  // --------------------------------------------------------------------------
+  // Índice salario por empleado (O(1) por fila en vez de O(N×M) al re-renderizar).
+  // --------------------------------------------------------------------------
+  const salaryByEmployee = useMemo(() => {
+    const map = new Map<string, SalaryHistory[]>();
+    for (const s of salaryHistory) {
+      const arr = map.get(s.employee_id);
+      if (arr) arr.push(s);
+      else map.set(s.employee_id, [s]);
+    }
+    return map;
+  }, [salaryHistory]);
 
   // --------------------------------------------------------------------------
   // Agrupación de empleados (según el criterio seleccionado)
@@ -910,11 +950,21 @@ export default function EmployeesPage() {
     { key: "status", label: "Estado", className: "w-[7%]" },
     { key: "actions", label: "Acciones", className: "w-[9%] text-right" },
   ];
-  const visibleColumns = columns.filter(
-    (c) =>
-      !(groupBy === "location" && c.key === "location") &&
-      !(groupBy === "position" && c.key === "position")
-  );
+  // Única fuente de verdad: la columna del criterio agrupado se oculta tanto en
+  // el header (`visibleColumns`) como en cada celda (`renderEmployeeRow`).
+  const hiddenColumnKey: string | null =
+    groupBy === "location"
+      ? "location"
+      : groupBy === "position"
+        ? "position"
+        : null;
+  const visibleColumns = columns.filter((c) => c.key !== hiddenColumnKey);
+
+  // Filtros/búsqueda activos: gobierna el empty-state y la apertura de grupos.
+  const hasActiveFilters =
+    !!search.trim() ||
+    filterLocationId !== "all" ||
+    filterDepartmentId !== "all";
 
   // --------------------------------------------------------------------------
   // Render de una fila de empleado. Las celdas Posición/Sede se omiten cuando
@@ -950,18 +1000,18 @@ export default function EmployeesPage() {
               )}
           </div>
         </TableCell>
-        <TableCell className="truncate">{emp.email}</TableCell>
+        <TableCell className="break-words">{emp.email}</TableCell>
         <TableCell>
           <RoleBadge role={emp.role} />
         </TableCell>
-        {groupBy !== "position" && (
+        {hiddenColumnKey !== "position" && (
           <TableCell>
             {emp.position?.name ?? (
               <span className="text-muted-foreground">&mdash;</span>
             )}
           </TableCell>
         )}
-        {groupBy !== "location" && (
+        {hiddenColumnKey !== "location" && (
           <TableCell>
             {emp.location?.name ?? (
               <span className="text-muted-foreground">&mdash;</span>
@@ -994,7 +1044,7 @@ export default function EmployeesPage() {
         <TableCell onClick={(e) => e.stopPropagation()}>
           <SalaryCell
             employeeId={emp.id}
-            history={salaryHistory.filter((s) => s.employee_id === emp.id)}
+            history={salaryByEmployee.get(emp.id) ?? EMPTY_SALARY_HISTORY}
             payrollSettings={payrollSettings}
             canEdit={canEditSalary}
             canRead={canReadAnySalary}
@@ -1131,7 +1181,11 @@ export default function EmployeesPage() {
         </Select>
         <Select
           value={filterLocationId}
-          onValueChange={setFilterLocationId}
+          onValueChange={(v) => {
+            setFilterLocationId(v);
+            // Resetear el departamento: una Sede distinta invalida el depto previo.
+            setFilterDepartmentId("all");
+          }}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Sede" />
@@ -1190,11 +1244,11 @@ export default function EmployeesPage() {
           ) : filteredEmployees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground">
-                {search.trim()
-                  ? "No se encontraron empleados con esa busqueda."
+                {hasActiveFilters
+                  ? "No se encontraron empleados con esos filtros."
                   : "No hay empleados registrados aun."}
               </p>
-              {!search.trim() && (
+              {!hasActiveFilters && (
                 <Button
                   variant="outline"
                   className="mt-4"
@@ -1210,11 +1264,7 @@ export default function EmployeesPage() {
               groups={groups}
               groupBy={groupBy}
               columns={visibleColumns}
-              searchActive={
-                !!search.trim() ||
-                filterLocationId !== "all" ||
-                filterDepartmentId !== "all"
-              }
+              searchActive={hasActiveFilters}
               renderRow={renderEmployeeRow}
             />
           )}
@@ -2306,7 +2356,7 @@ export default function EmployeesPage() {
               <div className="mt-6 space-y-6">
                 <SalaryHistorySection
                   employeeId={panelEmp.id}
-                  history={salaryHistory.filter((s) => s.employee_id === panelEmp.id)}
+                  history={salaryByEmployee.get(panelEmp.id) ?? EMPTY_SALARY_HISTORY}
                   payrollSettings={payrollSettings}
                   canEdit={canEditSalary}
                   onChanged={fetchSalaryData}
