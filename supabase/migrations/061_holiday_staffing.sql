@@ -29,12 +29,19 @@ DECLARE
   updated_count INT := 0;
   deleted_count INT := 0;
   user_id UUID := auth.uid();
+  loc_org UUID;
 BEGIN
   IF NOT (
     get_user_role() = 'admin' OR
     (get_user_role() = 'manager' AND get_user_location_id() = p_location_id)
   ) THEN
     RAISE EXCEPTION 'forbidden';
+  END IF;
+
+  -- organization_id es NOT NULL (migración 039) y se deriva de la sede.
+  SELECT organization_id INTO loc_org FROM locations WHERE id = p_location_id;
+  IF loc_org IS NULL THEN
+    RAISE EXCEPTION 'location not found';
   END IF;
 
   CREATE TEMP TABLE _desired ON COMMIT DROP AS
@@ -62,8 +69,8 @@ BEGIN
 
   WITH ups AS (
     INSERT INTO staffing_requirements
-      (location_id, position_id, shift_template_id, day_of_week, required_count, is_holiday, updated_by)
-    SELECT p_location_id, position_id, shift_template_id, day_of_week, required_count, is_holiday, user_id
+      (location_id, organization_id, position_id, shift_template_id, day_of_week, required_count, is_holiday, updated_by)
+    SELECT p_location_id, loc_org, position_id, shift_template_id, day_of_week, required_count, is_holiday, user_id
       FROM _desired WHERE required_count > 0
     ON CONFLICT (location_id, position_id, shift_template_id, day_of_week, is_holiday)
     DO UPDATE SET
