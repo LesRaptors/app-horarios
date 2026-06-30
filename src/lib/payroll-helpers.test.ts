@@ -77,9 +77,9 @@ describe("getCurrentSalary", () => {
 });
 
 const settings2026: PayrollSettings[] = [
-  { id: "p1", period_start: "2026-01-01", period_end: "2026-06-30", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.8, holiday_surcharge_pct: 0.8, updated_at: "2026-01-01" },
-  { id: "p2", period_start: "2026-07-01", period_end: "2026-07-14", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, updated_at: "2026-01-01" },
-  { id: "p3", period_start: "2026-07-15", period_end: null, smmlv: 1750905, aux_transport: 249095, hourly_divisor: 210, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, updated_at: "2026-01-01" },
+  { id: "p1", period_start: "2026-01-01", period_end: "2026-06-30", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.8, holiday_surcharge_pct: 0.8, uvt: 52374, updated_at: "2026-01-01" },
+  { id: "p2", period_start: "2026-07-01", period_end: "2026-07-14", smmlv: 1750905, aux_transport: 249095, hourly_divisor: 220, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, uvt: 52374, updated_at: "2026-01-01" },
+  { id: "p3", period_start: "2026-07-15", period_end: null, smmlv: 1750905, aux_transport: 249095, hourly_divisor: 210, night_start_hour: 19, sunday_surcharge_pct: 0.9, holiday_surcharge_pct: 0.9, uvt: 52374, updated_at: "2026-01-01" },
 ];
 
 describe("getSettingsForDate", () => {

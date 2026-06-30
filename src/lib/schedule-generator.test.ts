@@ -33,7 +33,7 @@ function makeEmployee(overrides: Partial<ProfileWithPositions> = {}): ProfileWit
     id: "e1", first_name: "T", last_name: "U", email: "t@t.com", phone: null,
     role: "employee", position_id: "pos-1", location_id: "loc-1",
     max_hours_per_week: 40, is_active: true, is_demo: false, is_floater: false,
-    contract_type_id: "ct-full", created_at: "", updated_at: "",
+    organization_id: null, contract_type_id: "ct-full", created_at: "", updated_at: "",
     secondary_positions: [],
     ...overrides,
   };
@@ -343,7 +343,7 @@ describe("supernumerario (floater)", () => {
       id: "e-flo",
       position_id: "pos-other",
       is_floater: true,
-      secondary_positions: [{ position_id: "pos-1" }],
+      secondary_positions: [{ id: "sp-1", employee_id: "e-flo", position_id: "pos-1", created_at: "" }],
     });
     const tpl = makeTemplate({ id: "tpl-m" });
 
@@ -369,7 +369,7 @@ describe("supernumerario (floater)", () => {
       id: "e-flo",
       position_id: "pos-other",
       is_floater: true,
-      secondary_positions: [{ position_id: "pos-1" }],
+      secondary_positions: [{ id: "sp-1", employee_id: "e-flo", position_id: "pos-1", created_at: "" }],
     });
     const tpl = makeTemplate({ id: "tpl-m" });
 
@@ -406,7 +406,7 @@ describe("supernumerario (floater)", () => {
       id: "e-flo",
       position_id: "pos-other",
       is_floater: true,
-      secondary_positions: [{ position_id: "pos-1" }],
+      secondary_positions: [{ id: "sp-1", employee_id: "e-flo", position_id: "pos-1", created_at: "" }],
     });
     const tpl = makeTemplate({ id: "tpl-m" });
 
