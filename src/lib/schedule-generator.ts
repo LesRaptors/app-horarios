@@ -99,19 +99,24 @@ function prevDateStr(dateStr: string): string {
 }
 
 function buildDemandSlots(
-  config: AutoGenConfig, dates: Date[], templates: ShiftTemplate[],
+  config: AutoGenConfig, dates: Date[], allTemplates: ShiftTemplate[],
   staffingRequirements: StaffingRequirement[],
   holidays: HolidayDate[], locationId: string,
 ): DemandSlot[] {
-  const templateMap = new Map(templates.map((t) => [t.id, t]));
+  // templateMap incluye TODOS los templates (no solo los seleccionados) para poder
+  // resolver el turno del perfil de festivo aunque no esté en config.shiftTemplateIds.
+  const templateMap = new Map(allTemplates.map((t) => [t.id, t]));
   const slots: DemandSlot[] = [];
   const reqMap = new Map<string, number>();
-  const reqMapHoliday = new Map<string, number>();
+  // Perfil de festivo por posición: lista de {turno, count}. Permite auto-incluir
+  // los turnos del perfil aunque no estén seleccionados.
+  const holidayDemand = new Map<string, Array<{ shiftTemplateId: string; count: number }>>();
   const holidayPositions = new Set<string>();
   for (const sr of staffingRequirements) {
     if (sr.is_holiday) {
-      // Perfil de festivo: indexado por pos_shift (sin dow; day_of_week=0 sentinela).
-      reqMapHoliday.set(`${sr.position_id}_${sr.shift_template_id}`, sr.required_count);
+      const list = holidayDemand.get(sr.position_id) ?? [];
+      list.push({ shiftTemplateId: sr.shift_template_id, count: sr.required_count });
+      holidayDemand.set(sr.position_id, list);
       holidayPositions.add(sr.position_id);
     } else {
       reqMap.set(`${sr.position_id}_${sr.shift_template_id}_${sr.day_of_week}`, sr.required_count);
@@ -119,37 +124,53 @@ function buildDemandSlots(
   }
   const hasDemand = staffingRequirements.length > 0 && config.useDemandRequirements;
 
+  const pushSlot = (
+    dateStr: string, dow: number, posId: string, template: ShiftTemplate, count: number,
+  ) => {
+    if (count <= 0) return;
+    const duration = calcDurationHours(template.start_time, template.end_time, template.break_minutes);
+    for (let i = 0; i < count; i++) {
+      slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
+        shiftTemplateId: template.id, startTime: template.start_time,
+        endTime: template.end_time, breakMinutes: template.break_minutes,
+        durationHours: duration, template });
+    }
+  };
+
   for (const date of dates) {
     const dateStr = formatDateISO(date);
     const dow = date.getDay();
     if (config.excludeDates.includes(dateStr)) continue;
+    // isHoliday() sólo depende de la fecha: calcular una vez por fecha (no por template).
+    const isHol = hasDemand && isHoliday(dateStr, locationId, holidays);
 
-    for (const templateId of config.shiftTemplateIds) {
-      const template = templateMap.get(templateId);
-      if (!template) continue;
-      const duration = calcDurationHours(template.start_time, template.end_time, template.break_minutes);
-
-      if (hasDemand) {
-        // En un festivo, una posición con perfil de festivo (≥1 fila is_holiday=true)
-        // REEMPLAZA su demanda con SOLO el perfil de festivo; las demás siguen por día de semana.
-        const isHol = isHoliday(dateStr, locationId, holidays);
-        for (const posId of config.positionIds) {
-          const count = (isHol && holidayPositions.has(posId))
-            ? (reqMapHoliday.get(`${posId}_${templateId}`) ?? 0)
-            : (reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0);
-          for (let i = 0; i < count; i++) {
-            slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
-              shiftTemplateId: templateId, startTime: template.start_time,
-              endTime: template.end_time, breakMinutes: template.break_minutes,
-              durationHours: duration, template });
+    if (hasDemand) {
+      for (const posId of config.positionIds) {
+        if (isHol && holidayPositions.has(posId)) {
+          // En un festivo, una posición con perfil de festivo (≥1 fila is_holiday=true)
+          // REEMPLAZA su demanda con SOLO el perfil de festivo. Los turnos del perfil se
+          // auto-incluyen aunque NO estén en config.shiftTemplateIds.
+          for (const { shiftTemplateId, count } of holidayDemand.get(posId) ?? []) {
+            const template = templateMap.get(shiftTemplateId);
+            if (!template) continue;
+            pushSlot(dateStr, dow, posId, template, count);
+          }
+        } else {
+          // Día de semana (o festivo sin perfil): demanda por día de semana, limitada a
+          // los turnos seleccionados.
+          for (const templateId of config.shiftTemplateIds) {
+            const template = templateMap.get(templateId);
+            if (!template) continue;
+            pushSlot(dateStr, dow, posId, template, reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0);
           }
         }
-      } else {
+      }
+    } else {
+      for (const templateId of config.shiftTemplateIds) {
+        const template = templateMap.get(templateId);
+        if (!template) continue;
         for (const posId of config.positionIds) {
-          slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
-            shiftTemplateId: templateId, startTime: template.start_time,
-            endTime: template.end_time, breakMinutes: template.break_minutes,
-            durationHours: duration, template });
+          pushSlot(dateStr, dow, posId, template, 1);
         }
       }
     }
@@ -499,7 +520,10 @@ export function generateSchedule(
   }
 
   const dates = getMonthDates(config.year, config.month);
-  const demandSlots = buildDemandSlots(config, dates, selectedTemplates, staffingRequirements, holidays, config.locationId);
+  // Pasar TODOS los templates: buildDemandSlots usa config.shiftTemplateIds para la
+  // demanda de día de semana, pero auto-incluye los turnos del perfil de festivo aunque
+  // no estén seleccionados (resueltos desde el templateMap completo).
+  const demandSlots = buildDemandSlots(config, dates, templates, staffingRequirements, holidays, config.locationId);
   const totalDemandHours = demandSlots.reduce((sum, s) => sum + s.durationHours, 0);
   const targetHours = totalDemandHours / selectedEmployees.length;
   const targetShifts = demandSlots.length / selectedEmployees.length;

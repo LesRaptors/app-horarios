@@ -107,8 +107,12 @@ export function computeHealth(
       const usesHolidayProfile = isHol && holidayPositions.has(sr.position_id);
       const applies = usesHolidayProfile ? sr.is_holiday : (!sr.is_holiday && sr.day_of_week === dow);
       if (!applies) continue;
+      // En un festivo con perfil, entries pre-existentes pueden tener templates de día de
+      // semana (generadas antes del perfil festivo). Acreditar TODAS las entries de la
+      // posición ese día (sin filtrar por shift_template_id) para no marcar huérfanas como gap.
       const assignedHere = counted.filter(
-        (e) => e.date === day && e.position_id === sr.position_id && e.shift_template_id === sr.shift_template_id,
+        (e) => e.date === day && e.position_id === sr.position_id
+          && (usesHolidayProfile || e.shift_template_id === sr.shift_template_id),
       ).length;
       for (let i = assignedHere; i < sr.required_count; i++) {
         gapsByDay.push({ date: day, positionId: sr.position_id, shiftTemplateId: sr.shift_template_id });

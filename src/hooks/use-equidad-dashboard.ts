@@ -8,7 +8,7 @@ import {
   meanStdDev,
   zScoreColor,
   coverageColor,
-  requiredSlots,
+  isHoliday,
   dayOfWeek,
   type ZScoreColor,
   type CoverageColor,
@@ -20,6 +20,7 @@ import type {
   ShiftTemplate,
   StaffingRequirement,
   EmployeeEquityRollup,
+  HolidayDate,
 } from "@/lib/types";
 
 type Role = "admin" | "manager" | "employee";
@@ -113,6 +114,7 @@ export function useEquidadDashboard(
   const [positions, setPositions] = useState<Position[]>([]);
   const [staffingReqs, setStaffingReqs] = useState<StaffingRequirement[]>([]);
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
+  const [holidays, setHolidays] = useState<HolidayDate[]>([]);
   const [rollups, setRollups] = useState<EmployeeEquityRollup[]>([]);
   const [scheduleEntries, setScheduleEntries] = useState<
     Array<{ id: string; schedule_id: string; employee_id: string; date: string; shift_template_id: string; position_id: string; }>
@@ -149,6 +151,7 @@ export function useEquidadDashboard(
         stRes,
         schedRes,
         rollRes,
+        holRes,
       ] = await Promise.all([
         supabase.from("locations").select("*").order("name"),
         supabase
@@ -170,6 +173,8 @@ export function useEquidadDashboard(
           .from("employee_equity_rollups")
           .select("*")
           .or(ymOr),
+        // Festivos nacionales (location_id null) + por sede; RLS scopea al org.
+        supabase.from("holidays").select("*"),
       ]);
 
       if (cancelled) return;
@@ -186,6 +191,7 @@ export function useEquidadDashboard(
       setStaffingReqs((srRes.data ?? []) as StaffingRequirement[]);
       setShiftTemplates((stRes.data ?? []) as ShiftTemplate[]);
       setRollups((rollRes.data ?? []) as EmployeeEquityRollup[]);
+      setHolidays((holRes.data ?? []) as HolidayDate[]);
 
       const scheds = (schedRes.data ?? []) as Array<{
         id: string;
@@ -255,31 +261,48 @@ export function useEquidadDashboard(
 
       const sedeTemplates = shiftTemplates.filter((t) => t.location_id === sede.id);
 
+      // Semántica de festivos: una posición con perfil (≥1 fila is_holiday=true) REEMPLAZA
+      // su demanda en un festivo por SOLO el perfil; sin perfil → demanda de día de semana.
+      // Misma lógica unificada que computeHealth (schedule-health.ts).
+      const holidayPositions = new Set(
+        sedeReqs.filter((r) => r.is_holiday).map((r) => r.position_id),
+      );
+      const sedeHolidayDates = new Set(
+        allDates.filter((d) => isHoliday(d, sede.id, holidays)),
+      );
+      const reqApplies = (r: StaffingRequirement, ds: string, dow: number): boolean => {
+        const usesHolidayProfile =
+          sedeHolidayDates.has(ds) && holidayPositions.has(r.position_id);
+        return usesHolidayProfile
+          ? !!r.is_holiday
+          : !r.is_holiday && r.day_of_week === dow;
+      };
+
       const sedeSchedIds = new Set(scheduleByLocation.get(sede.id) ?? []);
       const sedeEntries = scheduleEntries.filter((e) => sedeSchedIds.has(e.schedule_id));
 
       let coverage: CoverageData | null = null;
       if (sedeReqs.length > 0) {
-        const required = requiredSlots(
-          sedeReqs.map((r) => ({
-            day_of_week: r.day_of_week,
-            required_count: r.required_count,
-          })),
-          allDates
-        );
+        let required = 0;
+        for (const ds of allDates) {
+          const dow = dayOfWeek(ds);
+          for (const r of sedeReqs) {
+            if (reqApplies(r, ds, dow)) required += r.required_count;
+          }
+        }
         const assigned = sedeEntries.length;
         const percent = required === 0 ? 0 : (assigned / required) * 100;
 
         const byPosition: CoverageByPosition[] = sedePositions
           .map((pos) => {
             const reqsForPos = sedeReqs.filter((r) => r.position_id === pos.id);
-            const reqCount = requiredSlots(
-              reqsForPos.map((r) => ({
-                day_of_week: r.day_of_week,
-                required_count: r.required_count,
-              })),
-              allDates
-            );
+            let reqCount = 0;
+            for (const ds of allDates) {
+              const dow = dayOfWeek(ds);
+              for (const r of reqsForPos) {
+                if (reqApplies(r, ds, dow)) reqCount += r.required_count;
+              }
+            }
             const assignedForPos = sedeEntries.filter(
               (e) => e.position_id === pos.id
             ).length;
@@ -312,10 +335,9 @@ export function useEquidadDashboard(
             for (let d = 1; d <= lastDay; d++) {
               const ds = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
               const dow = dayOfWeek(ds);
-              const reqRows = sedeReqs.filter(
-                (r) => r.shift_template_id === t.id && r.day_of_week === dow
-              );
-              const reqCount = reqRows.reduce((a, r) => a + r.required_count, 0);
+              const reqCount = sedeReqs
+                .filter((r) => r.shift_template_id === t.id && reqApplies(r, ds, dow))
+                .reduce((a, r) => a + r.required_count, 0);
               const assignedCount = sedeEntries.filter(
                 (e) => e.shift_template_id === t.id && e.date === ds
               ).length;
@@ -344,10 +366,14 @@ export function useEquidadDashboard(
           for (const t of sedeTemplates) {
             for (const dow of displayOrder) {
               const datesForDow = allDates.filter((ds) => dayOfWeek(ds) === dow);
-              const reqPerOcc = sedeReqs
-                .filter((r) => r.shift_template_id === t.id && r.day_of_week === dow)
-                .reduce((a, r) => a + r.required_count, 0);
-              const reqCount = reqPerOcc * datesForDow.length;
+              // Iterar fechas reales: distintos días del mismo dow pueden ser festivo o no,
+              // por lo que el perfil de festivo no se puede multiplicar por ocurrencias.
+              let reqCount = 0;
+              for (const ds of datesForDow) {
+                reqCount += sedeReqs
+                  .filter((r) => r.shift_template_id === t.id && reqApplies(r, ds, dow))
+                  .reduce((a, r) => a + r.required_count, 0);
+              }
               const assignedCount = sedeEntries.filter((e) => {
                 if (e.shift_template_id !== t.id) return false;
                 return dayOfWeek(e.date) === dow;
@@ -454,6 +480,7 @@ export function useEquidadDashboard(
     positions,
     staffingReqs,
     shiftTemplates,
+    holidays,
     scheduleByLocation,
     scheduleEntries,
     rollups,
