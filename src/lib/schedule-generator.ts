@@ -4,7 +4,7 @@ import {
   getRollingWindow,
   sumRollupField,
   isHoliday,
-  isNightShift,
+  effectiveShiftHours,
   dayOfWeek,
   daysBetween,
 } from "./equity-helpers";
@@ -32,6 +32,9 @@ interface DemandSlot {
   endTime: string;
   breakMinutes: number;
   durationHours: number;
+  // Carácter nocturno EFECTIVO del slot (deriva del horario de festivo cuando
+  // aplica). Para slots sin horario de festivo aplicado, isNight === template.is_night.
+  isNight: boolean;
   template: ShiftTemplate;
 }
 
@@ -129,17 +132,13 @@ function buildDemandSlots(
     isHolidayDate: boolean,
   ) => {
     if (count <= 0) return;
-    const useHol =
-      isHolidayDate && template.holiday_start_time != null && template.holiday_end_time != null;
-    const startTime = useHol ? template.holiday_start_time! : template.start_time;
-    const endTime = useHol ? template.holiday_end_time! : template.end_time;
-    const breakMin = useHol ? (template.holiday_break_minutes ?? 0) : template.break_minutes;
-    const duration = calcDurationHours(startTime, endTime, breakMin);
+    const { startTime, endTime, breakMinutes, isNight } = effectiveShiftHours(template, isHolidayDate);
+    const duration = calcDurationHours(startTime, endTime, breakMinutes);
     for (let i = 0; i < count; i++) {
       slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
         shiftTemplateId: template.id, startTime,
-        endTime, breakMinutes: breakMin,
-        durationHours: duration, template });
+        endTime, breakMinutes,
+        durationHours: duration, isNight, template });
     }
   };
 
@@ -231,7 +230,7 @@ function scoreCandidate(
   const dow = dayOfWeek(slot.date);
   if (dow === 0) score -= rolling.sundays * w.sunday_penalty;
   if (dow === 6) score -= rolling.saturdays * w.saturday_penalty;
-  if (isNightShift(slot.template)) score -= rolling.nights * w.night_penalty;
+  if (slot.isNight) score -= rolling.nights * w.night_penalty;
   if (isHoliday(slot.date, ctx.locationId, ctx.holidays))
     score -= rolling.holidays * w.holiday_penalty;
 
@@ -331,7 +330,7 @@ function filterCandidates(
     const availNights   = emp.available_nights   ?? contract?.available_nights;
     if (availSundays  === false && dayOfWeek(slot.date) === 0) continue;
     if (availHolidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
-    if (availNights   === false && isNightShift(slot.template)) continue;
+    if (availNights   === false && slot.isNight) continue;
 
     // INVIOLABLE: reglas de descanso (override empleado > contract)
     const empRules = ctx.restRulesByEmployee.get(emp.id) ?? [];
@@ -344,7 +343,7 @@ function filterCandidates(
       const recentEmpEntries = ctx.entriesByEmployee.get(emp.id) ?? [];
       const isHolidayFn = (d: string) => isHoliday(d, ctx.locationId, ctx.holidays);
       const blocked = effectiveRules.some((rule) =>
-        isRestDay(rule as RestRule, slot.date, slot.template, recentEmpEntries, isHolidayFn)
+        isRestDay(rule as RestRule, slot.date, slot.template, recentEmpEntries, isHolidayFn, slot.isNight)
       );
       if (blocked) continue;
     }
@@ -639,7 +638,7 @@ export function generateSchedule(
     tracker.lastShiftDate = slot.date;
     tracker.lastShiftStartTime = slot.startTime;
     tracker.lastShiftEndTime = slot.endTime;
-    tracker.lastShiftWasNight = isNightShift(slot.template);
+    tracker.lastShiftWasNight = slot.isNight;
     tracker.assignedDates.add(slot.date);
     stats[chosen].shifts++;
     stats[chosen].hours += slot.durationHours;
@@ -647,7 +646,7 @@ export function generateSchedule(
     // Update in-run rollup sums so subsequent slots see the updated state
     const isSun = dayOfWeek(slot.date) === 0;
     const isSat = dayOfWeek(slot.date) === 6;
-    const isNight = isNightShift(slot.template);
+    const isNight = slot.isNight;
     const isHol = isHoliday(slot.date, ctx.locationId, ctx.holidays);
     const roll = ctx.rollingRollupSums.get(chosen)!;
     if (isSun) roll.sundays++;

@@ -964,3 +964,60 @@ describe("horario de festivo del turno", () => {
     expect(onHoliday?.start_time).toBe("10:00:00");
   });
 });
+
+describe("carácter nocturno efectivo en festivos (inviolable available_nights)", () => {
+  // 2026-04-09 es jueves (day_of_week=4) y festivo.
+  const holidays: HolidayDate[] = [
+    { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+  ];
+  const weekdayReq: StaffingRequirement[] = [
+    { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+      day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+  ];
+
+  it("available_nights=false NO recibe el festivo cuando el horario de festivo cruza la noche (carácter efectivo, no el flag)", () => {
+    // Template diurno (is_night=false) cuyo horario de FESTIVO cruza 21:00-06:00.
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", is_night: false,
+      holiday_start_time: "22:00:00", holiday_end_time: "06:00:00", holiday_break_minutes: 0,
+    });
+    // Empleado que no trabaja noches (override sobre el contrato que sí las permite).
+    const emp = makeEmployee({ id: "e1", available_nights: false });
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints, weekdayReq, [], holidays, [fullTime], defaultWeights,
+    );
+
+    // En el festivo el slot es noche EFECTIVA → el inviolable available_nights lo bloquea.
+    expect(result.entries.find((e) => e.date === "2026-04-09")).toBeUndefined();
+    // Control inverso: un jueves NO festivo usa las horas diurnas normales → SÍ se asigna.
+    const onWeekday = result.entries.find((e) => e.date === "2026-04-02");
+    expect(onWeekday).toBeDefined();
+    expect(onWeekday?.start_time).toBe("08:00:00");
+  });
+
+  it("available_nights=false SÍ recibe el festivo cuando el horario de festivo es diurno (no es noche efectiva)", () => {
+    // Mismo empleado, pero el horario de festivo es diurno → carácter efectivo no-noche.
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", is_night: false,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    const emp = makeEmployee({ id: "e1", available_nights: false });
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints, weekdayReq, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday).toBeDefined();
+    expect(onHoliday?.start_time).toBe("10:00:00");
+  });
+});

@@ -167,8 +167,11 @@ export function isRestDay(
   template: ShiftTemplate,
   recent: ScheduleEntry[],
   isHolidayFn: (date: string) => boolean = () => false,
+  // Carácter nocturno EFECTIVO del slot. Por default el flag del template, pero el
+  // motor pasa el valor efectivo (que en festivos puede derivar del horario de
+  // festivo) para que max_consecutive_nights respete las horas reales, no el flag.
+  slotIsNight: boolean = template.is_night,
 ): boolean {
-  const slotIsNight = template.is_night;
   switch (rule.rule_type) {
     case "work_cycle":
       return isWorkCycleRest(rule.params as WorkCycleParams, date);
