@@ -53,7 +53,7 @@ export function useStaffingMatrix(locationId: string | null): UseStaffingMatrixR
       const reqs = ((reqRes.data ?? []) as StaffingRequirement[]);
       const persistedMap: Record<CellKey, number> = {};
       for (const r of reqs) {
-        persistedMap[makeCellKey(r.position_id, r.shift_template_id, r.day_of_week)] = r.required_count;
+        persistedMap[makeCellKey(r.position_id, r.shift_template_id, r.day_of_week, r.is_holiday ?? false)] = r.required_count;
       }
       setPersisted(persistedMap);
 
@@ -119,7 +119,7 @@ export function useStaffingMatrix(locationId: string | null): UseStaffingMatrixR
         const weekIdx = Math.floor((today.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000));
         if (weekIdx < 0 || weekIdx > 3) continue;
         const bucketIdx = 3 - weekIdx;  // 0 = w-3, 3 = esta semana
-        const key = makeCellKey(row.position_id, row.shift_template_id, dow);
+        const key = makeCellKey(row.position_id, row.shift_template_id, dow, false);
         if (!coverageBuckets[key]) coverageBuckets[key] = [0, 0, 0, 0];
         coverageBuckets[key][bucketIdx]++;
       }

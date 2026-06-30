@@ -107,6 +107,7 @@ export function StaffingTabHeatmap({
                 return (
                   <th
                     key={dayIndex}
+                    scope="col"
                     className={cn(
                       "px-2 py-2 text-center font-medium text-muted-foreground min-w-[56px]",
                       isWeekend && "bg-amber-50"
@@ -116,6 +117,12 @@ export function StaffingTabHeatmap({
                   </th>
                 );
               })}
+              <th
+                scope="col"
+                className="px-2 py-2 text-center font-medium min-w-[56px] bg-amber-50"
+              >
+                <span className="text-amber-600">Festivo</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +158,7 @@ export function StaffingTabHeatmap({
                       </span>
                     </td>
                     {DAY_ORDER.map((dayIndex) => {
-                      const key = makeCellKey(position.id, shift.id, dayIndex);
+                      const key = makeCellKey(position.id, shift.id, dayIndex, false);
                       const value = draft[key] ?? persisted[key] ?? 0;
                       const isEditing = editingKey === key;
                       const isWeekend = dayIndex === 0 || dayIndex === 6;
@@ -201,6 +208,50 @@ export function StaffingTabHeatmap({
                         </td>
                       );
                     })}
+                    {(() => {
+                      const key = makeCellKey(position.id, shift.id, 0, true);
+                      const value = draft[key] ?? persisted[key] ?? 0;
+                      const isEditing = editingKey === key;
+
+                      return (
+                        <td className="px-1 py-1 text-center bg-amber-50/40">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              max={99}
+                              value={editingValue}
+                              autoFocus
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onBlur={() => commitEdit(key)}
+                              onKeyDown={(e) => handleKeyDown(e, key)}
+                              className="w-10 h-7 text-center text-sm rounded border border-input px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                              aria-label={`${position.name} Festivo ${shift.name}`}
+                            />
+                          ) : (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => startEdit(key, value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  startEdit(key, value);
+                                }
+                              }}
+                              className={cn(
+                                "mx-auto w-10 h-7 flex items-center justify-center rounded text-sm font-medium cursor-pointer select-none transition-colors hover:opacity-80",
+                                demandColor(value)
+                              )}
+                              title={`${position.name} — Festivo — ${shift.name}: ${value}`}
+                              aria-label={`${position.name} Festivo ${shift.name}: ${value}. Clic para editar.`}
+                            >
+                              {value > 0 ? value : "–"}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               });

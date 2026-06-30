@@ -103,6 +103,7 @@ export function StaffingTabByPosition({
                     {DAY_ORDER.map((dayIndex) => (
                       <th
                         key={dayIndex}
+                        scope="col"
                         className="px-1 py-2 text-center font-medium text-muted-foreground min-w-[72px]"
                       >
                         <div className="flex flex-col items-center gap-0.5">
@@ -154,6 +155,12 @@ export function StaffingTabByPosition({
                         </div>
                       </th>
                     ))}
+                    <th
+                      scope="col"
+                      className="px-1 py-2 text-center font-medium min-w-[72px]"
+                    >
+                      <span className="text-amber-600">Festivo</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -174,7 +181,8 @@ export function StaffingTabByPosition({
                         const key = makeCellKey(
                           position.id,
                           shift.id,
-                          dayIndex
+                          dayIndex,
+                          false
                         );
                         const value = draft[key] ?? persisted[key] ?? 0;
                         return (
@@ -189,6 +197,21 @@ export function StaffingTabByPosition({
                           </td>
                         );
                       })}
+                      <td className="px-1 py-1.5 bg-amber-50/40">
+                        {(() => {
+                          const key = makeCellKey(position.id, shift.id, 0, true);
+                          const value = draft[key] ?? persisted[key] ?? 0;
+                          return (
+                            <StaffingCell
+                              value={value}
+                              capacity={posCapacity}
+                              recentCoverage={[]}
+                              onChange={(v) => onCellChange(key, v)}
+                              ariaLabel={`${position.name} ${shift.name} Festivo`}
+                            />
+                          );
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
