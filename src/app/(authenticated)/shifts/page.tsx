@@ -439,16 +439,18 @@ export default function ShiftsPage() {
             {/* Hora inicio y fin */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Hora de inicio</Label>
+                <Label htmlFor="shift-start">Hora de inicio</Label>
                 <Input
+                  id="shift-start"
                   type="time"
                   value={formStartTime}
                   onChange={(e) => setFormStartTime(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Hora de fin</Label>
+                <Label htmlFor="shift-end">Hora de fin</Label>
                 <Input
+                  id="shift-end"
                   type="time"
                   value={formEndTime}
                   onChange={(e) => setFormEndTime(e.target.value)}
@@ -458,8 +460,9 @@ export default function ShiftsPage() {
 
             {/* Minutos de descanso */}
             <div className="space-y-2">
-              <Label>Minutos de descanso</Label>
+              <Label htmlFor="shift-break">Minutos de descanso</Label>
               <Input
+                id="shift-break"
                 type="number"
                 min={0}
                 value={formBreakMinutes}
