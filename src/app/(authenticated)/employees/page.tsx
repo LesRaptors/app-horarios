@@ -259,6 +259,10 @@ export default function EmployeesPage() {
   // ---- Demo filter -----------------------------------------------------------
   const [demoFilter, setDemoFilter] = useState<"all" | "real" | "demo">("all");
 
+  // ---- Location / Department filters ----------------------------------------
+  const [filterLocationId, setFilterLocationId] = useState<string>("all");
+  const [filterDepartmentId, setFilterDepartmentId] = useState<string>("all");
+
   // ---- Demo create dialog ----------------------------------------------------
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({
@@ -391,6 +395,13 @@ export default function EmployeesPage() {
       result = result.filter((e) => e.is_demo);
     }
 
+    if (filterLocationId !== "all")
+      result = result.filter((e) => e.location_id === filterLocationId);
+    if (filterDepartmentId !== "all")
+      result = result.filter(
+        (e) => e.position?.department?.id === filterDepartmentId
+      );
+
     if (!search.trim()) return result;
     const q = search.toLowerCase();
     return result.filter((e) => {
@@ -398,7 +409,7 @@ export default function EmployeesPage() {
       const email = e.email?.toLowerCase() ?? "";
       return fullName.includes(q) || email.includes(q);
     });
-  }, [employees, search, demoFilter]);
+  }, [employees, search, demoFilter, filterLocationId, filterDepartmentId]);
 
   // --------------------------------------------------------------------------
   // Cascading position filter helpers
@@ -895,8 +906,8 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      {/* Search + Demo filter */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      {/* Search + Demo filter + Location + Department */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -919,6 +930,44 @@ export default function EmployeesPage() {
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="real">Solo reales</SelectItem>
             <SelectItem value="demo">Solo demos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={filterLocationId}
+          onValueChange={setFilterLocationId}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Sede" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las sedes</SelectItem>
+            {locations.map((l) => (
+              <SelectItem key={l.id} value={l.id}>
+                {l.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filterDepartmentId}
+          onValueChange={setFilterDepartmentId}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Departamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los departamentos</SelectItem>
+            {departments
+              .filter(
+                (d) =>
+                  filterLocationId === "all" ||
+                  d.location_id === filterLocationId
+              )
+              .map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
