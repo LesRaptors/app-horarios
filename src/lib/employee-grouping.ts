@@ -54,7 +54,7 @@ function buildLevel<T extends EmployeeForGrouping>(employees: T[], levels: Exclu
     g.emps.push(emp);
   }
   const nodes: GroupNode<T>[] = [];
-  for (const [key, { label, emps }] of map) {
+  for (const [key, { label, emps }] of Array.from(map)) {
     nodes.push(
       rest.length > 0
         ? { key, label, count: emps.length, children: buildLevel(emps, rest), employees: null }
