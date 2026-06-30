@@ -17,8 +17,8 @@ import type {
   RestRule,
   EmployeeRestRule,
   ScheduleEntry,
-  ShiftTemplate,
 } from "./types";
+import { makeTemplate } from "./test-utils/make-template";
 
 describe("isWorkCycleRest", () => {
   const params: WorkCycleParams = {
@@ -105,18 +105,13 @@ function mkEntry(date: string, isNight: boolean): ScheduleEntry {
   };
 }
 
-const nightTemplate: ShiftTemplate = {
-  id: "tpl-n", name: "Noche", start_time: "22:00", end_time: "06:00",
-  break_minutes: 0, color: "#000", location_id: "loc-1",
-  is_night: true,
-  holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
-  created_at: "",
-};
+const nightTemplate = makeTemplate({
+  id: "tpl-n", name: "Noche", start_time: "22:00", end_time: "06:00", is_night: true,
+});
 
-const _dayTemplate: ShiftTemplate = {
-  ...nightTemplate, id: "tpl-d", name: "Día",
-  start_time: "09:00", end_time: "17:00", is_night: false,
-};
+const _dayTemplate = makeTemplate({
+  id: "tpl-d", name: "Día", start_time: "09:00", end_time: "17:00", is_night: false,
+});
 
 // Suppress unused warning — nightTemplate used in isRestDay tests (Task 6)
 void nightTemplate;

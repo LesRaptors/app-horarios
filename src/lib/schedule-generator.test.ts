@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { generateSchedule } from "./schedule-generator";
 import type {
-  AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
+  AutoGenConfig, ProfileWithPositions, ScheduleEntry,
   LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
   RestRule, EmployeeRestRule, StaffingRequirement,
 } from "./types";
+import { makeTemplate } from "./test-utils/make-template";
 
 const defaultConstraints: LaborConstraints = {
   maxHoursPerWeek: 40, maxHoursPerDay: 10,
@@ -35,18 +36,6 @@ function makeEmployee(overrides: Partial<ProfileWithPositions> = {}): ProfileWit
     max_hours_per_week: 40, is_active: true, is_demo: false, is_floater: false,
     organization_id: null, contract_type_id: "ct-full", created_at: "", updated_at: "",
     secondary_positions: [],
-    ...overrides,
-  };
-}
-
-function makeTemplate(overrides: Partial<ShiftTemplate> = {}): ShiftTemplate {
-  return {
-    id: "tpl-morn", name: "Morning",
-    start_time: "09:00:00", end_time: "17:00:00",
-    break_minutes: 0, color: "#000", location_id: "loc-1",
-    is_night: false,
-    holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
-    created_at: "",
     ...overrides,
   };
 }

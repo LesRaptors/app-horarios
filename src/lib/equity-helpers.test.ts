@@ -7,6 +7,7 @@ import {
   isHoliday,
   isNightShift,
   suggestIsNight,
+  effectiveShiftHours,
   dayOfWeek,
   daysBetween,
   meanStdDev,
@@ -18,7 +19,8 @@ import {
   startOfWeekISO,
   endOfWeekISO,
 } from "./equity-helpers";
-import type { EmployeeEquityRollup, HolidayDate, ShiftTemplate } from "./types";
+import type { EmployeeEquityRollup, HolidayDate } from "./types";
+import { makeTemplate } from "./test-utils/make-template";
 
 describe("getQuarter", () => {
   it.each([
@@ -124,15 +126,59 @@ describe("suggestIsNight", () => {
 
 describe("isNightShift", () => {
   it("reads template.is_night directly", () => {
-    const t: ShiftTemplate = {
-      id: "t1", name: "X", start_time: "09:00", end_time: "18:00",
-      break_minutes: 0, color: "#000", location_id: "l1",
-      is_night: true,
-      holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
-      created_at: "",
-    };
+    const t = makeTemplate({
+      id: "t1", name: "X", start_time: "09:00", end_time: "18:00", is_night: true,
+    });
     expect(isNightShift(t)).toBe(true);
     expect(isNightShift({ ...t, is_night: false })).toBe(false);
+  });
+});
+
+describe("effectiveShiftHours", () => {
+  it("día NO festivo → horas normales + isNight = template.is_night", () => {
+    const t = makeTemplate({
+      start_time: "08:00:00", end_time: "17:00:00", break_minutes: 60,
+      is_night: false,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    expect(effectiveShiftHours(t, false)).toEqual({
+      startTime: "08:00:00", endTime: "17:00:00", breakMinutes: 60, isNight: false,
+    });
+  });
+
+  it("festivo con horas de festivo diurnas → horas de festivo + isNight=false", () => {
+    const t = makeTemplate({
+      start_time: "08:00:00", end_time: "17:00:00", break_minutes: 60,
+      is_night: false,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 30,
+    });
+    expect(effectiveShiftHours(t, true)).toEqual({
+      startTime: "10:00:00", endTime: "15:00:00", breakMinutes: 30, isNight: false,
+    });
+  });
+
+  it("festivo con horas de festivo que cruzan 21:00-06:00 sobre template diurno → isNight=true (efectivo)", () => {
+    const t = makeTemplate({
+      start_time: "08:00:00", end_time: "17:00:00",
+      is_night: false,
+      holiday_start_time: "22:00:00", holiday_end_time: "06:00:00", holiday_break_minutes: null,
+    });
+    const result = effectiveShiftHours(t, true);
+    expect(result.startTime).toBe("22:00:00");
+    expect(result.endTime).toBe("06:00:00");
+    expect(result.breakMinutes).toBe(0); // holiday_break_minutes null → 0
+    expect(result.isNight).toBe(true);
+  });
+
+  it("festivo pero template sin horario de festivo (holiday_start_time null) → horas normales + flag", () => {
+    const t = makeTemplate({
+      start_time: "08:00:00", end_time: "17:00:00", break_minutes: 45,
+      is_night: true,
+      holiday_start_time: null, holiday_end_time: null, holiday_break_minutes: null,
+    });
+    expect(effectiveShiftHours(t, true)).toEqual({
+      startTime: "08:00:00", endTime: "17:00:00", breakMinutes: 45, isNight: true,
+    });
   });
 });
 
