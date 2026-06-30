@@ -25,14 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +45,11 @@ import { toast } from "sonner";
 import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
 import { EmployeeRestRulesEditor } from "@/components/employees/employee-rest-rules-editor";
+import {
+  GroupedEmployeeTable,
+  type GroupedTableColumn,
+} from "@/components/employees/grouped-employee-table";
+import { groupEmployees, type GroupBy } from "@/lib/employee-grouping";
 import { ROLE_LABELS } from "@/lib/constants";
 import { summarizeRules } from "@/lib/rest-rules-summary";
 import type {
@@ -263,6 +261,28 @@ export default function EmployeesPage() {
   const [filterLocationId, setFilterLocationId] = useState<string>("all");
   const [filterDepartmentId, setFilterDepartmentId] = useState<string>("all");
 
+  // ---- Agrupación (persistida en localStorage) ------------------------------
+  const [groupBy, setGroupBy] = useState<GroupBy>("location");
+  useEffect(() => {
+    const saved =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("employees:groupBy")
+        : null;
+    if (
+      saved === "location" ||
+      saved === "department" ||
+      saved === "position" ||
+      saved === "none"
+    ) {
+      setGroupBy(saved);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("employees:groupBy", groupBy);
+    }
+  }, [groupBy]);
+
   // ---- Demo create dialog ----------------------------------------------------
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoForm, setDemoForm] = useState({
@@ -410,6 +430,14 @@ export default function EmployeesPage() {
       return fullName.includes(q) || email.includes(q);
     });
   }, [employees, search, demoFilter, filterLocationId, filterDepartmentId]);
+
+  // --------------------------------------------------------------------------
+  // Agrupación de empleados (según el criterio seleccionado)
+  // --------------------------------------------------------------------------
+  const groups = useMemo(
+    () => groupEmployees(filteredEmployees, groupBy),
+    [filteredEmployees, groupBy]
+  );
 
   // --------------------------------------------------------------------------
   // Cascading position filter helpers
@@ -867,6 +895,175 @@ export default function EmployeesPage() {
   const canReadAnySalary = canEditSalary || managerCanSee;
 
   // --------------------------------------------------------------------------
+  // Columnas de la tabla. Se oculta la columna del criterio agrupado
+  // (Sede al agrupar por sede, Posición al agrupar por posición). Los anchos en
+  // % + `table-fixed` garantizan que las columnas queden alineadas entre grupos.
+  // --------------------------------------------------------------------------
+  const columns: GroupedTableColumn[] = [
+    { key: "name", label: "Nombre", className: "w-[17%]" },
+    { key: "email", label: "Email", className: "w-[16%]" },
+    { key: "role", label: "Rol", className: "w-[8%]" },
+    { key: "position", label: "Posición", className: "w-[11%]" },
+    { key: "location", label: "Sede", className: "w-[11%]" },
+    { key: "contract", label: "Contrato", className: "w-[12%]" },
+    { key: "salary", label: "Salario", className: "w-[9%]" },
+    { key: "status", label: "Estado", className: "w-[7%]" },
+    { key: "actions", label: "Acciones", className: "w-[9%] text-right" },
+  ];
+  const visibleColumns = columns.filter(
+    (c) =>
+      !(groupBy === "location" && c.key === "location") &&
+      !(groupBy === "position" && c.key === "position")
+  );
+
+  // --------------------------------------------------------------------------
+  // Render de una fila de empleado. Las celdas Posición/Sede se omiten cuando
+  // su columna está oculta para mantener la alineación con `visibleColumns`.
+  // --------------------------------------------------------------------------
+  function renderEmployeeRow(emp: ProfileWithJoins) {
+    const contract = contracts.find((c) => c.id === emp.contract_type_id);
+    const isSinDefinir = contract?.name === "Sin definir";
+    return (
+      <TableRow
+        key={emp.id}
+        className="cursor-pointer"
+        onClick={() => setPanelEmp(emp as Profile)}
+      >
+        <TableCell className="font-medium">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={emp.is_demo ? "italic" : ""}>
+              {emp.first_name} {emp.last_name}
+            </span>
+            {emp.is_demo && <DemoBadge />}
+            {emp.is_floater && (
+              <Badge variant="outline" className="text-xs">
+                Supernumerario
+              </Badge>
+            )}
+            {emp.contract_type?.rest_rules &&
+              emp.contract_type.rest_rules.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {summarizeRules(emp.contract_type.rest_rules)}
+                  {emp.contract_type.rest_rules.length > 1 &&
+                    ` +${emp.contract_type.rest_rules.length - 1}`}
+                </Badge>
+              )}
+          </div>
+        </TableCell>
+        <TableCell className="truncate">{emp.email}</TableCell>
+        <TableCell>
+          <RoleBadge role={emp.role} />
+        </TableCell>
+        {groupBy !== "position" && (
+          <TableCell>
+            {emp.position?.name ?? (
+              <span className="text-muted-foreground">&mdash;</span>
+            )}
+          </TableCell>
+        )}
+        {groupBy !== "location" && (
+          <TableCell>
+            {emp.location?.name ?? (
+              <span className="text-muted-foreground">&mdash;</span>
+            )}
+          </TableCell>
+        )}
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <Select
+            value={emp.contract_type_id ?? undefined}
+            onValueChange={(v) => handleContractChange(emp.id, v)}
+          >
+            <SelectTrigger
+              className={
+                isSinDefinir
+                  ? "h-7 px-2 py-0 text-xs border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 w-auto min-w-[130px]"
+                  : "h-7 px-2 py-0 text-xs border-transparent hover:border-input hover:bg-muted w-auto min-w-[130px]"
+              }
+            >
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {contracts.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <SalaryCell
+            employeeId={emp.id}
+            history={salaryHistory.filter((s) => s.employee_id === emp.id)}
+            payrollSettings={payrollSettings}
+            canEdit={canEditSalary}
+            canRead={canReadAnySalary}
+            onSaved={fetchSalaryData}
+          />
+        </TableCell>
+        <TableCell>
+          <StatusBadge isActive={emp.is_active} />
+        </TableCell>
+        <TableCell
+          className="text-right"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-end gap-1">
+            {emp.is_demo && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Convertir a empleado real"
+                  onClick={() => {
+                    setConvertDemoId(emp.id);
+                    setConvertEmail("");
+                    setConvertOpen(true);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 text-green-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Transferir turnos"
+                  onClick={() => {
+                    setTransferDemoId(emp.id);
+                    setTransferTargetId("");
+                    setTransferOpen(true);
+                  }}
+                >
+                  <Repeat className="h-4 w-4 text-blue-600" />
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEditDialog(emp)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              title={
+                emp.is_demo
+                  ? "Eliminar permanentemente"
+                  : "Desactivar empleado"
+              }
+              disabled={emp.id === currentProfile?.id}
+              onClick={() => setDeleting(emp as Profile)}
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  // --------------------------------------------------------------------------
   // RENDER
   // --------------------------------------------------------------------------
   return (
@@ -970,6 +1167,17 @@ export default function EmployeesPage() {
               ))}
           </SelectContent>
         </Select>
+        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+          <SelectTrigger className="w-[190px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="location">Agrupar por sede</SelectItem>
+            <SelectItem value="department">Agrupar por departamento</SelectItem>
+            <SelectItem value="position">Agrupar por posición</SelectItem>
+            <SelectItem value="none">Sin agrupar</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -998,155 +1206,17 @@ export default function EmployeesPage() {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Rol</TableHead>
-                  <TableHead>Posición</TableHead>
-                  <TableHead>Sede</TableHead>
-                  <TableHead>Contrato</TableHead>
-                  <TableHead>Salario</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEmployees.map((emp) => {
-                  const contract = contracts.find(
-                    (c) => c.id === emp.contract_type_id
-                  );
-                  const isSinDefinir = contract?.name === "Sin definir";
-                  return (
-                    <TableRow
-                      key={emp.id}
-                      className="cursor-pointer"
-                      onClick={() => setPanelEmp(emp as Profile)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={emp.is_demo ? "italic" : ""}>{emp.first_name} {emp.last_name}</span>
-                          {emp.is_demo && <DemoBadge />}
-                          {emp.is_floater && (
-                            <Badge variant="outline" className="text-xs">Supernumerario</Badge>
-                          )}
-                          {emp.contract_type?.rest_rules && emp.contract_type.rest_rules.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {summarizeRules(emp.contract_type.rest_rules)}
-                              {emp.contract_type.rest_rules.length > 1 && ` +${emp.contract_type.rest_rules.length - 1}`}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{emp.email}</TableCell>
-                      <TableCell>
-                        <RoleBadge role={emp.role} />
-                      </TableCell>
-                      <TableCell>
-                        {emp.position?.name ?? <span className="text-muted-foreground">&mdash;</span>}
-                      </TableCell>
-                      <TableCell>
-                        {emp.location?.name ?? <span className="text-muted-foreground">&mdash;</span>}
-                      </TableCell>
-                      <TableCell
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Select
-                          value={emp.contract_type_id ?? undefined}
-                          onValueChange={(v) => handleContractChange(emp.id, v)}
-                        >
-                          <SelectTrigger
-                            className={
-                              isSinDefinir
-                                ? "h-7 px-2 py-0 text-xs border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 w-auto min-w-[130px]"
-                                : "h-7 px-2 py-0 text-xs border-transparent hover:border-input hover:bg-muted w-auto min-w-[130px]"
-                            }
-                          >
-                            <SelectValue placeholder="—" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {contracts.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <SalaryCell
-                          employeeId={emp.id}
-                          history={salaryHistory.filter((s) => s.employee_id === emp.id)}
-                          payrollSettings={payrollSettings}
-                          canEdit={canEditSalary}
-                          canRead={canReadAnySalary}
-                          onSaved={fetchSalaryData}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge isActive={emp.is_active} />
-                      </TableCell>
-                      <TableCell
-                        className="text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          {emp.is_demo && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Convertir a empleado real"
-                                onClick={() => {
-                                  setConvertDemoId(emp.id);
-                                  setConvertEmail("");
-                                  setConvertOpen(true);
-                                }}
-                              >
-                                <UserPlus className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Transferir turnos"
-                                onClick={() => {
-                                  setTransferDemoId(emp.id);
-                                  setTransferTargetId("");
-                                  setTransferOpen(true);
-                                }}
-                              >
-                                <Repeat className="h-4 w-4 text-blue-600" />
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(emp)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title={
-                              emp.is_demo
-                                ? "Eliminar permanentemente"
-                                : "Desactivar empleado"
-                            }
-                            disabled={emp.id === currentProfile?.id}
-                            onClick={() => setDeleting(emp as Profile)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <GroupedEmployeeTable
+              groups={groups}
+              groupBy={groupBy}
+              columns={visibleColumns}
+              searchActive={
+                !!search.trim() ||
+                filterLocationId !== "all" ||
+                filterDepartmentId !== "all"
+              }
+              renderRow={renderEmployeeRow}
+            />
           )}
         </CardContent>
       </Card>
