@@ -963,6 +963,7 @@ export default function EmployeesPage() {
   // Filtros/búsqueda activos: gobierna el empty-state y la apertura de grupos.
   const hasActiveFilters =
     !!search.trim() ||
+    demoFilter !== "all" ||
     filterLocationId !== "all" ||
     filterDepartmentId !== "all";
 
