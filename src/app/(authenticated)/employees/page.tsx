@@ -109,6 +109,7 @@ interface InviteForm {
   department_id: string;
   position_id: string;
   max_hours_per_week: number;
+  contract_type_id: string;
 }
 
 const emptyInviteForm: InviteForm = {
@@ -121,6 +122,7 @@ const emptyInviteForm: InviteForm = {
   department_id: "",
   position_id: "",
   max_hours_per_week: 40,
+  contract_type_id: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,7 @@ interface EditForm {
   is_floater: boolean;
   floater_positions: string[];
   rest_rules: EmployeeRestRule[];
+  contract_type_id: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +236,7 @@ export default function EmployeesPage() {
     department_id: "",
     position_id: "",
     max_hours_per_week: 40,
+    contract_type_id: "",
   });
   const [demoLoading, setDemoLoading] = useState(false);
 
@@ -405,6 +409,11 @@ export default function EmployeesPage() {
       return;
     }
 
+    if (!inviteForm.contract_type_id) {
+      toast.error("Selecciona el tipo de contrato");
+      return;
+    }
+
     setInviteLoading(true);
     try {
       const res = await fetch("/api/employees/invite", {
@@ -419,6 +428,7 @@ export default function EmployeesPage() {
           position_id: inviteForm.position_id || undefined,
           location_id: inviteForm.location_id || undefined,
           max_hours_per_week: inviteForm.max_hours_per_week,
+          contract_type_id: inviteForm.contract_type_id,
         }),
       });
 
@@ -483,6 +493,7 @@ export default function EmployeesPage() {
       is_floater: emp.is_floater ?? false,
       floater_positions: emp.is_floater ? secondaryIds : [],
       rest_rules: (restRulesData ?? []) as unknown as EmployeeRestRule[],
+      contract_type_id: emp.contract_type_id ?? "",
     });
     setEditOpen(true);
   }
@@ -492,6 +503,11 @@ export default function EmployeesPage() {
 
     if (!editForm.first_name || !editForm.last_name) {
       toast.error("Nombre y apellido son obligatorios");
+      return;
+    }
+
+    if (!editForm.contract_type_id) {
+      toast.error("Selecciona el tipo de contrato");
       return;
     }
 
@@ -513,6 +529,7 @@ export default function EmployeesPage() {
           is_terminated: editForm.is_terminated,
           arl_risk_class: editForm.arl_risk_class,
           is_floater: editForm.is_floater,
+          contract_type_id: editForm.contract_type_id,
         })
         .eq("id", editForm.id);
 
@@ -642,6 +659,11 @@ export default function EmployeesPage() {
       return;
     }
 
+    if (!demoForm.contract_type_id) {
+      toast.error("Selecciona el tipo de contrato");
+      return;
+    }
+
     setDemoLoading(true);
     try {
       const res = await fetch("/api/employees/demo", {
@@ -655,6 +677,7 @@ export default function EmployeesPage() {
           department_id: demoForm.department_id || undefined,
           position_id: demoForm.position_id || undefined,
           max_hours_per_week: demoForm.max_hours_per_week,
+          contract_type_id: demoForm.contract_type_id,
         }),
       });
 
@@ -675,6 +698,7 @@ export default function EmployeesPage() {
         department_id: "",
         position_id: "",
         max_hours_per_week: 40,
+        contract_type_id: "",
       });
       fetchData();
     } catch {
@@ -817,6 +841,7 @@ export default function EmployeesPage() {
                 department_id: "",
                 position_id: "",
                 max_hours_per_week: 40,
+                contract_type_id: "",
               });
               setDemoOpen(true);
             }}
@@ -1209,6 +1234,30 @@ export default function EmployeesPage() {
               </Select>
             </div>
 
+            {/* Tipo de contrato (obligatorio) */}
+            <div className="grid gap-2">
+              <Label htmlFor="invite-contract">
+                Tipo de contrato <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={inviteForm.contract_type_id}
+                onValueChange={(val) =>
+                  setInviteForm((f) => ({ ...f, contract_type_id: val }))
+                }
+              >
+                <SelectTrigger id="invite-contract" aria-required="true">
+                  <SelectValue placeholder="Seleccionar tipo de contrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contracts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Phone */}
             <div className="grid gap-2">
               <Label htmlFor="invite-phone">Telefono</Label>
@@ -1405,6 +1454,30 @@ export default function EmployeesPage() {
                           {pos.name}
                         </SelectItem>
                       ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tipo de contrato (obligatorio) */}
+              <div className="grid gap-2">
+                <Label htmlFor="edit-contract">
+                  Tipo de contrato <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={editForm.contract_type_id}
+                  onValueChange={(val) =>
+                    setEditForm((f) => (f ? { ...f, contract_type_id: val } : f))
+                  }
+                >
+                  <SelectTrigger id="edit-contract" aria-required="true">
+                    <SelectValue placeholder="Seleccionar tipo de contrato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contracts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1830,6 +1903,30 @@ export default function EmployeesPage() {
                         </SelectItem>
                       )
                     )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tipo de contrato (obligatorio) */}
+            <div className="grid gap-2">
+              <Label htmlFor="demo-contract">
+                Tipo de contrato <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={demoForm.contract_type_id}
+                onValueChange={(val) =>
+                  setDemoForm((f) => ({ ...f, contract_type_id: val }))
+                }
+              >
+                <SelectTrigger id="demo-contract" aria-required="true">
+                  <SelectValue placeholder="Seleccionar tipo de contrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contracts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

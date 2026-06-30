@@ -36,12 +36,20 @@ export async function POST(request: NextRequest) {
       position_id,
       location_id,
       max_hours_per_week,
+      contract_type_id,
     } = body;
 
     // 3. Validate required fields
     if (!first_name || !last_name) {
       return NextResponse.json(
         { error: "Nombre y apellido son obligatorios" },
+        { status: 400 }
+      );
+    }
+
+    if (!contract_type_id) {
+      return NextResponse.json(
+        { error: "El tipo de contrato es obligatorio" },
         { status: 400 }
       );
     }
@@ -82,6 +90,7 @@ export async function POST(request: NextRequest) {
     try {
       if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
       if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
+      await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
     } catch (err) {
       if (err instanceof CrossTenantError) {
         return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
@@ -100,6 +109,7 @@ export async function POST(request: NextRequest) {
       position_id: position_id || null,
       location_id: location_id || null,
       max_hours_per_week: max_hours_per_week || null,
+      contract_type_id,
       organization_id: callerOrg,
     } as Record<string, unknown>;
 

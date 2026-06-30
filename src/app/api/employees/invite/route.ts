@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       position_id,
       location_id,
       max_hours_per_week,
+      contract_type_id,
     } = body;
 
     // 3. Invite user via email with admin client (service_role)
@@ -60,11 +61,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!contract_type_id) {
+      return NextResponse.json(
+        { error: "El tipo de contrato es obligatorio" },
+        { status: 400 }
+      );
+    }
+
     // Validar que IDs del body pertenezcan al org del caller (defense in depth
     // contra cross-tenant injection: el admin client bypassea RLS).
     try {
       if (position_id) await assertSameOrg(adminSupabase, callerOrg, position_id, "positions");
       if (location_id) await assertSameOrg(adminSupabase, callerOrg, location_id, "locations");
+      await assertSameOrg(adminSupabase, callerOrg, contract_type_id, "contract_types");
     } catch (err) {
       if (err instanceof CrossTenantError) {
         return NextResponse.json({ error: "Recurso fuera de tu organización" }, { status: 403 });
@@ -136,7 +145,9 @@ export async function POST(request: NextRequest) {
 
     // 4. Update profile with additional fields (trigger created basic profile)
     if (createdUserId) {
-      const updateData: Record<string, unknown> = {};
+      // El profile lo crea el trigger con el contrato default; aquí lo
+      // sobreescribimos siempre con el seleccionado (es obligatorio).
+      const updateData: Record<string, unknown> = { contract_type_id };
       if (phone) updateData.phone = phone;
       if (position_id) updateData.position_id = position_id;
       if (location_id) updateData.location_id = location_id;
