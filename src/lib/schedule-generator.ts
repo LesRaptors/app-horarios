@@ -101,12 +101,21 @@ function prevDateStr(dateStr: string): string {
 function buildDemandSlots(
   config: AutoGenConfig, dates: Date[], templates: ShiftTemplate[],
   staffingRequirements: StaffingRequirement[],
+  holidays: HolidayDate[], locationId: string,
 ): DemandSlot[] {
   const templateMap = new Map(templates.map((t) => [t.id, t]));
   const slots: DemandSlot[] = [];
   const reqMap = new Map<string, number>();
+  const reqMapHoliday = new Map<string, number>();
+  const holidayPositions = new Set<string>();
   for (const sr of staffingRequirements) {
-    reqMap.set(`${sr.position_id}_${sr.shift_template_id}_${sr.day_of_week}`, sr.required_count);
+    if (sr.is_holiday) {
+      // Perfil de festivo: indexado por pos_shift (sin dow; day_of_week=0 sentinela).
+      reqMapHoliday.set(`${sr.position_id}_${sr.shift_template_id}`, sr.required_count);
+      holidayPositions.add(sr.position_id);
+    } else {
+      reqMap.set(`${sr.position_id}_${sr.shift_template_id}_${sr.day_of_week}`, sr.required_count);
+    }
   }
   const hasDemand = staffingRequirements.length > 0 && config.useDemandRequirements;
 
@@ -121,8 +130,13 @@ function buildDemandSlots(
       const duration = calcDurationHours(template.start_time, template.end_time, template.break_minutes);
 
       if (hasDemand) {
+        // En un festivo, una posición con perfil de festivo (≥1 fila is_holiday=true)
+        // REEMPLAZA su demanda con SOLO el perfil de festivo; las demás siguen por día de semana.
+        const isHol = isHoliday(dateStr, locationId, holidays);
         for (const posId of config.positionIds) {
-          const count = reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0;
+          const count = (isHol && holidayPositions.has(posId))
+            ? (reqMapHoliday.get(`${posId}_${templateId}`) ?? 0)
+            : (reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0);
           for (let i = 0; i < count; i++) {
             slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
               shiftTemplateId: templateId, startTime: template.start_time,
@@ -485,7 +499,7 @@ export function generateSchedule(
   }
 
   const dates = getMonthDates(config.year, config.month);
-  const demandSlots = buildDemandSlots(config, dates, selectedTemplates, staffingRequirements);
+  const demandSlots = buildDemandSlots(config, dates, selectedTemplates, staffingRequirements, holidays, config.locationId);
   const totalDemandHours = demandSlots.reduce((sum, s) => sum + s.durationHours, 0);
   const targetHours = totalDemandHours / selectedEmployees.length;
   const targetShifts = demandSlots.length / selectedEmployees.length;

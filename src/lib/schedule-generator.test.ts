@@ -3,7 +3,7 @@ import { generateSchedule } from "./schedule-generator";
 import type {
   AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
   LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
-  RestRule, EmployeeRestRule,
+  RestRule, EmployeeRestRule, StaffingRequirement,
 } from "./types";
 
 const defaultConstraints: LaborConstraints = {
@@ -716,5 +716,35 @@ describe("reglas de descanso por empleado (override)", () => {
 
     // Vie 10 abr: descanso por ciclo 4x3 (sigue aplicando vía fallback)
     expect(result.entries.find((en) => en.date === "2026-04-10")).toBeUndefined();
+  });
+});
+
+describe("demanda de festivos", () => {
+  it("posición con perfil de festivo usa el turno de festivo en un festivo y NO el de día de semana", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    const tplNormal = makeTemplate({ id: "tpl-norm", start_time: "08:00:00", end_time: "17:00:00" });
+    const tplFest = makeTemplate({ id: "tpl-fest", start_time: "09:00:00", end_time: "13:00:00" });
+    const emp = makeEmployee({ id: "e1", position_id: "pos-1" });
+    // Demanda: día de semana (jueves=4) turno normal req 1; festivo turno festivo req 1.
+    const reqs: StaffingRequirement[] = [
+      { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-norm",
+        day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+      { id: "r2", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-fest",
+        day_of_week: 0, required_count: 1, is_holiday: true, created_at: "", updated_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-norm", "tpl-fest"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tplNormal, tplFest], [], [],
+      defaultConstraints, reqs, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onHoliday = result.entries.filter((e) => e.date === "2026-04-09");
+    expect(onHoliday.length).toBe(1);
+    expect(onHoliday[0].start_time).toBe("09:00:00"); // turno de festivo, no el normal 08:00
   });
 });
