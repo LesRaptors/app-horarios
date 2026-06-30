@@ -518,6 +518,91 @@ describe("override de disponibilidad por empleado", () => {
       (e) => e.employee_id === "e1" && e.date === "2026-04-09",
     );
     expect(onHoliday.length).toBe(0);
+    // Pero sí debe haber entradas en los otros jueves del mes (2, 16, 23 abr).
+    expect(result.entries.length).toBeGreaterThan(0);
+  });
+
+  it("available_holidays=true en empleado gana sobre contrato con false (dirección inversa)", () => {
+    // Contrato con available_holidays=false; el override true del empleado debe ganar.
+    const ctNoHoliday: ContractType = { ...fullTime, id: "ct-no-holiday", available_holidays: false };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-no-holiday", available_holidays: true });
+    const tpl = makeTemplate({ id: "tpl-m" });
+    // 2026-04-09 es jueves (day_of_week=4) y se marca como festivo.
+    const holidays: HolidayDate[] = [
+      { id: "h1", date: "2026-04-09", name: "Test", location_id: null, created_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 4, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], holidays, [ctNoHoliday], defaultWeights,
+    );
+
+    // El override true del empleado gana: SÍ debe asignarse en el festivo.
+    const onHoliday = result.entries.find(
+      (e) => e.employee_id === "e1" && e.date === "2026-04-09",
+    );
+    expect(onHoliday).toBeDefined();
+  });
+
+  it("available_holidays=null (hereda contrato) — contrato false impide festivo", () => {
+    // Empleado sin override (null) hereda del contrato. Contrato tiene available_holidays=false.
+    const ctNoHoliday: ContractType = { ...fullTime, id: "ct-no-holiday-2", available_holidays: false };
+    // available_holidays no seteado en el empleado -> undefined -> cae al contrato via ??
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-no-holiday-2", available_holidays: null });
+    const tpl = makeTemplate({ id: "tpl-m" });
+    const holidays: HolidayDate[] = [
+      { id: "h1", date: "2026-04-09", name: "Test", location_id: null, created_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 4, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], holidays, [ctNoHoliday], defaultWeights,
+    );
+
+    // Hereda false del contrato: no se asigna en el festivo.
+    const onHoliday = result.entries.find(
+      (e) => e.employee_id === "e1" && e.date === "2026-04-09",
+    );
+    expect(onHoliday).toBeUndefined();
+    // Sí debe haber entradas en los otros jueves del mes.
+    expect(result.entries.length).toBeGreaterThan(0);
+  });
+
+  it("available_sundays=true en empleado gana sobre contrato con false", () => {
+    // Contrato prohíbe domingos; el override true del empleado lo permite.
+    const ctNoSun: ContractType = { ...fullTime, id: "ct-no-sun-2", available_sundays: false };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-no-sun-2", available_sundays: true });
+    const tpl = makeTemplate({ id: "tpl-m" });
+    // 2026-04-05 es domingo (day_of_week=0).
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: excludeAllExcept("2026-04-05"),
+        useDemandRequirements: false },
+      [emp], [tpl], [], [],
+      defaultConstraints, [], [], [], [ctNoSun], defaultWeights,
+    );
+
+    // El override true del empleado gana: SÍ debe asignarse el domingo.
+    const onSunday = result.entries.find(
+      (e) => e.employee_id === "e1" && e.date === "2026-04-05",
+    );
+    expect(onSunday).toBeDefined();
   });
 });
 
