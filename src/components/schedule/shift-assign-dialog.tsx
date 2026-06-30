@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Trash2 } from "lucide-react";
 import { formatTime } from "@/lib/utils";
+import { effectiveShiftHours } from "@/lib/equity-helpers";
 import type { Position, ShiftTemplate, ScheduleEntry, Profile } from "@/lib/types";
 
 type DialogMode = "employee" | "gap";
@@ -38,6 +39,9 @@ interface ShiftAssignDialogProps {
   initialShiftTemplateId?: string;
   // Shared
   dateLabel: string;
+  // ¿La fecha de la celda/slot es festivo? Decide si al elegir una plantilla se
+  // pre-llenan las horas de festivo del turno (cuando estén configuradas).
+  isHolidayDate?: boolean;
   positions: Position[];
   shiftTemplates: ShiftTemplate[];
   saving: boolean;
@@ -62,6 +66,7 @@ export function ShiftAssignDialog({
   initialPositionId,
   initialShiftTemplateId,
   dateLabel,
+  isHolidayDate = false,
   positions,
   shiftTemplates,
   saving,
@@ -83,11 +88,12 @@ export function ShiftAssignDialog({
       const tpl = initialShiftTemplateId
         ? shiftTemplates.find((t) => t.id === initialShiftTemplateId)
         : null;
+      const eff = tpl ? effectiveShiftHours(tpl, isHolidayDate) : null;
       setEmployeeId(eligibleEmployees[0]?.id ?? "");
       setPositionId(initialPositionId ?? positions[0]?.id ?? "");
       setTemplateId(initialShiftTemplateId ?? "");
-      setStartTime(tpl ? formatTime(tpl.start_time) : "06:00");
-      setEndTime(tpl ? formatTime(tpl.end_time) : "14:00");
+      setStartTime(eff ? formatTime(eff.startTime) : "06:00");
+      setEndTime(eff ? formatTime(eff.endTime) : "14:00");
       setNotes("");
       return;
     }
@@ -105,7 +111,7 @@ export function ShiftAssignDialog({
       setTemplateId("");
       setNotes("");
     }
-  }, [open, mode, entry, positions, shiftTemplates, eligibleEmployees, initialPositionId, initialShiftTemplateId]);
+  }, [open, mode, entry, positions, shiftTemplates, eligibleEmployees, initialPositionId, initialShiftTemplateId, isHolidayDate]);
 
   function handleTemplateChange(id: string) {
     if (id === "manual") {
@@ -115,8 +121,9 @@ export function ShiftAssignDialog({
     setTemplateId(id);
     const template = shiftTemplates.find((t) => t.id === id);
     if (template) {
-      setStartTime(formatTime(template.start_time));
-      setEndTime(formatTime(template.end_time));
+      const eff = effectiveShiftHours(template, isHolidayDate);
+      setStartTime(formatTime(eff.startTime));
+      setEndTime(formatTime(eff.endTime));
     }
   }
 

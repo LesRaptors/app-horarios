@@ -18,6 +18,7 @@ import { ExportDropdown } from "@/components/schedule/export-dropdown";
 import { ScheduleHealthBanner } from "@/components/schedule/schedule-health-banner";
 import { ScheduleHealthPanel } from "@/components/schedule/schedule-health-panel";
 import { computeHealth } from "@/lib/schedule-health";
+import { isHoliday } from "@/lib/equity-helpers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -604,6 +605,12 @@ export default function SchedulePage() {
         month: "long",
       })
     : "";
+  // ¿La fecha de la celda/slot seleccionado es festivo? Deriva del ISO real
+  // (dialogDate), no del dateLabel formateado. Decide el pre-llenado de horas
+  // de festivo al elegir una plantilla en el diálogo de asignación.
+  const dialogIsHolidayDate = dialogDate
+    ? isHoliday(dialogDate, selectedLocationId, holidays)
+    : false;
 
   // Loading state
   if (authLoading) {
@@ -806,6 +813,7 @@ export default function SchedulePage() {
         initialPositionId={dialogGapPositionId || undefined}
         initialShiftTemplateId={dialogGapShiftTemplateId || undefined}
         dateLabel={dialogDateLabel}
+        isHolidayDate={dialogIsHolidayDate}
         positions={positions}
         shiftTemplates={shiftTemplates}
         saving={saving}
