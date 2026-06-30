@@ -42,14 +42,14 @@ import { SalaryAdjustmentsSection } from "@/components/employees/salary-adjustme
 import { AbsenceSection } from "@/components/employees/absence-section";
 import { TaxDeductionsSection } from "@/components/employees/tax-deductions-section";
 import { toast } from "sonner";
-import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2 } from "lucide-react";
+import { Plus, Pencil, Loader2, Search, UserPlus, Repeat, Trash2, ListTree } from "lucide-react";
 import { DeleteDialog } from "@/components/shared/delete-dialog";
 import { EmployeeRestRulesEditor } from "@/components/employees/employee-rest-rules-editor";
 import {
   GroupedEmployeeTable,
   type GroupedTableColumn,
 } from "@/components/employees/grouped-employee-table";
-import { groupEmployees, type GroupBy } from "@/lib/employee-grouping";
+import { groupEmployeesMulti, type GroupBy } from "@/lib/employee-grouping";
 import { ROLE_LABELS } from "@/lib/constants";
 import { summarizeRules } from "@/lib/rest-rules-summary";
 import type {
@@ -264,27 +264,47 @@ export default function EmployeesPage() {
   const [filterLocationId, setFilterLocationId] = useState<string>("all");
   const [filterDepartmentId, setFilterDepartmentId] = useState<string>("all");
 
-  // ---- Agrupación (persistida en localStorage) ------------------------------
-  const [groupBy, setGroupBy] = useState<GroupBy>("location");
+  // ---- Agrupación multinivel (persistida en localStorage) -------------------
+  // `groupLevels` = cascada de hasta 2 niveles (ej. ["location","position"]).
+  // `["none"]` = sin agrupar. Se migra desde el viejo `employees:groupBy`.
+  const [groupLevels, setGroupLevels] = useState<GroupBy[]>(["location"]);
   useEffect(() => {
-    const saved =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("employees:groupBy")
-        : null;
+    if (typeof window === "undefined") return;
+    const rawNew = window.localStorage.getItem("employees:groupLevels");
+    if (rawNew) {
+      try {
+        const parsed = JSON.parse(rawNew);
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((x) =>
+            ["location", "department", "position", "none"].includes(x)
+          )
+        ) {
+          setGroupLevels(parsed.length ? parsed : ["none"]);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    const old = window.localStorage.getItem("employees:groupBy"); // migración
     if (
-      saved === "location" ||
-      saved === "department" ||
-      saved === "position" ||
-      saved === "none"
+      old === "location" ||
+      old === "department" ||
+      old === "position" ||
+      old === "none"
     ) {
-      setGroupBy(saved);
+      setGroupLevels([old]);
     }
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("employees:groupBy", groupBy);
+      window.localStorage.setItem(
+        "employees:groupLevels",
+        JSON.stringify(groupLevels)
+      );
     }
-  }, [groupBy]);
+  }, [groupLevels]);
 
   // ---- Demo create dialog ----------------------------------------------------
   const [demoOpen, setDemoOpen] = useState(false);
@@ -409,7 +429,7 @@ export default function EmployeesPage() {
   // Sede efectiva: si el empleado no tiene `location` directa, se resuelve desde
   // la posición (`position.department.location_id`) — el mismo fallback que usa
   // `openEditDialog`. Enriquecer aquí garantiza que tanto el filtro de Sede como
-  // `groupEmployees(..., "location")` usen la misma sede y no caigan en falsos
+  // `groupEmployeesMulti(..., ["location"])` usen la misma sede y no caigan en falsos
   // "Sin asignar".
   // --------------------------------------------------------------------------
   const employeesWithEffectiveLocation = useMemo(() => {
@@ -475,9 +495,10 @@ export default function EmployeesPage() {
   // Agrupación de empleados (según el criterio seleccionado)
   // --------------------------------------------------------------------------
   const groups = useMemo(
-    () => groupEmployees(filteredEmployees, groupBy),
-    [filteredEmployees, groupBy]
+    () => groupEmployeesMulti(filteredEmployees, groupLevels),
+    [filteredEmployees, groupLevels]
   );
+  const isGrouped = groupLevels[0] !== "none";
 
   // --------------------------------------------------------------------------
   // Cascading position filter helpers
@@ -950,15 +971,14 @@ export default function EmployeesPage() {
     { key: "status", label: "Estado", className: "w-[7%]" },
     { key: "actions", label: "Acciones", className: "w-[9%] text-right" },
   ];
-  // Única fuente de verdad: la columna del criterio agrupado se oculta tanto en
-  // el header (`visibleColumns`) como en cada celda (`renderEmployeeRow`).
-  const hiddenColumnKey: string | null =
-    groupBy === "location"
-      ? "location"
-      : groupBy === "position"
-        ? "position"
-        : null;
-  const visibleColumns = columns.filter((c) => c.key !== hiddenColumnKey);
+  // Única fuente de verdad: las columnas de los criterios agrupados se ocultan
+  // tanto en el header (`visibleColumns`) como en cada celda (`renderEmployeeRow`).
+  // Con multinivel pueden ocultarse ambas a la vez (p. ej. Sede + Posición).
+  // (Departamento no tiene columna propia en la tabla, así que no oculta nada.)
+  const hiddenColumnKeys = new Set<string>();
+  if (groupLevels.includes("location")) hiddenColumnKeys.add("location");
+  if (groupLevels.includes("position")) hiddenColumnKeys.add("position");
+  const visibleColumns = columns.filter((c) => !hiddenColumnKeys.has(c.key));
 
   // Filtros/búsqueda activos: gobierna el empty-state y la apertura de grupos.
   const hasActiveFilters =
@@ -1005,14 +1025,14 @@ export default function EmployeesPage() {
         <TableCell>
           <RoleBadge role={emp.role} />
         </TableCell>
-        {hiddenColumnKey !== "position" && (
+        {!hiddenColumnKeys.has("position") && (
           <TableCell>
             {emp.position?.name ?? (
               <span className="text-muted-foreground">&mdash;</span>
             )}
           </TableCell>
         )}
-        {hiddenColumnKey !== "location" && (
+        {!hiddenColumnKeys.has("location") && (
           <TableCell>
             {emp.location?.name ?? (
               <span className="text-muted-foreground">&mdash;</span>
@@ -1154,85 +1174,170 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      {/* Search + Demo filter + Location + Department */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre o email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select
-          value={demoFilter}
-          onValueChange={(val) =>
-            setDemoFilter(val as "all" | "real" | "demo")
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="real">Solo reales</SelectItem>
-            <SelectItem value="demo">Solo demos</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={filterLocationId}
-          onValueChange={(v) => {
-            setFilterLocationId(v);
-            // Resetear el departamento: una Sede distinta invalida el depto previo.
-            setFilterDepartmentId("all");
-          }}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Sede" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las sedes</SelectItem>
-            {locations.map((l) => (
-              <SelectItem key={l.id} value={l.id}>
-                {l.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={filterDepartmentId}
-          onValueChange={setFilterDepartmentId}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Departamento" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los departamentos</SelectItem>
-            {departments
-              .filter(
-                (d) =>
-                  filterLocationId === "all" ||
-                  d.location_id === filterLocationId
-              )
-              .map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
+      {/* Barra de controles: bloque de FILTROS (izq.) separado del bloque de
+          AGRUPACIÓN (der.). Cada select usa `w-auto min-w-[…]` para dimensionarse
+          a su contenido sin truncar (analogía Tailwind de `field-sizing: content`,
+          con un piso de ancho que evita el colapso). */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        {/* --- Filtros --- */}
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-[260px]">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              placeholder="Buscar por nombre o email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+              aria-label="Buscar empleados por nombre o email"
+            />
+          </div>
+          <Select
+            value={demoFilter}
+            onValueChange={(val) =>
+              setDemoFilter(val as "all" | "real" | "demo")
+            }
+          >
+            <SelectTrigger
+              className="w-auto min-w-[150px]"
+              aria-label="Filtrar por tipo de empleado"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="real">Solo reales</SelectItem>
+              <SelectItem value="demo">Solo demos</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filterLocationId}
+            onValueChange={(v) => {
+              setFilterLocationId(v);
+              // Resetear el departamento: una Sede distinta invalida el depto previo.
+              setFilterDepartmentId("all");
+            }}
+          >
+            <SelectTrigger
+              className="w-auto min-w-[160px]"
+              aria-label="Filtrar por sede"
+            >
+              <SelectValue placeholder="Sede" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las sedes</SelectItem>
+              {locations.map((l) => (
+                <SelectItem key={l.id} value={l.id}>
+                  {l.name}
                 </SelectItem>
               ))}
-          </SelectContent>
-        </Select>
-        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="location">Agrupar por sede</SelectItem>
-            <SelectItem value="department">Agrupar por departamento</SelectItem>
-            <SelectItem value="position">Agrupar por posición</SelectItem>
-            <SelectItem value="none">Sin agrupar</SelectItem>
-          </SelectContent>
-        </Select>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filterDepartmentId}
+            onValueChange={setFilterDepartmentId}
+          >
+            <SelectTrigger
+              className="w-auto min-w-[210px]"
+              aria-label="Filtrar por departamento"
+            >
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los departamentos</SelectItem>
+              {departments
+                .filter(
+                  (d) =>
+                    filterLocationId === "all" ||
+                    d.location_id === filterLocationId
+                )
+                .map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Separador entre filtros y agrupación (solo en fila horizontal). */}
+        <div
+          className="hidden h-8 w-px self-center bg-border lg:block"
+          aria-hidden="true"
+        />
+
+        {/* --- Agrupación: cascada "Agrupar por / luego por" (máx. 2 niveles) --- */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ListTree
+            className="hidden h-4 w-4 shrink-0 text-muted-foreground lg:block"
+            aria-hidden="true"
+          />
+          {/* Nivel 1: setea groupLevels[0], conservando el nivel 2 si sigue siendo válido. */}
+          <Select
+            value={groupLevels[0] ?? "none"}
+            onValueChange={(v) =>
+              setGroupLevels(
+                v === "none"
+                  ? ["none"]
+                  : [
+                      v as GroupBy,
+                      ...(groupLevels[1] && groupLevels[1] !== v
+                        ? [groupLevels[1]]
+                        : []),
+                    ]
+              )
+            }
+          >
+            <SelectTrigger
+              className="w-auto min-w-[190px]"
+              aria-label="Agrupar empleados por"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="location">Agrupar por sede</SelectItem>
+              <SelectItem value="department">Agrupar por departamento</SelectItem>
+              <SelectItem value="position">Agrupar por posición</SelectItem>
+              <SelectItem value="none">Sin agrupar</SelectItem>
+            </SelectContent>
+          </Select>
+          {/* Nivel 2: solo aparece con un nivel 1 agrupable; opciones = criterios menos el nivel 1. */}
+          {isGrouped && (
+            <Select
+              value={groupLevels[1] ?? "none"}
+              onValueChange={(v) =>
+                setGroupLevels(
+                  v === "none"
+                    ? [groupLevels[0]]
+                    : [groupLevels[0], v as GroupBy]
+                )
+              }
+            >
+              <SelectTrigger
+                className="w-auto min-w-[190px]"
+                aria-label="Subagrupar empleados por"
+              >
+                <SelectValue placeholder="luego por…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">luego por: (ninguno)</SelectItem>
+                {(["location", "department", "position"] as GroupBy[])
+                  .filter((g) => g !== groupLevels[0])
+                  .map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g === "location"
+                        ? "luego por sede"
+                        : g === "department"
+                          ? "luego por departamento"
+                          : "luego por posición"}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -1262,9 +1367,9 @@ export default function EmployeesPage() {
             </div>
           ) : (
             <GroupedEmployeeTable
-              groups={groups}
-              groupBy={groupBy}
+              nodes={groups}
               columns={visibleColumns}
+              isGrouped={isGrouped}
               searchActive={hasActiveFilters}
               renderRow={renderEmployeeRow}
             />
