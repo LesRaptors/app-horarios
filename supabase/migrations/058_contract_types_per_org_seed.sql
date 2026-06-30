@@ -60,4 +60,10 @@ CREATE TRIGGER trg_seed_contract_types
   AFTER INSERT ON organizations
   FOR EACH ROW EXECUTE FUNCTION trg_seed_contract_types_fn();
 
+-- 4. Hardening: el seed es SECURITY DEFINER (bypassa RLS). Solo debe invocarse
+-- desde el trigger, no directamente por usuarios. Revocamos EXECUTE de PUBLIC
+-- para que un authenticated no pueda sembrarle contratos a una org ajena.
+-- (El trigger sigue funcionando: ejecuta la función como definer.)
+REVOKE EXECUTE ON FUNCTION seed_default_contract_types(uuid) FROM PUBLIC;
+
 COMMIT;
