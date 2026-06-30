@@ -1543,6 +1543,9 @@ export type Database = {
       profiles: {
         Row: {
           arl_risk_class: number | null
+          available_holidays: boolean | null
+          available_nights: boolean | null
+          available_sundays: boolean | null
           contract_type_id: string
           created_at: string
           email: string
@@ -1565,6 +1568,9 @@ export type Database = {
         }
         Insert: {
           arl_risk_class?: number | null
+          available_holidays?: boolean | null
+          available_nights?: boolean | null
+          available_sundays?: boolean | null
           contract_type_id?: string
           created_at?: string
           email: string
@@ -1587,6 +1593,9 @@ export type Database = {
         }
         Update: {
           arl_risk_class?: number | null
+          available_holidays?: boolean | null
+          available_nights?: boolean | null
+          available_sundays?: boolean | null
           contract_type_id?: string
           created_at?: string
           email?: string
@@ -2471,6 +2480,10 @@ export type Database = {
       save_staffing_diff: {
         Args: { p_location_id: string; p_rows: Json }
         Returns: Json
+      }
+      seed_default_contract_types: {
+        Args: { p_org_id: string }
+        Returns: undefined
       }
       set_active_org: { Args: { p_org_id: string }; Returns: undefined }
       slugify: { Args: { input: string }; Returns: string }
