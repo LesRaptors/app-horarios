@@ -490,6 +490,37 @@ describe("contract availability flags", () => {
   });
 });
 
+describe("override de disponibilidad por empleado", () => {
+  it("available_holidays=false a nivel empleado impide festivo aunque el contrato lo permita", () => {
+    // fullTime tiene available_holidays=true; el override del empleado (false) debe ganar.
+    const emp = makeEmployee({ id: "e1", available_holidays: false });
+    const tpl = makeTemplate({ id: "tpl-m" });
+    // 2026-04-09 es jueves (day_of_week=4) y se marca como festivo.
+    const holidays: HolidayDate[] = [
+      { id: "h1", date: "2026-04-09", name: "Test", location_id: null, created_at: "" },
+    ];
+
+    const result = generateSchedule(
+      { scheduleId: "s1", locationId: "loc-1", year: 2026, month: 3,
+        employeeIds: ["e1"], shiftTemplateIds: ["tpl-m"],
+        positionIds: ["pos-1"], excludeDates: [], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints,
+      // Demand: jueves (day_of_week=4) — cubre el festivo 2026-04-09.
+      [{ id: "sr-1", location_id: "loc-1", position_id: "pos-1",
+         shift_template_id: "tpl-m", day_of_week: 4, required_count: 1,
+         created_at: "", updated_at: "" }],
+      [], holidays, [fullTime], defaultWeights,
+    );
+
+    // El override del empleado gana: no se asigna en el festivo.
+    const onHoliday = result.entries.filter(
+      (e) => e.employee_id === "e1" && e.date === "2026-04-09",
+    );
+    expect(onHoliday.length).toBe(0);
+  });
+});
+
 describe("rest rules en motor", () => {
   it("contract con work_cycle 4x3 descarta dias de descanso", () => {
     const ct: ContractType = {

@@ -56,6 +56,9 @@ export interface Profile {
   is_active: boolean;
   is_demo: boolean;
   is_floater: boolean;
+  available_sundays?: boolean | null;
+  available_holidays?: boolean | null;
+  available_nights?: boolean | null;
   contract_type_id: string;
   created_at: string;
   updated_at: string;

@@ -282,10 +282,13 @@ function filterCandidates(
     if (tracker.lastShiftDate === prevDateStr(slot.date)
         && tracker.consecutiveDays + 1 > constraints.maxConsecutiveDays) continue;
 
-    // INVIOLABLES: disponibilidad por contract_type
-    if (contract?.available_sundays === false && dayOfWeek(slot.date) === 0) continue;
-    if (contract?.available_holidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
-    if (contract?.available_nights === false && isNightShift(slot.template)) continue;
+    // INVIOLABLES: disponibilidad (override empleado > contract)
+    const availSundays  = emp.available_sundays  ?? contract?.available_sundays;
+    const availHolidays = emp.available_holidays ?? contract?.available_holidays;
+    const availNights   = emp.available_nights   ?? contract?.available_nights;
+    if (availSundays  === false && dayOfWeek(slot.date) === 0) continue;
+    if (availHolidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
+    if (availNights   === false && isNightShift(slot.template)) continue;
 
     // INVIOLABLE: reglas de descanso (override empleado > contract)
     const empRules = ctx.restRulesByEmployee.get(emp.id) ?? [];
