@@ -73,6 +73,7 @@ Hooks in `src/hooks/` re-export from contexts for backward compatibility.
 **Configuration routes (grouped under collapsible "Configuración" in the sidebar):**
 - `/locations` (Sedes), `/departments`, `/positions`
 - `/shifts` (Turnos — plantillas horarias) — has `is_night` toggle with CST-based auto-suggestion
+- **Horario de festivo del turno** (`shift_templates.holiday_*`): solo cambian las HORAS de un turno cuando cae en festivo (mismo turno, misma cobertura). Se define en `/shifts`. Es independiente del **perfil de festivo en Necesidades** (`staffing_requirements.is_holiday`), que cambia QUÉ se necesita (posiciones/turnos/cantidades) en festivos.
 - `/staffing` (Necesidades — matrix of position × shift × day)
 - `/contract-types` (**admin only**) — Tiempo completo, Medio tiempo, Asistencial tiempo completo, Fin de semana, Sin definir (default)
 - `/holidays` — Nacionales (Colombia pre-seeded 2026-2028) + Por sede tabs
