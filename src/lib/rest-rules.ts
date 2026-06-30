@@ -53,6 +53,13 @@ export function isWeekendRotationRest(
   return week % params.every_n_weeks === params.offset;
 }
 
+// Carácter nocturno de un entry pasado: usa el valor efectivo persistido (entry.is_night,
+// que ya considera el horario de festivo) y cae al heurístico de hora de inicio para entries
+// históricos (is_night NULL). Unifica las dos copias previas del heurístico.
+function entryIsNight(e: Pick<ScheduleEntry, "is_night" | "start_time">): boolean {
+  return e.is_night ?? (e.start_time >= "21:00" || e.start_time < "06:00");
+}
+
 function countTrailingConsecutiveNights(
   recent: ScheduleEntry[],
   beforeDate: string,
@@ -70,8 +77,7 @@ function countTrailingConsecutiveNights(
 
   for (const entry of sorted) {
     if (entry.date !== expectedDate) break;
-    const isNight = entry.start_time >= "21:00" || entry.start_time < "06:00";
-    if (!isNight) break;
+    if (!entryIsNight(entry)) break;
     count++;
     const d = new Date(expectedDate + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() - 1);
@@ -89,7 +95,7 @@ export function isPostNightRest(
   const pastNights = [...recent]
     .filter((e) => {
       if (e.date >= date) return false;
-      return e.start_time >= "21:00" || e.start_time < "06:00";
+      return entryIsNight(e);
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -167,8 +173,11 @@ export function isRestDay(
   template: ShiftTemplate,
   recent: ScheduleEntry[],
   isHolidayFn: (date: string) => boolean = () => false,
+  // Carácter nocturno EFECTIVO del slot. Por default el flag del template, pero el
+  // motor pasa el valor efectivo (que en festivos puede derivar del horario de
+  // festivo) para que max_consecutive_nights respete las horas reales, no el flag.
+  slotIsNight: boolean = template.is_night,
 ): boolean {
-  const slotIsNight = template.is_night;
   switch (rule.rule_type) {
     case "work_cycle":
       return isWorkCycleRest(rule.params as WorkCycleParams, date);

@@ -21,6 +21,9 @@ const dummyTemplate: ShiftTemplate = {
   color: "#000",
   location_id: "",
   is_night: false,
+  holiday_start_time: null,
+  holiday_end_time: null,
+  holiday_break_minutes: null,
   created_at: "",
 };
 

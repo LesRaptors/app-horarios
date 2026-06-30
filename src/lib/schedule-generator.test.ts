@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { generateSchedule } from "./schedule-generator";
 import type {
-  AutoGenConfig, ProfileWithPositions, ShiftTemplate, ScheduleEntry,
+  AutoGenConfig, ProfileWithPositions, ScheduleEntry,
   LaborConstraints, EmployeeEquityRollup, HolidayDate, ContractType, ScoringWeights,
   RestRule, EmployeeRestRule, StaffingRequirement,
 } from "./types";
+import { makeTemplate } from "./test-utils/make-template";
 
 const defaultConstraints: LaborConstraints = {
   maxHoursPerWeek: 40, maxHoursPerDay: 10,
@@ -35,16 +36,6 @@ function makeEmployee(overrides: Partial<ProfileWithPositions> = {}): ProfileWit
     max_hours_per_week: 40, is_active: true, is_demo: false, is_floater: false,
     organization_id: null, contract_type_id: "ct-full", created_at: "", updated_at: "",
     secondary_positions: [],
-    ...overrides,
-  };
-}
-
-function makeTemplate(overrides: Partial<ShiftTemplate> = {}): ShiftTemplate {
-  return {
-    id: "tpl-morn", name: "Morning",
-    start_time: "09:00:00", end_time: "17:00:00",
-    break_minutes: 0, color: "#000", location_id: "loc-1",
-    is_night: false, created_at: "",
     ...overrides,
   };
 }
@@ -127,13 +118,13 @@ describe("generateSchedule — block packing", () => {
     const existing: ScheduleEntry[] = [
       { id: "x1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-06", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-05", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
@@ -161,25 +152,25 @@ describe("generateSchedule — tie-breaker by totalShifts", () => {
     const existing: ScheduleEntry[] = [
       { id: "x1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-01", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-02", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
       { id: "x3", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-03", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
       { id: "x4", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-04", start_time: "09:00:00", end_time: "17:00:00",
-        shift_template_id: "tpl-morn", notes: null,
+        shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
@@ -213,7 +204,7 @@ describe("generateSchedule — 24h rest after night", () => {
     const existing: ScheduleEntry[] = [
       { id: "n1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-06", start_time: "22:00:00", end_time: "06:00:00",
-        shift_template_id: "tpl-night", notes: null,
+        shift_template_id: "tpl-night", is_night: true, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
         created_at: "", updated_at: "" },
@@ -243,7 +234,7 @@ describe("consecutive_days inviolable", () => {
       "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04",
     ].map((date, i) => ({
       id: `pre-${i}`, schedule_id: "sched-1", employee_id: "e1", position_id: "pos-1",
-      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m", is_night: null,
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
@@ -282,7 +273,7 @@ describe("score penaliza saturación", () => {
       "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10",
     ].map((date, i) => ({
       id: `pre-${i}`, schedule_id: "sched-1", employee_id: "e-sat", position_id: "pos-1",
-      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m", is_night: null,
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
@@ -380,7 +371,7 @@ describe("supernumerario (floater)", () => {
       "2026-04-01", "2026-04-02", "2026-04-08", "2026-04-09",
     ].map((date, i) => ({
       id: `pre-${i}`, schedule_id: "s1", employee_id: "e-pri", position_id: "pos-1",
-      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m", is_night: null,
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
@@ -415,7 +406,7 @@ describe("supernumerario (floater)", () => {
       "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04",
     ].map((date, i) => ({
       id: `pre-${i}`, schedule_id: "s1", employee_id: "e-pri", position_id: "pos-1",
-      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m",
+      date, start_time: "09:00", end_time: "17:00", shift_template_id: "tpl-m", is_night: null,
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
@@ -866,5 +857,251 @@ describe("demanda de festivos", () => {
     expect(onDay).toHaveLength(1);
     expect(onDay[0].shift_template_id).toBe("tpl-norm");
     expect(onDay[0].start_time).toBe("08:00:00");
+  });
+});
+
+describe("horario de festivo del turno", () => {
+  const holidays: HolidayDate[] = [
+    { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+  ];
+  // 2026-04-09 es jueves (day_of_week=4) y festivo.
+  const weekdayReq = (tplId: string): StaffingRequirement[] => [
+    { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: tplId,
+      day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+  ];
+
+  it("usa el horario de festivo cuando el turno cae en festivo (con demanda)", () => {
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", break_minutes: 60,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [makeEmployee({ id: "e1" })], [tpl], [], [],
+      defaultConstraints, weekdayReq("tpl-m"), [], holidays, [fullTime], defaultWeights,
+    );
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday?.start_time).toBe("10:00:00");
+    expect(onHoliday?.end_time).toBe("15:00:00");
+  });
+
+  it("festivo sin horario de festivo configurado usa las horas normales", () => {
+    const tpl = makeTemplate({ id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00" });
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [makeEmployee({ id: "e1" })], [tpl], [], [],
+      defaultConstraints, weekdayReq("tpl-m"), [], holidays, [fullTime], defaultWeights,
+    );
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday?.start_time).toBe("08:00:00");
+  });
+
+  it("día NO festivo ignora el horario de festivo del turno", () => {
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00",
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    // 2026-04-02 es jueves pero NO festivo (el festivo es el 09).
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-02"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [makeEmployee({ id: "e1" })], [tpl], [], [],
+      defaultConstraints, weekdayReq("tpl-m"), [], holidays, [fullTime], defaultWeights,
+    );
+    const onDay = result.entries.find((e) => e.date === "2026-04-02");
+    expect(onDay?.start_time).toBe("08:00:00");
+  });
+
+  it("perfil de festivo (Necesidades) + horario de festivo del turno se combinan", () => {
+    const tplNormal = makeTemplate({ id: "tpl-norm", start_time: "08:00:00", end_time: "17:00:00" });
+    const tplFest = makeTemplate({
+      id: "tpl-fest", start_time: "09:00:00", end_time: "13:00:00",
+      holiday_start_time: "10:00:00", holiday_end_time: "14:00:00", holiday_break_minutes: 0,
+    });
+    const reqs: StaffingRequirement[] = [
+      { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-norm",
+        day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+      { id: "r2", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-fest",
+        day_of_week: 0, required_count: 1, is_holiday: true, created_at: "", updated_at: "" },
+    ];
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-norm", "tpl-fest"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [makeEmployee({ id: "e1" })], [tplNormal, tplFest], [], [],
+      defaultConstraints, reqs, [], holidays, [fullTime], defaultWeights,
+    );
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    // El perfil de festivo pide tpl-fest; como es festivo y tpl-fest tiene horario de festivo,
+    // usa 10:00-14:00 en vez de su horario normal 09:00-13:00.
+    expect(onHoliday?.shift_template_id).toBe("tpl-fest");
+    expect(onHoliday?.start_time).toBe("10:00:00");
+    expect(onHoliday?.end_time).toBe("14:00:00");
+  });
+
+  it("modo sin demanda: festivo usa el horario de festivo del turno", () => {
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00",
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: false },
+      [makeEmployee({ id: "e1" })], [tpl], [], [],
+      defaultConstraints, [], [], holidays, [fullTime], defaultWeights,
+    );
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday?.start_time).toBe("10:00:00");
+  });
+});
+
+describe("carácter nocturno efectivo en festivos (inviolable available_nights)", () => {
+  // 2026-04-09 es jueves (day_of_week=4) y festivo.
+  const holidays: HolidayDate[] = [
+    { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+  ];
+  const weekdayReq: StaffingRequirement[] = [
+    { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+      day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+  ];
+
+  it("available_nights=false NO recibe el festivo cuando el horario de festivo cruza la noche (carácter efectivo, no el flag)", () => {
+    // Template diurno (is_night=false) cuyo horario de FESTIVO cruza 21:00-06:00.
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", is_night: false,
+      holiday_start_time: "22:00:00", holiday_end_time: "06:00:00", holiday_break_minutes: 0,
+    });
+    // Empleado que no trabaja noches (override sobre el contrato que sí las permite).
+    const emp = makeEmployee({ id: "e1", available_nights: false });
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints, weekdayReq, [], holidays, [fullTime], defaultWeights,
+    );
+
+    // En el festivo el slot es noche EFECTIVA → el inviolable available_nights lo bloquea.
+    expect(result.entries.find((e) => e.date === "2026-04-09")).toBeUndefined();
+    // Control inverso: un jueves NO festivo usa las horas diurnas normales → SÍ se asigna.
+    const onWeekday = result.entries.find((e) => e.date === "2026-04-02");
+    expect(onWeekday).toBeDefined();
+    expect(onWeekday?.start_time).toBe("08:00:00");
+  });
+
+  it("available_nights=false SÍ recibe el festivo cuando el horario de festivo es diurno (no es noche efectiva)", () => {
+    // Mismo empleado, pero el horario de festivo es diurno → carácter efectivo no-noche.
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", is_night: false,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    const emp = makeEmployee({ id: "e1", available_nights: false });
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints, weekdayReq, [], holidays, [fullTime], defaultWeights,
+    );
+
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday).toBeDefined();
+    expect(onHoliday?.start_time).toBe("10:00:00");
+  });
+});
+
+describe("persistencia de is_night en el entry generado", () => {
+  // 2026-04-09 es jueves (day_of_week=4) y festivo.
+  const holidays: HolidayDate[] = [
+    { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+  ];
+  const weekdayReq: StaffingRequirement[] = [
+    { id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+      day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" },
+  ];
+
+  it("plantilla diurna (is_night=false) cuyo horario de festivo cruza 21:00-06:00 → entry del festivo persiste is_night=true; jueves normal persiste is_night=false", () => {
+    // Plantilla diurna: 08:00-17:00 (no noche). Horario de festivo: 22:00-06:00 (noche efectiva).
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", is_night: false,
+      holiday_start_time: "22:00:00", holiday_end_time: "06:00:00", holiday_break_minutes: 0,
+    });
+    // Empleado que SÍ trabaja noches (default del contrato) → el slot nocturno se asigna.
+    const emp = makeEmployee({ id: "e1" });
+
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: [], employeeIds: ["e1"], useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      defaultConstraints, weekdayReq, [], holidays, [fullTime], defaultWeights,
+    );
+
+    // Festivo: el carácter EFECTIVO (deriva de 22:00-06:00) es noche → is_night=true.
+    const onHoliday = result.entries.find((e) => e.date === "2026-04-09");
+    expect(onHoliday).toBeDefined();
+    expect(onHoliday?.start_time).toBe("22:00:00");
+    expect(onHoliday?.is_night).toBe(true);
+
+    // Control: un jueves NO festivo usa el horario diurno normal → is_night=false.
+    const onWeekday = result.entries.find((e) => e.date === "2026-04-02");
+    expect(onWeekday).toBeDefined();
+    expect(onWeekday?.start_time).toBe("08:00:00");
+    expect(onWeekday?.is_night).toBe(false);
+  });
+});
+
+describe("readback de is_night en init del tracker (descanso 24h post-noche)", () => {
+  it("entry histórico con is_night=true sobre plantilla con flag=false → el descanso de 24h se ancla en el valor del entry, no en el flag", () => {
+    // Aísla la rama divergente del COALESCE de la Pieza 2: el carácter nocturno EFECTIVO del
+    // entry (is_night=true, p.ej. una noche-de-festivo histórica) difiere del flag de su
+    // plantilla (is_night=false). Con el código viejo (solo flag) el descanso requerido sería
+    // 12h y el slot se asignaría; con el valor del entry son 24h y debe rechazarse.
+    const emp = makeEmployee({ id: "e1" });
+    // Plantilla cuyo flag es diurno (is_night=false) — la referenciada por el entry histórico.
+    const tplDayFlag = makeTemplate({ id: "tpl-morn", is_night: false });
+    // Turno nocturno para el slot nuevo: empieza 22:00 (16h tras el fin de la noche previa).
+    const tplEve = makeTemplate({
+      id: "tpl-eve", name: "Eve", start_time: "22:00:00", end_time: "06:00:00", is_night: true,
+    });
+
+    // Entry histórico: noche EFECTIVA 22:00-06:00 del 2026-04-05 (termina 06:00 del 04-06),
+    // persistida is_night=true, pero apuntando a una plantilla con flag is_night=false.
+    const existing: ScheduleEntry[] = [
+      { id: "h1", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
+        date: "2026-04-05", start_time: "22:00:00", end_time: "06:00:00",
+        shift_template_id: "tpl-morn", is_night: true, notes: null,
+        exceeds_caps: [], overtime_status: "none",
+        overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+        created_at: "", updated_at: "" },
+    ];
+
+    // Slot nuevo: 2026-04-06 22:00 → gap de 16h tras el fin de la noche (06:00 del 04-06).
+    // 12h ≤ 16h < 24h: el resultado depende SOLO de leer is_night del entry (24h) vs el flag (12h).
+    const config = baseConfig({
+      employeeIds: ["e1"], shiftTemplateIds: ["tpl-eve"],
+      excludeDates: excludeAllExcept("2026-04-06"),
+    });
+
+    const result = generateSchedule(
+      config, [emp], [tplDayFlag, tplEve], existing, [],
+      defaultConstraints, [], [], [], [fullTime], defaultWeights,
+    );
+
+    // El descanso de 24h post-noche se enforce desde is_night=true del entry → no se asigna.
+    expect(result.entries.find((e) => e.date === "2026-04-06")).toBeUndefined();
+    expect(result.warnings.some((w) => w.kind === "no_safe_candidate")).toBe(true);
   });
 });

@@ -17,8 +17,8 @@ import type {
   RestRule,
   EmployeeRestRule,
   ScheduleEntry,
-  ShiftTemplate,
 } from "./types";
+import { makeTemplate } from "./test-utils/make-template";
 
 describe("isWorkCycleRest", () => {
   const params: WorkCycleParams = {
@@ -99,22 +99,20 @@ function mkEntry(date: string, isNight: boolean): ScheduleEntry {
     start_time: isNight ? "22:00" : "09:00",
     end_time: isNight ? "06:00" : "17:00",
     shift_template_id: isNight ? "tpl-n" : "tpl-d",
+    is_night: isNight,
     notes: null, created_at: "", updated_at: "",
     exceeds_caps: [], overtime_status: "none",
     overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
   };
 }
 
-const nightTemplate: ShiftTemplate = {
-  id: "tpl-n", name: "Noche", start_time: "22:00", end_time: "06:00",
-  break_minutes: 0, color: "#000", location_id: "loc-1",
-  is_night: true, created_at: "",
-};
+const nightTemplate = makeTemplate({
+  id: "tpl-n", name: "Noche", start_time: "22:00", end_time: "06:00", is_night: true,
+});
 
-const _dayTemplate: ShiftTemplate = {
-  ...nightTemplate, id: "tpl-d", name: "Día",
-  start_time: "09:00", end_time: "17:00", is_night: false,
-};
+const _dayTemplate = makeTemplate({
+  id: "tpl-d", name: "Día", start_time: "09:00", end_time: "17:00", is_night: false,
+});
 
 // Suppress unused warning — nightTemplate used in isRestDay tests (Task 6)
 void nightTemplate;
@@ -177,6 +175,24 @@ describe("exceedsMaxConsecutiveNights", () => {
       mkEntry("2026-04-09", true),
     ];
     expect(exceedsMaxConsecutiveNights(params, recent, "2026-04-10", false)).toBe(false);
+  });
+
+  it("cuenta un entry pasado como noche por is_night efectivo, no por el heurístico de start_time", () => {
+    const max1: MaxConsecutiveNightsParams = { max: 1 };
+    // Entry vespertino que cruza medianoche (19:00-02:00) con horario de festivo:
+    // is_night EFECTIVO = true, aunque el heurístico de start_time (>=21:00 || <06:00) diría false.
+    const eveningCrossing = (isNight: boolean | null): ScheduleEntry => ({
+      id: "e-x", schedule_id: "s1", employee_id: "u1", position_id: "p1",
+      date: "2026-04-09", start_time: "19:00", end_time: "02:00",
+      shift_template_id: "tpl-d", is_night: isNight,
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none",
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    });
+    // is_night efectivo = true → cuenta como noche previa → con slot nocturno excede max=1.
+    expect(exceedsMaxConsecutiveNights(max1, [eveningCrossing(true)], "2026-04-10", true)).toBe(true);
+    // is_night = null (histórico) → cae al heurístico de start_time (19:00 → no es noche) → no cuenta.
+    expect(exceedsMaxConsecutiveNights(max1, [eveningCrossing(null)], "2026-04-10", true)).toBe(false);
   });
 });
 

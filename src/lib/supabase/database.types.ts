@@ -1780,6 +1780,7 @@ export type Database = {
           end_time: string
           exceeds_caps: string[]
           id: string
+          is_night: boolean | null
           notes: string | null
           organization_id: string
           overtime_note: string | null
@@ -1799,6 +1800,7 @@ export type Database = {
           end_time: string
           exceeds_caps?: string[]
           id?: string
+          is_night?: boolean | null
           notes?: string | null
           organization_id: string
           overtime_note?: string | null
@@ -1818,6 +1820,7 @@ export type Database = {
           end_time?: string
           exceeds_caps?: string[]
           id?: string
+          is_night?: boolean | null
           notes?: string | null
           organization_id?: string
           overtime_note?: string | null
@@ -2053,6 +2056,9 @@ export type Database = {
           color: string
           created_at: string
           end_time: string
+          holiday_break_minutes: number | null
+          holiday_end_time: string | null
+          holiday_start_time: string | null
           id: string
           is_night: boolean
           location_id: string
@@ -2065,6 +2071,9 @@ export type Database = {
           color?: string
           created_at?: string
           end_time: string
+          holiday_break_minutes?: number | null
+          holiday_end_time?: string | null
+          holiday_start_time?: string | null
           id?: string
           is_night?: boolean
           location_id: string
@@ -2077,6 +2086,9 @@ export type Database = {
           color?: string
           created_at?: string
           end_time?: string
+          holiday_break_minutes?: number | null
+          holiday_end_time?: string | null
+          holiday_start_time?: string | null
           id?: string
           is_night?: boolean
           location_id?: string

@@ -89,6 +89,43 @@ export function suggestIsNight(startTime: string, endTime: string): boolean {
   return false;
 }
 
+/**
+ * Resuelve las horas EFECTIVAS de un turno en una fecha dada.
+ * Si la fecha es festivo y el turno tiene horario de festivo (ambos
+ * `holiday_start_time` y `holiday_end_time` definidos), usa ese horario; si no,
+ * usa el horario normal. El carácter nocturno efectivo se deriva de las horas de
+ * festivo (vía `suggestIsNight`) cuando aplican; en cualquier otro caso conserva
+ * el flag almacenado `template.is_night` (idéntico al comportamiento actual).
+ *
+ * Raíz compartida: motor (`schedule-generator`) y asignación manual usan este
+ * helper para no divergir en las horas/carácter de un turno en festivo.
+ */
+export function effectiveShiftHours(
+  template: Pick<
+    ShiftTemplate,
+    | "start_time"
+    | "end_time"
+    | "break_minutes"
+    | "is_night"
+    | "holiday_start_time"
+    | "holiday_end_time"
+    | "holiday_break_minutes"
+  >,
+  isHolidayDate: boolean,
+): { startTime: string; endTime: string; breakMinutes: number; isNight: boolean } {
+  const useHol =
+    isHolidayDate &&
+    template.holiday_start_time != null &&
+    template.holiday_end_time != null;
+  const startTime = useHol ? template.holiday_start_time! : template.start_time;
+  const endTime = useHol ? template.holiday_end_time! : template.end_time;
+  const breakMinutes = useHol
+    ? (template.holiday_break_minutes ?? 0)
+    : template.break_minutes;
+  const isNight = useHol ? suggestIsNight(startTime, endTime) : template.is_night;
+  return { startTime, endTime, breakMinutes, isNight };
+}
+
 export function dayOfWeek(dateStr: string): number {
   return new Date(dateStr + "T00:00:00").getDay();
 }

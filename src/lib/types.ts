@@ -77,6 +77,9 @@ export interface ShiftTemplate {
   is_night: boolean;
   color: string;
   location_id: string;
+  holiday_start_time: string | null;
+  holiday_end_time: string | null;
+  holiday_break_minutes: number | null;
   created_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   location?: any;
@@ -108,6 +111,7 @@ export interface ScheduleEntry {
   end_time: string;
   shift_template_id: string | null;
   notes: string | null;
+  is_night: boolean | null;
   exceeds_caps: CapExcessKind[];
   overtime_status: OvertimeStatus;
   overtime_reviewed_by: string | null;

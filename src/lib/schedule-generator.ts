@@ -4,7 +4,7 @@ import {
   getRollingWindow,
   sumRollupField,
   isHoliday,
-  isNightShift,
+  effectiveShiftHours,
   dayOfWeek,
   daysBetween,
 } from "./equity-helpers";
@@ -32,6 +32,9 @@ interface DemandSlot {
   endTime: string;
   breakMinutes: number;
   durationHours: number;
+  // Carácter nocturno EFECTIVO del slot (deriva del horario de festivo cuando
+  // aplica). Para slots sin horario de festivo aplicado, isNight === template.is_night.
+  isNight: boolean;
   template: ShiftTemplate;
 }
 
@@ -126,14 +129,16 @@ function buildDemandSlots(
 
   const pushSlot = (
     dateStr: string, dow: number, posId: string, template: ShiftTemplate, count: number,
+    isHolidayDate: boolean,
   ) => {
     if (count <= 0) return;
-    const duration = calcDurationHours(template.start_time, template.end_time, template.break_minutes);
+    const { startTime, endTime, breakMinutes, isNight } = effectiveShiftHours(template, isHolidayDate);
+    const duration = calcDurationHours(startTime, endTime, breakMinutes);
     for (let i = 0; i < count; i++) {
       slots.push({ date: dateStr, dayOfWeek: dow, positionId: posId,
-        shiftTemplateId: template.id, startTime: template.start_time,
-        endTime: template.end_time, breakMinutes: template.break_minutes,
-        durationHours: duration, template });
+        shiftTemplateId: template.id, startTime,
+        endTime, breakMinutes,
+        durationHours: duration, isNight, template });
     }
   };
 
@@ -141,8 +146,10 @@ function buildDemandSlots(
     const dateStr = formatDateISO(date);
     const dow = date.getDay();
     if (config.excludeDates.includes(dateStr)) continue;
-    // isHoliday() sólo depende de la fecha: calcular una vez por fecha (no por template).
-    const isHol = hasDemand && isHoliday(dateStr, locationId, holidays);
+    // isHolidayDate: ¿la fecha es festivo? (decide las HORAS del turno).
+    // isHol: además hay demanda (decide si aplica el PERFIL de festivo de Necesidades).
+    const isHolidayDate = isHoliday(dateStr, locationId, holidays);
+    const isHol = hasDemand && isHolidayDate;
 
     if (hasDemand) {
       for (const posId of config.positionIds) {
@@ -153,7 +160,7 @@ function buildDemandSlots(
           for (const { shiftTemplateId, count } of holidayDemand.get(posId) ?? []) {
             const template = templateMap.get(shiftTemplateId);
             if (!template) continue;
-            pushSlot(dateStr, dow, posId, template, count);
+            pushSlot(dateStr, dow, posId, template, count, isHolidayDate);
           }
         } else {
           // Día de semana (o festivo sin perfil): demanda por día de semana, limitada a
@@ -161,7 +168,7 @@ function buildDemandSlots(
           for (const templateId of config.shiftTemplateIds) {
             const template = templateMap.get(templateId);
             if (!template) continue;
-            pushSlot(dateStr, dow, posId, template, reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0);
+            pushSlot(dateStr, dow, posId, template, reqMap.get(`${posId}_${templateId}_${dow}`) ?? 0, isHolidayDate);
           }
         }
       }
@@ -170,7 +177,7 @@ function buildDemandSlots(
         const template = templateMap.get(templateId);
         if (!template) continue;
         for (const posId of config.positionIds) {
-          pushSlot(dateStr, dow, posId, template, 1);
+          pushSlot(dateStr, dow, posId, template, 1, isHolidayDate);
         }
       }
     }
@@ -223,7 +230,7 @@ function scoreCandidate(
   const dow = dayOfWeek(slot.date);
   if (dow === 0) score -= rolling.sundays * w.sunday_penalty;
   if (dow === 6) score -= rolling.saturdays * w.saturday_penalty;
-  if (isNightShift(slot.template)) score -= rolling.nights * w.night_penalty;
+  if (slot.isNight) score -= rolling.nights * w.night_penalty;
   if (isHoliday(slot.date, ctx.locationId, ctx.holidays))
     score -= rolling.holidays * w.holiday_penalty;
 
@@ -323,7 +330,7 @@ function filterCandidates(
     const availNights   = emp.available_nights   ?? contract?.available_nights;
     if (availSundays  === false && dayOfWeek(slot.date) === 0) continue;
     if (availHolidays === false && isHoliday(slot.date, ctx.locationId, ctx.holidays)) continue;
-    if (availNights   === false && isNightShift(slot.template)) continue;
+    if (availNights   === false && slot.isNight) continue;
 
     // INVIOLABLE: reglas de descanso (override empleado > contract)
     const empRules = ctx.restRulesByEmployee.get(emp.id) ?? [];
@@ -336,7 +343,7 @@ function filterCandidates(
       const recentEmpEntries = ctx.entriesByEmployee.get(emp.id) ?? [];
       const isHolidayFn = (d: string) => isHoliday(d, ctx.locationId, ctx.holidays);
       const blocked = effectiveRules.some((rule) =>
-        isRestDay(rule as RestRule, slot.date, slot.template, recentEmpEntries, isHolidayFn)
+        isRestDay(rule as RestRule, slot.date, slot.template, recentEmpEntries, isHolidayFn, slot.isNight)
       );
       if (blocked) continue;
     }
@@ -465,7 +472,10 @@ export function generateSchedule(
     t.lastShiftDate = e.date;
     t.lastShiftStartTime = e.start_time;
     t.lastShiftEndTime = e.end_time;
-    t.lastShiftWasNight = tpl?.is_night ?? false;
+    // Lee el carácter nocturno EFECTIVO persistido en el entry; si es NULL (entries
+    // históricos o creados por código viejo) cae al flag de la plantilla — mismo
+    // COALESCE que el trigger recompute_equity_rollup.
+    t.lastShiftWasNight = e.is_night ?? tpl?.is_night ?? false;
   }
 
   const timeOffMap = buildTimeOffLookup(timeOff);
@@ -609,6 +619,9 @@ export function generateSchedule(
       schedule_id: config.scheduleId, employee_id: chosen, position_id: slot.positionId,
       date: slot.date, start_time: slot.startTime, end_time: slot.endTime,
       shift_template_id: slot.shiftTemplateId, notes: null,
+      // Persiste el carácter nocturno EFECTIVO del slot (deriva del horario real,
+      // incluido el horario especial de festivo), no del flag de la plantilla.
+      is_night: slot.isNight,
       exceeds_caps: overtimeCaps,
       overtime_status: overtimeCaps.length > 0 ? "pending" : "none",
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
@@ -631,7 +644,7 @@ export function generateSchedule(
     tracker.lastShiftDate = slot.date;
     tracker.lastShiftStartTime = slot.startTime;
     tracker.lastShiftEndTime = slot.endTime;
-    tracker.lastShiftWasNight = isNightShift(slot.template);
+    tracker.lastShiftWasNight = slot.isNight;
     tracker.assignedDates.add(slot.date);
     stats[chosen].shifts++;
     stats[chosen].hours += slot.durationHours;
@@ -639,7 +652,7 @@ export function generateSchedule(
     // Update in-run rollup sums so subsequent slots see the updated state
     const isSun = dayOfWeek(slot.date) === 0;
     const isSat = dayOfWeek(slot.date) === 6;
-    const isNight = isNightShift(slot.template);
+    const isNight = slot.isNight;
     const isHol = isHoliday(slot.date, ctx.locationId, ctx.holidays);
     const roll = ctx.rollingRollupSums.get(chosen)!;
     if (isSun) roll.sundays++;

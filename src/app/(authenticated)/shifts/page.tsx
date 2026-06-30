@@ -8,6 +8,7 @@ import { translateDbError } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -77,6 +78,9 @@ interface ShiftTemplateItem {
   end_time: string;
   break_minutes: number;
   color: string;
+  holiday_start_time: string | null;
+  holiday_end_time: string | null;
+  holiday_break_minutes: number | null;
   location_id: string;
   location: {
     id: string;
@@ -108,6 +112,10 @@ export default function ShiftsPage() {
   const [formEndTime, setFormEndTime] = useState("14:00");
   const [formBreakMinutes, setFormBreakMinutes] = useState(30);
   const [formColor, setFormColor] = useState<string>(COLOR_PALETTE[0].value);
+  const [formHasHolidayHours, setFormHasHolidayHours] = useState(false);
+  const [formHolidayStart, setFormHolidayStart] = useState("");
+  const [formHolidayEnd, setFormHolidayEnd] = useState("");
+  const [formHolidayBreak, setFormHolidayBreak] = useState(0);
 
   const isAdmin = canAdmin(profile?.role);
   const isAuthorized = canManage(profile?.role);
@@ -150,6 +158,10 @@ export default function ShiftsPage() {
     setFormEndTime("14:00");
     setFormBreakMinutes(30);
     setFormColor(COLOR_PALETTE[0].value);
+    setFormHasHolidayHours(false);
+    setFormHolidayStart("");
+    setFormHolidayEnd("");
+    setFormHolidayBreak(0);
     setDialogOpen(true);
   }
 
@@ -161,6 +173,14 @@ export default function ShiftsPage() {
     setFormEndTime(formatTime(item.end_time));
     setFormBreakMinutes(item.break_minutes);
     setFormColor(item.color || COLOR_PALETTE[0].value);
+    setFormHasHolidayHours(item.holiday_start_time != null);
+    setFormHolidayStart(
+      item.holiday_start_time ? formatTime(item.holiday_start_time) : ""
+    );
+    setFormHolidayEnd(
+      item.holiday_end_time ? formatTime(item.holiday_end_time) : ""
+    );
+    setFormHolidayBreak(item.holiday_break_minutes ?? 0);
     setDialogOpen(true);
   }
 
@@ -177,6 +197,10 @@ export default function ShiftsPage() {
       toast.error("Las horas de inicio y fin son obligatorias");
       return;
     }
+    if (formHasHolidayHours && (!formHolidayStart || !formHolidayEnd)) {
+      toast.error("Define la hora de inicio y fin del horario de festivo");
+      return;
+    }
 
     setSaving(true);
 
@@ -187,6 +211,9 @@ export default function ShiftsPage() {
       end_time: formEndTime,
       break_minutes: formBreakMinutes,
       color: formColor,
+      holiday_start_time: formHasHolidayHours ? formHolidayStart : null,
+      holiday_end_time: formHasHolidayHours ? formHolidayEnd : null,
+      holiday_break_minutes: formHasHolidayHours ? formHolidayBreak : null,
     };
 
     if (editingItem) {
@@ -412,16 +439,18 @@ export default function ShiftsPage() {
             {/* Hora inicio y fin */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Hora de inicio</Label>
+                <Label htmlFor="shift-start">Hora de inicio</Label>
                 <Input
+                  id="shift-start"
                   type="time"
                   value={formStartTime}
                   onChange={(e) => setFormStartTime(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Hora de fin</Label>
+                <Label htmlFor="shift-end">Hora de fin</Label>
                 <Input
+                  id="shift-end"
                   type="time"
                   value={formEndTime}
                   onChange={(e) => setFormEndTime(e.target.value)}
@@ -431,8 +460,9 @@ export default function ShiftsPage() {
 
             {/* Minutos de descanso */}
             <div className="space-y-2">
-              <Label>Minutos de descanso</Label>
+              <Label htmlFor="shift-break">Minutos de descanso</Label>
               <Input
+                id="shift-break"
                 type="number"
                 min={0}
                 value={formBreakMinutes}
@@ -440,6 +470,70 @@ export default function ShiftsPage() {
                   setFormBreakMinutes(parseInt(e.target.value) || 0)
                 }
               />
+            </div>
+
+            {/* Horario especial en festivos */}
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="holiday-hours-switch">
+                    Horario especial en festivos
+                  </Label>
+                  <p
+                    id="holiday-hours-desc"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Cuando este turno cae en un día festivo, usa este horario en
+                    vez del normal.
+                  </p>
+                </div>
+                <Switch
+                  id="holiday-hours-switch"
+                  aria-describedby="holiday-hours-desc"
+                  checked={formHasHolidayHours}
+                  onCheckedChange={(checked) => {
+                    setFormHasHolidayHours(checked);
+                    if (checked && !formHolidayStart && !formHolidayEnd) {
+                      setFormHolidayStart(formStartTime);
+                      setFormHolidayEnd(formEndTime);
+                    }
+                  }}
+                />
+              </div>
+              {formHasHolidayHours && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="holiday-start">Inicio</Label>
+                    <Input
+                      id="holiday-start"
+                      type="time"
+                      value={formHolidayStart}
+                      onChange={(e) => setFormHolidayStart(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="holiday-end">Fin</Label>
+                    <Input
+                      id="holiday-end"
+                      type="time"
+                      value={formHolidayEnd}
+                      onChange={(e) => setFormHolidayEnd(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="holiday-break">Descanso (min)</Label>
+                    <Input
+                      id="holiday-break"
+                      type="number"
+                      min={0}
+                      value={formHolidayBreak}
+                      onChange={(e) =>
+                        setFormHolidayBreak(parseInt(e.target.value) || 0)
+                      }
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Color */}

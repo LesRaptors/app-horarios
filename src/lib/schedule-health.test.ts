@@ -33,7 +33,7 @@ function mkEntry(opts: {
     id: `${opts.employeeId}-${opts.date}`, schedule_id: "sched-1",
     employee_id: opts.employeeId, position_id: "pos-1",
     date: opts.date, start_time: opts.start ?? "09:00", end_time: opts.end ?? "17:00",
-    shift_template_id: "tpl-m", notes: null, created_at: "", updated_at: "",
+    shift_template_id: "tpl-m", is_night: null, notes: null, created_at: "", updated_at: "",
     exceeds_caps: [], overtime_status: opts.status ?? "none",
     overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
   };
