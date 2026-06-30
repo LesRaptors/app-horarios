@@ -186,7 +186,7 @@ export interface StaffingRequirement {
   position_id: string;
   shift_template_id: string;
   day_of_week: number; // 0=Sunday, 1=Monday, ..., 6=Saturday; sentinel 0 for is_holiday rows
-  is_holiday: boolean;
+  is_holiday?: boolean; // DB: NOT NULL DEFAULT false; opcional en el tipo para no exigirlo en mocks (undefined = no festivo)
   required_count: number;
   created_at: string;
   updated_at: string;
