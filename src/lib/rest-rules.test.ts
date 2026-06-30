@@ -176,6 +176,24 @@ describe("exceedsMaxConsecutiveNights", () => {
     ];
     expect(exceedsMaxConsecutiveNights(params, recent, "2026-04-10", false)).toBe(false);
   });
+
+  it("cuenta un entry pasado como noche por is_night efectivo, no por el heurístico de start_time", () => {
+    const max1: MaxConsecutiveNightsParams = { max: 1 };
+    // Entry vespertino que cruza medianoche (19:00-02:00) con horario de festivo:
+    // is_night EFECTIVO = true, aunque el heurístico de start_time (>=21:00 || <06:00) diría false.
+    const eveningCrossing = (isNight: boolean | null): ScheduleEntry => ({
+      id: "e-x", schedule_id: "s1", employee_id: "u1", position_id: "p1",
+      date: "2026-04-09", start_time: "19:00", end_time: "02:00",
+      shift_template_id: "tpl-d", is_night: isNight,
+      notes: null, created_at: "", updated_at: "",
+      exceeds_caps: [], overtime_status: "none",
+      overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    });
+    // is_night efectivo = true → cuenta como noche previa → con slot nocturno excede max=1.
+    expect(exceedsMaxConsecutiveNights(max1, [eveningCrossing(true)], "2026-04-10", true)).toBe(true);
+    // is_night = null (histórico) → cae al heurístico de start_time (19:00 → no es noche) → no cuenta.
+    expect(exceedsMaxConsecutiveNights(max1, [eveningCrossing(null)], "2026-04-10", true)).toBe(false);
+  });
 });
 
 describe("needsCompensatory", () => {
