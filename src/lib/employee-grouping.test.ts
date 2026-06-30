@@ -16,7 +16,7 @@ const mk = (
 });
 
 describe("groupEmployeesMulti", () => {
-  // Apellidos distintos a propósito: el orden es por apellido → nombre.
+  // Nombres distintos a propósito: el orden dentro de la hoja es por nombre de pila → apellido.
   const emps: E[] = [
     mk("a", "Zoe", "Álvarez", "EVI Poblado", "Lab", "Bacteriólogo"),
     mk("b", "Ana", "Núñez", "EVI Poblado", "Lab", "Bacteriólogo"),
@@ -34,7 +34,7 @@ describe("groupEmployeesMulti", () => {
     expect(poblado.employees).toBeNull();
     const lab = poblado.children!.find((n) => n.label === "Lab")!;
     expect(lab.children).toBeNull();
-    expect(lab.employees!.map((e) => e.id)).toEqual(["a", "b"]); // Álvarez antes que Núñez (A→Z por apellido)
+    expect(lab.employees!.map((e) => e.id)).toEqual(["b", "a"]); // Ana antes que Zoe (A→Z por nombre de pila)
     expect(tree.at(-1)!.key).toBe("__unassigned__");
   });
 
@@ -57,13 +57,13 @@ describe("groupEmployeesMulti", () => {
     expect(sinAsignar.employees!.map((e) => e.id)).toEqual(["e"]);
   });
 
-  it("sin niveles / none: un nodo hoja con todos, ordenados por apellido", () => {
+  it("sin niveles / none: un nodo hoja con todos, ordenados por nombre de pila", () => {
     const tree = groupEmployeesMulti(emps, ["none"]);
     expect(tree).toHaveLength(1);
     expect(tree[0].children).toBeNull();
-    // Álvarez, Díaz, Mejía, Núñez, Zúñiga.
-    expect(tree[0].employees!.map((e) => e.last_name)).toEqual([
-      "Álvarez", "Díaz", "Mejía", "Núñez", "Zúñiga",
+    // Ana, Beto, Cira, Eve, Zoe (A→Z por nombre de pila).
+    expect(tree[0].employees!.map((e) => e.first_name)).toEqual([
+      "Ana", "Beto", "Cira", "Eve", "Zoe",
     ]);
   });
 });
