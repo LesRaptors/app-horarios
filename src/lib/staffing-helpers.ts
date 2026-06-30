@@ -2,29 +2,33 @@ export interface StaffingCell {
   position_id: string;
   shift_template_id: string;
   day_of_week: number;
+  is_holiday: boolean;
   required_count: number;
 }
 
-export type CellKey = string;  // "positionId|shiftTemplateId|dayOfWeek"
+export type CellKey = string;  // "positionId|shiftTemplateId|dayOfWeek|isHoliday(0|1)"
 
 export function makeCellKey(
   positionId: string,
   shiftTemplateId: string,
-  dayOfWeek: number
+  dayOfWeek: number,
+  isHoliday: boolean
 ): CellKey {
-  return `${positionId}|${shiftTemplateId}|${dayOfWeek}`;
+  return `${positionId}|${shiftTemplateId}|${dayOfWeek}|${isHoliday ? 1 : 0}`;
 }
 
 export function parseCellKey(key: CellKey): {
   position_id: string;
   shift_template_id: string;
   day_of_week: number;
+  is_holiday: boolean;
 } {
-  const [position_id, shift_template_id, dayStr] = key.split("|");
+  const [position_id, shift_template_id, dayStr, holStr] = key.split("|");
   return {
     position_id,
     shift_template_id,
     day_of_week: Number(dayStr),
+    is_holiday: holStr === "1",
   };
 }
 
@@ -74,11 +78,11 @@ export function replicateAcrossDays(
   const out: Record<CellKey, number> = { ...draft };
   for (const positionId of scope.positionIds) {
     for (const shiftTemplateId of scope.shiftTemplateIds) {
-      const sourceKey = makeCellKey(positionId, shiftTemplateId, sourceDay);
+      const sourceKey = makeCellKey(positionId, shiftTemplateId, sourceDay, false);
       const sourceValue = draft[sourceKey];
       if (sourceValue === undefined) continue;
       for (const targetDay of targetDays) {
-        out[makeCellKey(positionId, shiftTemplateId, targetDay)] = sourceValue;
+        out[makeCellKey(positionId, shiftTemplateId, targetDay, false)] = sourceValue;
       }
     }
   }
@@ -96,7 +100,7 @@ export function replicateShiftToShift(
     const parsed = parseCellKey(key);
     if (parsed.shift_template_id !== sourceShiftId) continue;
     if (!scope.positionIds.includes(parsed.position_id)) continue;
-    out[makeCellKey(parsed.position_id, targetShiftId, parsed.day_of_week)] = value;
+    out[makeCellKey(parsed.position_id, targetShiftId, parsed.day_of_week, parsed.is_holiday)] = value;
   }
   return out;
 }

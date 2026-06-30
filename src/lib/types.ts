@@ -185,7 +185,8 @@ export interface StaffingRequirement {
   location_id: string;
   position_id: string;
   shift_template_id: string;
-  day_of_week: number; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  day_of_week: number; // 0=Sunday, 1=Monday, ..., 6=Saturday; sentinel 0 for is_holiday rows
+  is_holiday: boolean;
   required_count: number;
   created_at: string;
   updated_at: string;
