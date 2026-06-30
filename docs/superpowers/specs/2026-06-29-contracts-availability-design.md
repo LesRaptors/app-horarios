@@ -132,7 +132,7 @@ Flujo `/superpowers` completo: spec → plan → implementar → `/code-review`.
 ## Criterios de éxito
 
 - [ ] Los tipos de contrato de Les Raptors se ven en español (Tiempo completo / Medio tiempo / Asistencial tiempo completo).
-- [ ] El badge "Sin definir" sigue funcionando (comparación por UUID, no por texto).
+- [ ] El badge "Sin definir" sigue funcionando (comparación por nombre, que es estable y per-org; no se renombra "Sin definir").
 - [ ] Crear demo, Invitar y Editar exigen/permiten elegir tipo de contrato; ningún empleado nuevo cae a "Sin definir" por omisión.
 - [ ] Un empleado con "Festivos: No disponible" no se asigna a festivos aunque su contrato sí lo permita; "Hereda" preserva el comportamiento del contrato.
 - [ ] Una organización nueva arranca con los 5 tipos de contrato base en español.
