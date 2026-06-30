@@ -2106,6 +2106,7 @@ export type Database = {
           created_at: string
           day_of_week: number
           id: string
+          is_holiday: boolean
           location_id: string
           organization_id: string
           position_id: string
@@ -2118,6 +2119,7 @@ export type Database = {
           created_at?: string
           day_of_week: number
           id?: string
+          is_holiday?: boolean
           location_id: string
           organization_id: string
           position_id: string
@@ -2130,6 +2132,7 @@ export type Database = {
           created_at?: string
           day_of_week?: number
           id?: string
+          is_holiday?: boolean
           location_id?: string
           organization_id?: string
           position_id?: string
