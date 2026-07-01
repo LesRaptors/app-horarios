@@ -39,18 +39,12 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- No-staff sobre su propia fila: rechazar cualquier columna sensible.
-  IF ROW(NEW.role, NEW.contract_type_id, NEW.position_id, NEW.location_id,
-         NEW.is_active, NEW.is_demo, NEW.is_floater, NEW.is_terminated,
-         NEW.organization_id, NEW.email, NEW.hire_date, NEW.termination_date,
-         NEW.arl_risk_class, NEW.max_hours_per_week,
-         NEW.available_sundays, NEW.available_holidays, NEW.available_nights)
+  -- No-staff sobre su propia fila: allowlist future-proof.
+  -- Solo puede cambiar first_name/last_name/phone/avatar_url.
+  -- (updated_at lo actualiza el trigger set_updated_at, que corre antes; se excluye.)
+  IF (to_jsonb(NEW) - ARRAY['first_name','last_name','phone','avatar_url','updated_at'])
      IS DISTINCT FROM
-     ROW(OLD.role, OLD.contract_type_id, OLD.position_id, OLD.location_id,
-         OLD.is_active, OLD.is_demo, OLD.is_floater, OLD.is_terminated,
-         OLD.organization_id, OLD.email, OLD.hire_date, OLD.termination_date,
-         OLD.arl_risk_class, OLD.max_hours_per_week,
-         OLD.available_sundays, OLD.available_holidays, OLD.available_nights) THEN
+     (to_jsonb(OLD) - ARRAY['first_name','last_name','phone','avatar_url','updated_at']) THEN
     RAISE EXCEPTION 'No puedes modificar esos campos de tu perfil (solo nombre, apellido, teléfono y foto).';
   END IF;
 
@@ -89,9 +83,12 @@ CREATE TRIGGER trg_sync_profile_email
   EXECUTE FUNCTION public.sync_profile_email();
 
 -- 4) Bucket de avatares (lectura pública).
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('avatars', 'avatars', true)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO UPDATE
+  SET public = EXCLUDED.public,
+      file_size_limit = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- 5) Políticas de storage.objects para el bucket avatars.
 DROP POLICY IF EXISTS "avatars_public_read" ON storage.objects;
@@ -106,7 +103,8 @@ CREATE POLICY "avatars_owner_insert" ON storage.objects
 DROP POLICY IF EXISTS "avatars_owner_update" ON storage.objects;
 CREATE POLICY "avatars_owner_update" ON storage.objects
   FOR UPDATE TO authenticated
-  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 DROP POLICY IF EXISTS "avatars_owner_delete" ON storage.objects;
 CREATE POLICY "avatars_owner_delete" ON storage.objects

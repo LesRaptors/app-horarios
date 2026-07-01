@@ -38,7 +38,31 @@ BEGIN
     RAISE EXCEPTION 'FALLO: el guard permitió cambiar el role';
   EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'FALLO:%' THEN RAISE; END IF;
+    -- El mensaje debe contener 'No puedes modificar'.
+    IF SQLERRM NOT LIKE '%No puedes modificar%' THEN
+      RAISE EXCEPTION 'FALLO: excepción inesperada: %', SQLERRM;
+    END IF;
     RAISE NOTICE 'OK: guard bloqueó el cambio de role (%).', SQLERRM;
+  END;
+END $$;
+
+-- 3) Debe PERMITIR cambiar first_name (columna en allowlist).
+UPDATE public.profiles SET first_name = 'TestNuevo'
+WHERE id = '11111111-1111-1111-1111-111111111111';
+
+-- 4) Debe RECHAZAR cambiar organization_id (fuga de tenant).
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.profiles SET organization_id = gen_random_uuid()
+    WHERE id = '11111111-1111-1111-1111-111111111111';
+    RAISE EXCEPTION 'FALLO: el guard permitió cambiar organization_id';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FALLO:%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%No puedes modificar%' THEN
+      RAISE EXCEPTION 'FALLO: excepción inesperada: %', SQLERRM;
+    END IF;
+    RAISE NOTICE 'OK: guard bloqueó el cambio de organization_id (%).', SQLERRM;
   END;
 END $$;
 
