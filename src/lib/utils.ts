@@ -128,6 +128,35 @@ export function translateDbError(rawMessage: string, context?: string): string {
     return "Error de conexión. Verifica tu conexión a internet e intenta de nuevo.";
   }
 
+  // Auth: email already registered
+  if (rawMessage.includes("already been registered") || rawMessage.includes("already registered")) {
+    return "Ya existe una cuenta registrada con ese correo.";
+  }
+
+  // Auth: new password must differ from current
+  if (rawMessage.includes("New password should be different")) {
+    return "La nueva contraseña debe ser diferente a la actual.";
+  }
+
+  // Auth: password too short
+  if (rawMessage.includes("Password should be at least") || rawMessage.includes("password is too short")) {
+    return "La contraseña es demasiado corta.";
+  }
+
+  // Storage: file too large
+  if (
+    rawMessage.includes("Payload too large") ||
+    rawMessage.includes("exceeded the maximum allowed size") ||
+    rawMessage.includes("maximum allowed size")
+  ) {
+    return "El archivo es demasiado grande.";
+  }
+
+  // Storage: mime type not allowed
+  if (rawMessage.includes("mime type") || rawMessage.includes("not allowed")) {
+    return "Ese tipo de archivo no está permitido.";
+  }
+
   // Fallback: return context + generic message
   return context
     ? `${context}. Por favor intenta de nuevo o contacta al administrador.`

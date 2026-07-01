@@ -26,6 +26,7 @@ interface AuthContextValue {
   effectiveOrgId: string | null;
   setActiveOrg: (orgId: string | null) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,43 +37,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [activeOrg, setActiveOrgState] = useState<OrgRow | null>(null);
 
+  const loadProfile = useCallback(async () => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setUser(user);
+
+    if (user) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select(
+          "*, position:positions(*), location:locations(*), contract_type:contract_types(*)"
+        )
+        .eq("id", user.id)
+        .single();
+      setProfile(profileData as unknown as Profile);
+
+      const isSA = (profileData as unknown as Profile)?.role === "super_admin";
+      if (isSA) {
+        const { data: saao } = await supabase
+          .from("super_admin_active_org")
+          .select("active_org_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (saao?.active_org_id) {
+          const { data: orgData } = await supabase
+            .from("organizations")
+            .select("*")
+            .eq("id", saao.active_org_id)
+            .single();
+          setActiveOrgState((orgData as OrgRow) ?? null);
+        } else {
+          setActiveOrgState(null);
+        }
+      }
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    await loadProfile();
+  }, [loadProfile]);
+
   useEffect(() => {
     const supabase = createClient();
 
     async function getUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*, position:positions(*), location:locations(*)")
-          .eq("id", user.id)
-          .single();
-        setProfile(profileData as unknown as Profile);
-
-        const isSA = (profileData as unknown as Profile)?.role === "super_admin";
-        if (isSA) {
-          const { data: saao } = await supabase
-            .from("super_admin_active_org")
-            .select("active_org_id")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          if (saao?.active_org_id) {
-            const { data: orgData } = await supabase
-              .from("organizations")
-              .select("*")
-              .eq("id", saao.active_org_id)
-              .single();
-            setActiveOrgState((orgData as OrgRow) ?? null);
-          } else {
-            setActiveOrgState(null);
-          }
-        }
-      }
-
+      await loadProfile();
       setLoading(false);
     }
 
@@ -89,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadProfile]);
 
   const setActiveOrg = useCallback(async (orgId: string | null) => {
     const supabase = createClient();
@@ -134,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         effectiveOrgId,
         setActiveOrg,
         signOut,
+        refreshProfile,
       }}
     >
       {children}

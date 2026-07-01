@@ -72,7 +72,7 @@ import type { Database } from "@/lib/supabase/database.types";
 // ---------------------------------------------------------------------------
 // Types for fetched profiles with joins
 // ---------------------------------------------------------------------------
-interface ProfileWithJoins extends Omit<Profile, "position" | "location" | "contract_type_id"> {
+interface ProfileWithJoins extends Omit<Profile, "position" | "location" | "contract_type_id" | "contract_type"> {
   position: {
     id: string;
     name: string;

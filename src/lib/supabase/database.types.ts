@@ -1546,6 +1546,7 @@ export type Database = {
           available_holidays: boolean | null
           available_nights: boolean | null
           available_sundays: boolean | null
+          avatar_url: string | null
           contract_type_id: string
           created_at: string
           email: string
@@ -1571,6 +1572,7 @@ export type Database = {
           available_holidays?: boolean | null
           available_nights?: boolean | null
           available_sundays?: boolean | null
+          avatar_url?: string | null
           contract_type_id?: string
           created_at?: string
           email: string
@@ -1596,6 +1598,7 @@ export type Database = {
           available_holidays?: boolean | null
           available_nights?: boolean | null
           available_sundays?: boolean | null
+          avatar_url?: string | null
           contract_type_id?: string
           created_at?: string
           email?: string
