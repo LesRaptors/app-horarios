@@ -2,11 +2,12 @@
 
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/shared/page-header";
+import { PersonalDataCard } from "@/components/profile/personal-data-card";
 import { WorkInfoCard } from "@/components/profile/work-info-card";
 import { Loader2 } from "lucide-react";
 
 export default function PerfilPage() {
-  const { profile, user, loading, refreshProfile: _refreshProfile } = useAuth();
+  const { profile, user, loading, refreshProfile } = useAuth();
 
   if (loading || !profile || !user) {
     return (
@@ -20,16 +21,14 @@ export default function PerfilPage() {
     <div className="space-y-6">
       <PageHeader title="Mi perfil" />
       <div className="grid gap-6 lg:grid-cols-2">
+        <PersonalDataCard profile={profile} user={user} onUpdated={refreshProfile} />
         <WorkInfoCard profile={profile} />
         {/*
-          Tarjeta de datos personales — Task 5
-          <PersonalInfoCard profile={profile} user={user} onUpdated={_refreshProfile} />
-
           Tarjeta de cambio de contraseña — Task 6
-          <PasswordCard profile={profile} user={user} onUpdated={_refreshProfile} />
+          <PasswordCard profile={profile} user={user} onUpdated={refreshProfile} />
 
           Tarjeta de foto de perfil — Task 7
-          <AvatarCard profile={profile} user={user} onUpdated={_refreshProfile} />
+          <AvatarCard profile={profile} user={user} onUpdated={refreshProfile} />
         */}
       </div>
     </div>
