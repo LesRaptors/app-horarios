@@ -102,6 +102,34 @@ export function workedFractionsAfterBreak(weights: number[], breakMinutes: numbe
   return worked;
 }
 
+/** Clasificación de una hora del turno (nocturna / dominical / festiva). */
+export type HourClassification = { isNight: boolean; isSunday: boolean; isHoliday: boolean };
+
+/**
+ * Raíz compartida por las etapas 4 (recargos) y 5 (horas extra): clasifica cada hora
+ * del turno, calcula su peso de recargo con `weightOf` (fórmula inyectada por la etapa)
+ * y descuenta el descanso de las horas de menor recargo primero (horas netas).
+ *
+ * Devuelve `classes` (clasificación por hora) y `worked` (fracción trabajada [0..1] por
+ * hora tras el descanso). Cada etapa acumula sus propios buckets con `worked[i]`.
+ * Refactor puro: no altera ningún monto respecto al bloque duplicado previo.
+ */
+export function classifyAndDeductBreak(
+  hours: { date: string; hour: number }[],
+  holidays: HolidayDate[],
+  settings: PayrollSettings,
+  locationId: string,
+  breakMinutes: number,
+  weightOf: (hourClass: HourClassification) => number,
+): { classes: HourClassification[]; worked: number[] } {
+  const classes = hours.map(({ date, hour }) =>
+    classifyHour(date, hour, holidays, settings, locationId),
+  );
+  const weights = classes.map(weightOf);
+  const worked = workedFractionsAfterBreak(weights, breakMinutes);
+  return { classes, worked };
+}
+
 export function aplicarTablaRetencion(baseDepurada: number, uvt: number): number {
   const baseUvt = baseDepurada / uvt;
   if (baseUvt <= 95) return 0;

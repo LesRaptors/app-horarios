@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour, aplicarTablaRetencion, depurarBaseRetencion, workedFractionsAfterBreak } from "./payroll-engine-helpers";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour, aplicarTablaRetencion, depurarBaseRetencion, workedFractionsAfterBreak, classifyAndDeductBreak } from "./payroll-engine-helpers";
 import type { TaxPersonalDeduction, HolidayDate, PayrollSettings } from "./types";
 
 describe("isIncomeForConcept", () => {
@@ -213,5 +213,50 @@ describe("workedFractionsAfterBreak", () => {
   });
   it("nunca baja de 0 aunque el break exceda el turno", () => {
     expect(workedFractionsAfterBreak([0, 0.35], 300)).toEqual([0, 0]);
+  });
+});
+
+describe("classifyAndDeductBreak", () => {
+  // 2026-04-06 es lunes; night_start_hour=19 en `settings`.
+  const hours = [
+    { date: "2026-04-06", hour: 14 }, // diurna → todo false
+    { date: "2026-04-06", hour: 20 }, // nocturna
+    { date: "2026-04-06", hour: 4 }, // nocturna (madrugada)
+  ];
+  // Peso estilo recargos (etapa 4): nocturno 0.35, dominical/festivo suman.
+  const surchargeWeight = (c: { isNight: boolean; isSunday: boolean; isHoliday: boolean }) =>
+    (c.isNight ? 0.35 : 0) +
+    (c.isSunday ? settings.sunday_surcharge_pct : 0) +
+    (c.isHoliday ? settings.holiday_surcharge_pct : 0);
+
+  it("clasifica cada hora y descuenta el break de la de menor peso primero", () => {
+    const { classes, worked } = classifyAndDeductBreak(hours, [], settings, "loc1", 60, surchargeWeight);
+    expect(classes.map((c) => c.isNight)).toEqual([false, true, true]);
+    // pesos [0, 0.35, 0.35]; break 60min → descuenta 1h de la diurna (peso 0).
+    expect(worked).toEqual([0, 1, 1]);
+  });
+
+  it("es idéntico a componer classifyHour + workedFractionsAfterBreak a mano (refactor puro)", () => {
+    const expectedClasses = hours.map(({ date, hour }) =>
+      classifyHour(date, hour, [], settings, "loc1"),
+    );
+    const expectedWorked = workedFractionsAfterBreak(
+      expectedClasses.map(surchargeWeight),
+      45,
+    );
+    const { classes, worked } = classifyAndDeductBreak(hours, [], settings, "loc1", 45, surchargeWeight);
+    expect(classes).toEqual(expectedClasses);
+    expect(worked).toEqual(expectedWorked);
+  });
+
+  it("respeta la fórmula de peso inyectada (etapa 5: diurna 0.25, nocturna 0.75)", () => {
+    // Con OT weightOf la diurna ya NO es la de menor peso: 0.25 < 0.75, sigue siendo la menor.
+    const otWeight = (c: { isNight: boolean; isSunday: boolean; isHoliday: boolean }) =>
+      (c.isNight ? 0.75 : 0.25) +
+      (c.isSunday ? settings.sunday_surcharge_pct : 0) +
+      (c.isHoliday ? settings.holiday_surcharge_pct : 0);
+    const { worked } = classifyAndDeductBreak(hours, [], settings, "loc1", 60, otWeight);
+    // pesos [0.25, 0.75, 0.75]; break 60min → descuenta la diurna (menor peso).
+    expect(worked).toEqual([0, 1, 1]);
   });
 });

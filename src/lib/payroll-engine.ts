@@ -24,13 +24,12 @@ import { getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payro
 import {
   applyDayProration,
   isIncomeForConcept,
-  classifyHour,
   getSolidarityRate,
   getArlRate,
   isExonerationApplicable,
   depurarBaseRetencion,
   aplicarTablaRetencion,
-  workedFractionsAfterBreak,
+  classifyAndDeductBreak,
 } from "./payroll-engine-helpers";
 
 // ---------------------------------------------------------------------------
@@ -331,16 +330,17 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
     // Descontar el descanso de las horas de menor recargo primero (horas netas).
-    const classes = hours.map(({ date: hourDate, hour }) =>
-      classifyHour(hourDate, hour, holidays, cfg, employee.location_id ?? "")
-    );
-    const weights = classes.map(
+    const { classes, worked } = classifyAndDeductBreak(
+      hours,
+      holidays,
+      cfg,
+      employee.location_id ?? "",
+      entry.break_minutes ?? 0,
       (c) =>
         (c.isNight ? 0.35 : 0) +
         (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
         (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
     );
-    const worked = workedFractionsAfterBreak(weights, entry.break_minutes ?? 0);
     classes.forEach((c, i) => {
       if (c.isNight) nightHours += worked[i];
       if (c.isSunday) sundayHours += worked[i];
@@ -422,16 +422,17 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
     // Descontar el descanso de las horas de menor recargo primero (horas netas).
-    const classes = hours.map(({ date: hourDate, hour }) =>
-      classifyHour(hourDate, hour, holidays, cfg, employee.location_id ?? "")
-    );
-    const weights = classes.map(
+    const { classes, worked } = classifyAndDeductBreak(
+      hours,
+      holidays,
+      cfg,
+      employee.location_id ?? "",
+      entry.break_minutes ?? 0,
       (c) =>
         (c.isNight ? 0.75 : 0.25) +
         (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
         (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
     );
-    const worked = workedFractionsAfterBreak(weights, entry.break_minutes ?? 0);
     classes.forEach((c, i) => {
       if (c.isNight) otNightHours += worked[i];
       else otDayHours += worked[i];
