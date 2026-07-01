@@ -71,7 +71,6 @@ export function PersonalDataCard({ profile, onUpdated }: ProfileCardProps) {
               value={firstName}
               onChange={(e) => { setFirstName(e.target.value); clearFeedback(); }}
               autoComplete="given-name"
-              aria-invalid={error ? "true" : undefined}
             />
           </FormField>
           <FormField label="Apellido" required>
@@ -80,7 +79,6 @@ export function PersonalDataCard({ profile, onUpdated }: ProfileCardProps) {
               value={lastName}
               onChange={(e) => { setLastName(e.target.value); clearFeedback(); }}
               autoComplete="family-name"
-              aria-invalid={error ? "true" : undefined}
             />
           </FormField>
           <FormField label="Teléfono">
@@ -90,9 +88,6 @@ export function PersonalDataCard({ profile, onUpdated }: ProfileCardProps) {
               onChange={(e) => { setPhone(e.target.value); clearFeedback(); }}
               inputMode="tel"
               autoComplete="tel"
-              aria-invalid={
-                error && error.includes("teléfono") ? "true" : undefined
-              }
             />
           </FormField>
 
