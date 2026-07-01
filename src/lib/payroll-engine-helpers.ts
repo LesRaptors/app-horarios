@@ -81,6 +81,26 @@ export function classifyHour(
   return { isNight, isSunday, isHoliday };
 }
 
+/**
+ * Fracción trabajada [0..1] de cada hora del turno tras descontar el descanso.
+ * El descanso (breakMinutes) se resta de las horas de MENOR peso de recargo primero
+ * (ordinaria antes que nocturna antes que dominical/festiva), propagando el remanente.
+ * `weights[i]` = suma de porcentajes de recargo de la hora i (0 = ordinaria).
+ */
+export function workedFractionsAfterBreak(weights: number[], breakMinutes: number): number[] {
+  const worked = weights.map(() => 1);
+  let remaining = breakMinutes / 60;
+  if (remaining <= 0) return worked;
+  const order = weights.map((_, i) => i).sort((a, b) => weights[a] - weights[b]);
+  for (const i of order) {
+    if (remaining <= 0) break;
+    const deduct = Math.min(worked[i], remaining);
+    worked[i] -= deduct;
+    remaining -= deduct;
+  }
+  return worked;
+}
+
 export function aplicarTablaRetencion(baseDepurada: number, uvt: number): number {
   const baseUvt = baseDepurada / uvt;
   if (baseUvt <= 95) return 0;

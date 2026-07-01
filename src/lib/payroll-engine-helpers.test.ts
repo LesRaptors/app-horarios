@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour, aplicarTablaRetencion, depurarBaseRetencion } from "./payroll-engine-helpers";
+import { isIncomeForConcept, getSolidarityRate, getArlRate, isExonerationApplicable, applyDayProration, getCurrentTaxDeductions, classifyHour, aplicarTablaRetencion, depurarBaseRetencion, workedFractionsAfterBreak } from "./payroll-engine-helpers";
 import type { TaxPersonalDeduction, HolidayDate, PayrollSettings } from "./types";
 
 describe("isIncomeForConcept", () => {
@@ -191,5 +191,27 @@ describe("depurarBaseRetencion", () => {
       mortgageInterest: 0, prepaidHealth: 0,
       voluntaryPension: 0, afc: 0, uvt: UVT,
     })).toBe(0);
+  });
+});
+
+describe("workedFractionsAfterBreak", () => {
+  it("break 0 → todas las horas completas", () => {
+    expect(workedFractionsAfterBreak([0, 0.35, 0.8], 0)).toEqual([1, 1, 1]);
+  });
+  it("descuenta de la hora de menor peso primero", () => {
+    // pesos [0, 0.35, 0.8]; break 60min = 1h → se descuenta 1h completa de la de peso 0.
+    expect(workedFractionsAfterBreak([0, 0.35, 0.8], 60)).toEqual([0, 1, 1]);
+  });
+  it("descuento fraccional cae en la de menor peso (30min)", () => {
+    // pesos [0.8, 0.8, 0.8] (turno íntegro festivo, 3h); break 30min=0.5h → una hora queda 0.5.
+    const r = workedFractionsAfterBreak([0.8, 0.8, 0.8], 30);
+    expect(r.reduce((a, b) => a + b, 0)).toBeCloseTo(2.5, 5);
+  });
+  it("break mayor que una hora salta a la siguiente de menor peso", () => {
+    // pesos [0, 0.35]; break 90min=1.5h → primera hora 0, segunda 0.5.
+    expect(workedFractionsAfterBreak([0, 0.35], 90)).toEqual([0, 0.5]);
+  });
+  it("nunca baja de 0 aunque el break exceda el turno", () => {
+    expect(workedFractionsAfterBreak([0, 0.35], 300)).toEqual([0, 0]);
   });
 });

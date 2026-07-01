@@ -30,6 +30,7 @@ import {
   isExonerationApplicable,
   depurarBaseRetencion,
   aplicarTablaRetencion,
+  workedFractionsAfterBreak,
 } from "./payroll-engine-helpers";
 
 // ---------------------------------------------------------------------------
@@ -329,18 +330,22 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
 
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
-    for (const { date: hourDate, hour } of hours) {
-      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
-        hourDate,
-        hour,
-        holidays,
-        cfg,
-        employee.location_id ?? ""
-      );
-      if (isNight) nightHours += 1;
-      if (isSunday) sundayHours += 1;
-      if (isHol) holidayHours += 1;
-    }
+    // Descontar el descanso de las horas de menor recargo primero (horas netas).
+    const classes = hours.map(({ date: hourDate, hour }) =>
+      classifyHour(hourDate, hour, holidays, cfg, employee.location_id ?? "")
+    );
+    const weights = classes.map(
+      (c) =>
+        (c.isNight ? 0.35 : 0) +
+        (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
+        (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
+    );
+    const worked = workedFractionsAfterBreak(weights, entry.break_minutes ?? 0);
+    classes.forEach((c, i) => {
+      if (c.isNight) nightHours += worked[i];
+      if (c.isSunday) sundayHours += worked[i];
+      if (c.isHoliday) holidayHours += worked[i];
+    });
   }
 
   // Use salary/settings vigentes at period.start for the aggregate amount
@@ -416,22 +421,23 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
 
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
-    for (const { date: hourDate, hour } of hours) {
-      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
-        hourDate,
-        hour,
-        holidays,
-        cfg,
-        employee.location_id ?? ""
-      );
-      if (isNight) {
-        otNightHours += 1;
-      } else {
-        otDayHours += 1;
-      }
-      if (isSunday) otSundayHours += 1;
-      if (isHol) otHolidayHours += 1;
-    }
+    // Descontar el descanso de las horas de menor recargo primero (horas netas).
+    const classes = hours.map(({ date: hourDate, hour }) =>
+      classifyHour(hourDate, hour, holidays, cfg, employee.location_id ?? "")
+    );
+    const weights = classes.map(
+      (c) =>
+        (c.isNight ? 0.75 : 0.25) +
+        (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
+        (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
+    );
+    const worked = workedFractionsAfterBreak(weights, entry.break_minutes ?? 0);
+    classes.forEach((c, i) => {
+      if (c.isNight) otNightHours += worked[i];
+      else otDayHours += worked[i];
+      if (c.isSunday) otSundayHours += worked[i];
+      if (c.isHoliday) otHolidayHours += worked[i];
+    });
   }
 
   const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
