@@ -56,6 +56,7 @@ const baseProfile: Profile & {
   is_floater: false,
   organization_id: "org1",
   contract_type_id: "ct1",
+  avatar_url: null,
   created_at: "2020-01-01T00:00:00Z",
   updated_at: "2020-01-01T00:00:00Z",
   hire_date: null,

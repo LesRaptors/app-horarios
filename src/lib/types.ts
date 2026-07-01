@@ -59,6 +59,7 @@ export interface Profile {
   available_sundays?: boolean | null;
   available_holidays?: boolean | null;
   available_nights?: boolean | null;
+  avatar_url: string | null;
   contract_type_id: string;
   created_at: string;
   updated_at: string;
@@ -66,6 +67,7 @@ export interface Profile {
   position?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   location?: any;
+  contract_type?: ContractType;
 }
 
 export interface ShiftTemplate {
