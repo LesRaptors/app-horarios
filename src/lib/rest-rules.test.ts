@@ -103,6 +103,7 @@ function mkEntry(date: string, isNight: boolean): ScheduleEntry {
     notes: null, created_at: "", updated_at: "",
     exceeds_caps: [], overtime_status: "none",
     overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    break_minutes: null,
   };
 }
 
@@ -188,6 +189,7 @@ describe("exceedsMaxConsecutiveNights", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none",
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     });
     // is_night efectivo = true → cuenta como noche previa → con slot nocturno excede max=1.
     expect(exceedsMaxConsecutiveNights(max1, [eveningCrossing(true)], "2026-04-10", true)).toBe(true);

@@ -1774,6 +1774,7 @@ export type Database = {
       }
       schedule_entries: {
         Row: {
+          break_minutes: number | null
           created_at: string
           date: string
           employee_id: string
@@ -1794,6 +1795,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          break_minutes?: number | null
           created_at?: string
           date: string
           employee_id: string
@@ -1814,6 +1816,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          break_minutes?: number | null
           created_at?: string
           date?: string
           employee_id?: string

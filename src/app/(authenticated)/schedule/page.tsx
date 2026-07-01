@@ -370,9 +370,9 @@ export default function SchedulePage() {
     // motor vía effectiveShiftHours); sin plantilla (turno manual) lo deriva de las
     // horas reales que se persisten.
     const tpl = shiftTemplates.find((t) => t.id === data.shift_template_id);
-    const isNight = tpl
-      ? effectiveShiftHours(tpl, dialogIsHolidayDate).isNight
-      : suggestIsNight(data.start_time, data.end_time);
+    const tplEffective = tpl ? effectiveShiftHours(tpl, dialogIsHolidayDate) : null;
+    const isNight = tplEffective ? tplEffective.isNight : suggestIsNight(data.start_time, data.end_time);
+    const breakMinutes = tplEffective ? tplEffective.breakMinutes : 0;
 
     if (dialogEntry) {
       // Update existing
@@ -385,6 +385,7 @@ export default function SchedulePage() {
           shift_template_id: data.shift_template_id,
           notes: data.notes || null,
           is_night: isNight,
+          break_minutes: breakMinutes,
         })
         .eq("id", dialogEntry.id);
 
@@ -408,6 +409,7 @@ export default function SchedulePage() {
         shift_template_id: data.shift_template_id,
         notes: data.notes || null,
         is_night: isNight,
+        break_minutes: breakMinutes,
         organization_id: effectiveOrgId ?? "",
       });
 

@@ -415,6 +415,7 @@ function mkEntry(overrides: {
     overtime_reviewed_by: null,
     overtime_reviewed_at: null,
     overtime_note: null,
+    break_minutes: null,
     created_at: "2026-03-01T00:00:00Z",
     updated_at: "2026-03-01T00:00:00Z",
   };

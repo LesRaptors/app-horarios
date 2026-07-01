@@ -112,6 +112,7 @@ export interface ScheduleEntry {
   shift_template_id: string | null;
   notes: string | null;
   is_night: boolean | null;
+  break_minutes: number | null;
   exceeds_caps: CapExcessKind[];
   overtime_status: OvertimeStatus;
   overtime_reviewed_by: string | null;

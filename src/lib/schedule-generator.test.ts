@@ -121,13 +121,13 @@ describe("generateSchedule — block packing", () => {
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-05", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     const config = baseConfig({
       employeeIds: ["e1", "e2"],
@@ -155,25 +155,25 @@ describe("generateSchedule — tie-breaker by totalShifts", () => {
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-02", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x3", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-03", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x4", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-04", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     // Slot on 2026-04-15 (far from existing to avoid block bonus/fragmentation)
     const config = baseConfig({
@@ -207,7 +207,7 @@ describe("generateSchedule — 24h rest after night", () => {
         shift_template_id: "tpl-night", is_night: true, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     const config = baseConfig({
       employeeIds: ["e1"],
@@ -238,6 +238,7 @@ describe("consecutive_days inviolable", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: domingo 5 abril (día consecutivo #7)
@@ -277,6 +278,7 @@ describe("score penaliza saturación", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
     // contract.target_hours_per_week = 40 → ya está al 100% (saturado)
 
@@ -375,6 +377,7 @@ describe("supernumerario (floater)", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: lun 13 abril (gap >= 3 desde último turno del primario, sin block bonus).
@@ -410,6 +413,7 @@ describe("supernumerario (floater)", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: domingo 5 abril (día 7 consecutivo para primary → cap inviolable).
@@ -1085,7 +1089,7 @@ describe("readback de is_night en init del tracker (descanso 24h post-noche)", (
         shift_template_id: "tpl-morn", is_night: true, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
 
     // Slot nuevo: 2026-04-06 22:00 → gap de 16h tras el fin de la noche (06:00 del 04-06).

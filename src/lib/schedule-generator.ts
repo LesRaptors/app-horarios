@@ -648,6 +648,9 @@ export function generateSchedule(
       // Persiste el carácter nocturno EFECTIVO del slot (deriva del horario real,
       // incluido el horario especial de festivo), no del flag de la plantilla.
       is_night: slot.isNight,
+      // Descanso efectivo del slot (festivo puede diferir del normal); nulo en
+      // entradas de Pase 2 heredadas de config sin plantilla → 0 en nómina.
+      break_minutes: slot.breakMinutes,
       exceeds_caps: overtimeCaps,
       overtime_status: overtimeCaps.length > 0 ? "pending" : "none",
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
