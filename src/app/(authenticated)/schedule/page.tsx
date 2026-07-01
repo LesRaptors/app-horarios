@@ -18,7 +18,7 @@ import { ExportDropdown } from "@/components/schedule/export-dropdown";
 import { ScheduleHealthBanner } from "@/components/schedule/schedule-health-banner";
 import { ScheduleHealthPanel } from "@/components/schedule/schedule-health-panel";
 import { computeHealth } from "@/lib/schedule-health";
-import { isHoliday, effectiveShiftHours, suggestIsNight } from "@/lib/equity-helpers";
+import { isHoliday, effectiveShiftHours, resolveSavedShiftBreakAndNight } from "@/lib/equity-helpers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -365,14 +365,19 @@ export default function SchedulePage() {
     if (!schedule) return;
     setSaving(true);
 
-    // Carácter nocturno EFECTIVO del turno que se guarda: con plantilla respeta su
-    // flag para horas normales y lo deriva para horas de festivo (consistente con el
-    // motor vía effectiveShiftHours); sin plantilla (turno manual) lo deriva de las
-    // horas reales que se persisten.
+    // Carácter nocturno y descanso EFECTIVOS del turno que se guarda: solo se
+    // heredan de la plantilla si las horas guardadas COINCIDEN con las efectivas de
+    // la plantilla (consistente con el motor vía effectiveShiftHours). Si el usuario
+    // editó las horas (p.ej. las acortó), el break/carácter de la plantilla ya no
+    // corresponde al span real: se derivan de las horas realmente persistidas y el
+    // break se pone en 0 (paga bruto, sin subpago). Aplica a insert y update.
     const tpl = shiftTemplates.find((t) => t.id === data.shift_template_id);
     const tplEffective = tpl ? effectiveShiftHours(tpl, dialogIsHolidayDate) : null;
-    const isNight = tplEffective ? tplEffective.isNight : suggestIsNight(data.start_time, data.end_time);
-    const breakMinutes = tplEffective ? tplEffective.breakMinutes : 0;
+    const { isNight, breakMinutes } = resolveSavedShiftBreakAndNight(
+      tplEffective,
+      data.start_time,
+      data.end_time,
+    );
 
     if (dialogEntry) {
       // Update existing

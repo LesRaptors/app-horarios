@@ -8,6 +8,7 @@ import {
   isNightShift,
   suggestIsNight,
   effectiveShiftHours,
+  resolveSavedShiftBreakAndNight,
   dayOfWeek,
   daysBetween,
   meanStdDev,
@@ -178,6 +179,44 @@ describe("effectiveShiftHours", () => {
     });
     expect(effectiveShiftHours(t, true)).toEqual({
       startTime: "08:00:00", endTime: "17:00:00", breakMinutes: 45, isNight: true,
+    });
+  });
+});
+
+describe("resolveSavedShiftBreakAndNight", () => {
+  const tplEffective = {
+    startTime: "22:00:00", // BD → HH:MM:SS
+    endTime: "06:00:00",
+    breakMinutes: 60,
+    isNight: true,
+  };
+
+  it("horas guardadas COINCIDEN con la plantilla (comparación HH:MM vs HH:MM:SS) → hereda break e isNight", () => {
+    expect(resolveSavedShiftBreakAndNight(tplEffective, "22:00", "06:00")).toEqual({
+      isNight: true,
+      breakMinutes: 60,
+    });
+  });
+
+  it("usuario ACORTÓ las horas manteniendo la plantilla → break 0 (paga bruto) e isNight derivado de las horas reales", () => {
+    // Turno recortado a 08:00-14:00 (diurno): no debe descontar el break de la plantilla.
+    expect(resolveSavedShiftBreakAndNight(tplEffective, "08:00", "14:00")).toEqual({
+      isNight: false,
+      breakMinutes: 0,
+    });
+  });
+
+  it("usuario editó a un span nocturno distinto → break 0 e isNight=true por las horas reales", () => {
+    expect(resolveSavedShiftBreakAndNight(tplEffective, "21:00", "05:00")).toEqual({
+      isNight: true,
+      breakMinutes: 0,
+    });
+  });
+
+  it("sin plantilla (turno manual) → break 0 e isNight derivado de las horas guardadas", () => {
+    expect(resolveSavedShiftBreakAndNight(null, "07:00", "15:00")).toEqual({
+      isNight: false,
+      breakMinutes: 0,
     });
   });
 });
