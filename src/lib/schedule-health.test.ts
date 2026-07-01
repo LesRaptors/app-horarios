@@ -13,7 +13,7 @@ const E1: Profile = {
   id: "e1", first_name: "Ana", last_name: "Pérez", email: "", phone: null,
   role: "employee", position_id: null, location_id: "loc-1",
   max_hours_per_week: 40, is_active: true, is_demo: false, is_floater: false,
-  organization_id: "org-1", contract_type_id: "", avatar_url: null, created_at: "", updated_at: "",
+  organization_id: "org-1", contract_type_id: "", avatar_url: null, hire_date: null, created_at: "", updated_at: "",
 };
 
 const E2: Profile = { ...E1, id: "e2", first_name: "Beto", last_name: "Gómez" };

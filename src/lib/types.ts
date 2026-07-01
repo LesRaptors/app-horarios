@@ -1,3 +1,5 @@
+import type { User } from "@supabase/supabase-js";
+
 export type UserRole = "super_admin" | "admin" | "manager" | "employee";
 
 export type ScheduleStatus = "draft" | "published" | "archived";
@@ -61,6 +63,7 @@ export interface Profile {
   available_nights?: boolean | null;
   avatar_url: string | null;
   contract_type_id: string;
+  hire_date: string | null;
   created_at: string;
   updated_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -619,4 +622,11 @@ export interface LiquidacionOutput {
   total: number;
   errors: string[];
   warnings: string[];
+}
+
+// Common props contract for editable profile cards (tasks 5-8)
+export interface ProfileCardProps {
+  profile: Profile; // non-null — the page guarantees the guard before rendering
+  user: User;
+  onUpdated: () => void | Promise<void>;
 }
