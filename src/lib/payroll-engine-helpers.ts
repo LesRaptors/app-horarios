@@ -90,7 +90,8 @@ export function classifyHour(
 export function workedFractionsAfterBreak(weights: number[], breakMinutes: number): number[] {
   const worked = weights.map(() => 1);
   let remaining = breakMinutes / 60;
-  if (remaining <= 0) return worked;
+  // `!(remaining > 0)` cubre 0, negativos y NaN (NaN nunca descuenta → no corrompe montos).
+  if (!(remaining > 0)) return worked;
   const order = weights.map((_, i) => i).sort((a, b) => weights[a] - weights[b]);
   for (const i of order) {
     if (remaining <= 0) break;

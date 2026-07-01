@@ -363,7 +363,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.35,
       amount: Math.round(nightHours * valorHora * 0.35),
-      description: `Recargo nocturno (${nightHours}h)`,
+      description: `Recargo nocturno (${+nightHours.toFixed(2)}h)`,
     });
   }
 
@@ -374,7 +374,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.sunday_surcharge_pct,
       amount: Math.round(sundayHours * valorHora * cfg.sunday_surcharge_pct),
-      description: `Recargo dominical (${sundayHours}h)`,
+      description: `Recargo dominical (${+sundayHours.toFixed(2)}h)`,
     });
   }
 
@@ -385,7 +385,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.holiday_surcharge_pct,
       amount: Math.round(holidayHours * valorHora * cfg.holiday_surcharge_pct),
-      description: `Recargo festivo (${holidayHours}h)`,
+      description: `Recargo festivo (${+holidayHours.toFixed(2)}h)`,
     });
   }
 
@@ -454,7 +454,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.25,
       amount: Math.round(otDayHours * valorHora * 0.25),
-      description: `Hora extra diurna (${otDayHours}h)`,
+      description: `Hora extra diurna (${+otDayHours.toFixed(2)}h)`,
     });
   }
 
@@ -465,7 +465,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.75,
       amount: Math.round(otNightHours * valorHora * 0.75),
-      description: `Hora extra nocturna (${otNightHours}h)`,
+      description: `Hora extra nocturna (${+otNightHours.toFixed(2)}h)`,
     });
   }
 
@@ -477,7 +477,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.sunday_surcharge_pct,
       amount: Math.round(otSundayHours * valorHora * cfg.sunday_surcharge_pct),
-      description: `Recargo dominical en hora extra (${otSundayHours}h)`,
+      description: `Recargo dominical en hora extra (${+otSundayHours.toFixed(2)}h)`,
     });
   }
 
@@ -488,7 +488,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.holiday_surcharge_pct,
       amount: Math.round(otHolidayHours * valorHora * cfg.holiday_surcharge_pct),
-      description: `Recargo festivo en hora extra (${otHolidayHours}h)`,
+      description: `Recargo festivo en hora extra (${+otHolidayHours.toFixed(2)}h)`,
     });
   }
 
