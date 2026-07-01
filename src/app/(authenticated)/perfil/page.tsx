@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/shared/page-header";
+import { AvatarCard } from "@/components/profile/avatar-card";
 import { PersonalDataCard } from "@/components/profile/personal-data-card";
 import { WorkInfoCard } from "@/components/profile/work-info-card";
 import { SecurityCard } from "@/components/profile/security-card";
@@ -23,6 +24,7 @@ export default function PerfilPage() {
     <div className="space-y-6">
       <PageHeader title="Mi perfil" />
       <div className="grid gap-6 lg:grid-cols-2">
+        <AvatarCard profile={profile} user={user} onUpdated={refreshProfile} />
         <PersonalDataCard profile={profile} user={user} onUpdated={refreshProfile} />
         <WorkInfoCard profile={profile} />
         <SecurityCard user={user} />
