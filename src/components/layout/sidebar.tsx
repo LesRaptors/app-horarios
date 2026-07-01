@@ -287,7 +287,7 @@ export function Sidebar() {
 
       {/* User info */}
       <div className="border-t p-4">
-        {profile && (
+        {profile ? (
           <DropdownMenu>
             <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               <div className="min-w-0 flex-1">
@@ -313,6 +313,14 @@ export function Sidebar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <button
+            onClick={signOut}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión
+          </button>
         )}
       </div>
     </div>

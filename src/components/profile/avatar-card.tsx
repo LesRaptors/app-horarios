@@ -68,13 +68,18 @@ export function AvatarCard({ profile, user, onUpdated }: Props) {
     setError(null);
     const supabase = createClient();
     // Borrar posibles extensiones subidas.
-    await supabase.storage
+    const { error: removeErr } = await supabase.storage
       .from("avatars")
       .remove([
         `${user.id}/avatar.jpg`,
         `${user.id}/avatar.png`,
         `${user.id}/avatar.webp`,
       ]);
+    if (removeErr) {
+      setBusy(false);
+      setError(translateDbError(removeErr.message));
+      return;
+    }
     const { error: dbErr } = await supabase
       .from("profiles")
       .update({ avatar_url: null })
@@ -118,6 +123,7 @@ export function AvatarCard({ profile, user, onUpdated }: Props) {
               className="sr-only"
               aria-label="Seleccionar foto de perfil"
               aria-describedby={error ? ERROR_ID : undefined}
+              disabled={busy}
               onChange={handleFile}
             />
             <Button

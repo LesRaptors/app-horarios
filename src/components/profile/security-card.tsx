@@ -77,7 +77,6 @@ export function SecurityCard({ user }: { user: User }) {
               autoComplete="current-password"
               value={current}
               onChange={(e) => { setCurrent(e.target.value); clearFeedback(); }}
-              aria-invalid={error ? "true" : undefined}
               required
             />
           </FormField>
@@ -88,7 +87,6 @@ export function SecurityCard({ user }: { user: User }) {
               autoComplete="new-password"
               value={next}
               onChange={(e) => { setNext(e.target.value); clearFeedback(); }}
-              aria-invalid={error ? "true" : undefined}
               required
             />
           </FormField>
@@ -99,7 +97,6 @@ export function SecurityCard({ user }: { user: User }) {
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => { setConfirm(e.target.value); clearFeedback(); }}
-              aria-invalid={error ? "true" : undefined}
               required
             />
           </FormField>
