@@ -21,6 +21,7 @@ import {
   CalendarDays,
   ChevronDown,
   LogOut,
+  User,
   Wallet,
   Inbox,
   ShieldCheck,
@@ -35,7 +36,12 @@ import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { APP_NAME, ROLE_LABELS } from "@/lib/constants";
 import type { UserRole } from "@/lib/types";
 import { AppLogo } from "@/components/shared/app-logo";
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
   CollapsibleContent,
@@ -60,6 +66,7 @@ const topNavigation: NavItem[] = [
   { name: "Facturación", href: "/facturacion", icon: CreditCard, roles: ["super_admin", "admin"] },
   { name: "Mi pago", href: "/mi-pago", icon: Wallet, roles: ["super_admin", "admin", "manager", "employee"] },
   { name: "Notificaciones", href: "/notifications", icon: Bell, roles: ["super_admin", "admin", "manager", "employee"] },
+  { name: "Mi perfil", href: "/perfil", icon: User, roles: ["super_admin", "admin", "manager", "employee"] },
 ];
 
 const payrollNavigation: NavItem[] = [
@@ -281,24 +288,32 @@ export function Sidebar() {
       {/* User info */}
       <div className="border-t p-4">
         {profile && (
-          <div className="mb-3">
-            <p className="text-sm font-medium">
-              {profile.first_name} {profile.last_name}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {ROLE_LABELS[profile.role]}
-            </p>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {profile.first_name} {profile.last_name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {ROLE_LABELS[profile.role]}
+                </p>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href="/perfil">
+                  <User className="mr-2 h-4 w-4" />
+                  Mi perfil
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground"
-          onClick={signOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Cerrar sesión
-        </Button>
       </div>
     </div>
   );
