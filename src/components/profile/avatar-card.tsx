@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { validateAvatarFile, getInitials } from "@/lib/profile-helpers";
+import { translateDbError } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
 
@@ -45,7 +46,7 @@ export function AvatarCard({ profile, user, onUpdated }: Props) {
       .upload(path, file, { upsert: true, contentType: file.type });
     if (upErr) {
       setBusy(false);
-      setError(upErr.message);
+      setError(translateDbError(upErr.message));
       return;
     }
     const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
@@ -56,7 +57,7 @@ export function AvatarCard({ profile, user, onUpdated }: Props) {
       .eq("id", profile.id);
     setBusy(false);
     if (dbErr) {
-      setError(dbErr.message);
+      setError(translateDbError(dbErr.message));
       return;
     }
     await onUpdated();
@@ -80,7 +81,7 @@ export function AvatarCard({ profile, user, onUpdated }: Props) {
       .eq("id", profile.id);
     setBusy(false);
     if (dbErr) {
-      setError(dbErr.message);
+      setError(translateDbError(dbErr.message));
       return;
     }
     await onUpdated();

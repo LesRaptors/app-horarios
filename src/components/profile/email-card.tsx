@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/form-field";
 import { createClient } from "@/lib/supabase/client";
 import { validateEmail } from "@/lib/profile-helpers";
+import { translateDbError } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
 
 export function EmailCard({ user }: { user: User }) {
@@ -33,7 +34,7 @@ export function EmailCard({ user }: { user: User }) {
     const { error: updErr } = await supabase.auth.updateUser({ email: email.trim() });
     setSaving(false);
     if (updErr) {
-      setError(updErr.message);
+      setError(translateDbError(updErr.message));
       return;
     }
     setSent(true);
@@ -52,13 +53,22 @@ export function EmailCard({ user }: { user: User }) {
         </div>
 
         {sent && (
-          <p
-            className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5"
-            role="status"
-          >
-            Te enviamos un enlace de confirmación al nuevo correo. El cambio se aplica cuando lo
-            abras. Si no llega, revisa spam o la cuarentena de tu proveedor.
-          </p>
+          <div className="space-y-3">
+            <p
+              className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-900"
+              role="status"
+            >
+              Te enviamos un enlace de confirmación. Según la configuración, puede llegar tanto a tu
+              correo actual como al nuevo — debes confirmar para aplicar el cambio. Si no llega,
+              revisa spam o la cuarentena de tu proveedor.
+            </p>
+            <Button
+              variant="ghost"
+              onClick={() => { setSent(false); setEmail(""); setEditing(true); }}
+            >
+              Cambiar otra vez
+            </Button>
+          </div>
         )}
 
         {!editing && !sent && (

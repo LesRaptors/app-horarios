@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/form-field";
 import { createClient } from "@/lib/supabase/client";
 import { validatePhone } from "@/lib/profile-helpers";
+import { translateDbError } from "@/lib/utils";
 import type { ProfileCardProps } from "@/lib/types";
 
 export function PersonalDataCard({ profile, onUpdated }: ProfileCardProps) {
@@ -50,7 +51,7 @@ export function PersonalDataCard({ profile, onUpdated }: ProfileCardProps) {
     setSaving(false);
 
     if (dbErr) {
-      setError(dbErr.message);
+      setError(translateDbError(dbErr.message));
       return;
     }
     setOk(true);

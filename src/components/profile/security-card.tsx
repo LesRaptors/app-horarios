@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/form-field";
 import { createClient } from "@/lib/supabase/client";
 import { validatePasswordChange } from "@/lib/profile-helpers";
+import { translateDbError } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
 
 export function SecurityCard({ user }: { user: User }) {
@@ -52,7 +53,7 @@ export function SecurityCard({ user }: { user: User }) {
     setSaving(false);
 
     if (updErr) {
-      setError(updErr.message);
+      setError(translateDbError(updErr.message));
       return;
     }
 
