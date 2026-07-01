@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PersonalDataCard } from "@/components/profile/personal-data-card";
 import { WorkInfoCard } from "@/components/profile/work-info-card";
 import { SecurityCard } from "@/components/profile/security-card";
+import { EmailCard } from "@/components/profile/email-card";
 import { Loader2 } from "lucide-react";
 
 export default function PerfilPage() {
@@ -25,10 +26,7 @@ export default function PerfilPage() {
         <PersonalDataCard profile={profile} user={user} onUpdated={refreshProfile} />
         <WorkInfoCard profile={profile} />
         <SecurityCard user={user} />
-        {/*
-          Tarjeta de foto de perfil — Task 7
-          <AvatarCard profile={profile} user={user} onUpdated={refreshProfile} />
-        */}
+        <EmailCard user={user} />
       </div>
     </div>
   );
