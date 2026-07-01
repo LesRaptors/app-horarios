@@ -144,7 +144,9 @@ export function computeHealth(
     const weekHours = new Map<number, number>();
     for (const e of empEntries) {
       const wk = isoWeekKey(e.date);
-      const dur = hoursDuration(e.start_time, e.end_time);
+      // Horas NETAS del descanso, consistente con el motor, el rollup de equidad y la
+      // nómina. Clamp inferior a 0 (mismo criterio que el trigger de equidad).
+      const dur = Math.max(0, hoursDuration(e.start_time, e.end_time) - (e.break_minutes ?? 0) / 60);
       weekHours.set(wk, (weekHours.get(wk) ?? 0) + dur);
     }
     for (const h of Array.from(weekHours.values())) {

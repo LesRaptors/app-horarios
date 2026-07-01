@@ -112,6 +112,7 @@ export interface ScheduleEntry {
   shift_template_id: string | null;
   notes: string | null;
   is_night: boolean | null;
+  break_minutes: number | null;
   exceeds_caps: CapExcessKind[];
   overtime_status: OvertimeStatus;
   overtime_reviewed_by: string | null;
@@ -288,6 +289,7 @@ export type AutoGenWarning =
   | { kind: "no_safe_candidate";          positionId: string; date: string; shiftTemplateId: string }
   | { kind: "overtime_assigned";          positionId: string; date: string; shiftTemplateId: string; employeeId: string; caps: CapExcessKind[] }
   | { kind: "coverage_gap";               positionId: string; date: string; shiftTemplateId: string; reason: "all_at_cap" | "no_eligible" }
+  | { kind: "holiday_hours_exceed_cap"; positionId: string; date: string; shiftTemplateId: string; holidayHours: number; maxDayCap: number }
   | { kind: "no_templates_selected" }
   | { kind: "no_employees_selected" };
 

@@ -24,12 +24,12 @@ import { getCurrentSalary, getSettingsForDate, computeHourlyRate } from "./payro
 import {
   applyDayProration,
   isIncomeForConcept,
-  classifyHour,
   getSolidarityRate,
   getArlRate,
   isExonerationApplicable,
   depurarBaseRetencion,
   aplicarTablaRetencion,
+  classifyAndDeductBreak,
 } from "./payroll-engine-helpers";
 
 // ---------------------------------------------------------------------------
@@ -329,18 +329,23 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
 
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
-    for (const { date: hourDate, hour } of hours) {
-      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
-        hourDate,
-        hour,
-        holidays,
-        cfg,
-        employee.location_id ?? ""
-      );
-      if (isNight) nightHours += 1;
-      if (isSunday) sundayHours += 1;
-      if (isHol) holidayHours += 1;
-    }
+    // Descontar el descanso de las horas de menor recargo primero (horas netas).
+    const { classes, worked } = classifyAndDeductBreak(
+      hours,
+      holidays,
+      cfg,
+      employee.location_id ?? "",
+      entry.break_minutes ?? 0,
+      (c) =>
+        (c.isNight ? 0.35 : 0) +
+        (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
+        (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
+    );
+    classes.forEach((c, i) => {
+      if (c.isNight) nightHours += worked[i];
+      if (c.isSunday) sundayHours += worked[i];
+      if (c.isHoliday) holidayHours += worked[i];
+    });
   }
 
   // Use salary/settings vigentes at period.start for the aggregate amount
@@ -358,7 +363,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.35,
       amount: Math.round(nightHours * valorHora * 0.35),
-      description: `Recargo nocturno (${nightHours}h)`,
+      description: `Recargo nocturno (${+nightHours.toFixed(2)}h)`,
     });
   }
 
@@ -369,7 +374,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.sunday_surcharge_pct,
       amount: Math.round(sundayHours * valorHora * cfg.sunday_surcharge_pct),
-      description: `Recargo dominical (${sundayHours}h)`,
+      description: `Recargo dominical (${+sundayHours.toFixed(2)}h)`,
     });
   }
 
@@ -380,7 +385,7 @@ export function computeSurcharges(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.holiday_surcharge_pct,
       amount: Math.round(holidayHours * valorHora * cfg.holiday_surcharge_pct),
-      description: `Recargo festivo (${holidayHours}h)`,
+      description: `Recargo festivo (${+holidayHours.toFixed(2)}h)`,
     });
   }
 
@@ -416,22 +421,24 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
 
     const hours = decomposeEntryIntoHours(entry.date, entry.start_time, entry.end_time);
 
-    for (const { date: hourDate, hour } of hours) {
-      const { isNight, isSunday, isHoliday: isHol } = classifyHour(
-        hourDate,
-        hour,
-        holidays,
-        cfg,
-        employee.location_id ?? ""
-      );
-      if (isNight) {
-        otNightHours += 1;
-      } else {
-        otDayHours += 1;
-      }
-      if (isSunday) otSundayHours += 1;
-      if (isHol) otHolidayHours += 1;
-    }
+    // Descontar el descanso de las horas de menor recargo primero (horas netas).
+    const { classes, worked } = classifyAndDeductBreak(
+      hours,
+      holidays,
+      cfg,
+      employee.location_id ?? "",
+      entry.break_minutes ?? 0,
+      (c) =>
+        (c.isNight ? 0.75 : 0.25) +
+        (c.isSunday ? cfg.sunday_surcharge_pct : 0) +
+        (c.isHoliday ? cfg.holiday_surcharge_pct : 0)
+    );
+    classes.forEach((c, i) => {
+      if (c.isNight) otNightHours += worked[i];
+      else otDayHours += worked[i];
+      if (c.isSunday) otSundayHours += worked[i];
+      if (c.isHoliday) otHolidayHours += worked[i];
+    });
   }
 
   const sal = getCurrentSalary(salaryHistory, employee.id, period.start);
@@ -448,7 +455,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.25,
       amount: Math.round(otDayHours * valorHora * 0.25),
-      description: `Hora extra diurna (${otDayHours}h)`,
+      description: `Hora extra diurna (${+otDayHours.toFixed(2)}h)`,
     });
   }
 
@@ -459,7 +466,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: 0.75,
       amount: Math.round(otNightHours * valorHora * 0.75),
-      description: `Hora extra nocturna (${otNightHours}h)`,
+      description: `Hora extra nocturna (${+otNightHours.toFixed(2)}h)`,
     });
   }
 
@@ -471,7 +478,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.sunday_surcharge_pct,
       amount: Math.round(otSundayHours * valorHora * cfg.sunday_surcharge_pct),
-      description: `Recargo dominical en hora extra (${otSundayHours}h)`,
+      description: `Recargo dominical en hora extra (${+otSundayHours.toFixed(2)}h)`,
     });
   }
 
@@ -482,7 +489,7 @@ export function computeOvertime(input: PayrollComputeInput): ComputedEntry[] {
       base: valorHora,
       rate: cfg.holiday_surcharge_pct,
       amount: Math.round(otHolidayHours * valorHora * cfg.holiday_surcharge_pct),
-      description: `Recargo festivo en hora extra (${otHolidayHours}h)`,
+      description: `Recargo festivo en hora extra (${+otHolidayHours.toFixed(2)}h)`,
     });
   }
 

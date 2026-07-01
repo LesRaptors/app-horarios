@@ -36,6 +36,7 @@ function mkEntry(opts: {
     shift_template_id: "tpl-m", is_night: null, notes: null, created_at: "", updated_at: "",
     exceeds_caps: [], overtime_status: opts.status ?? "none",
     overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+    break_minutes: null,
   };
 }
 

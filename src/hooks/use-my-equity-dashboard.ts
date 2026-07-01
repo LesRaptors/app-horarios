@@ -116,7 +116,7 @@ export function useMyEquityDashboard(): UseMyEquityDashboardResult {
           .eq("schedule.month", currentMonth),
         supabase
           .from("schedule_entries")
-          .select("start_time, end_time, schedule:schedules!inner(status)")
+          .select("start_time, end_time, break_minutes, schedule:schedules!inner(status)")
           .eq("employee_id", user.id)
           .neq("overtime_status", "rejected")
           .eq("schedule.status", "published")
@@ -166,6 +166,7 @@ export function useMyEquityDashboard(): UseMyEquityDashboardResult {
       const weekRows = (thisWeekRes.data ?? []) as Array<{
         start_time: string;
         end_time: string;
+        break_minutes: number | null;
       }>;
       let totalMin = 0;
       for (const e of weekRows) {
@@ -173,7 +174,9 @@ export function useMyEquityDashboard(): UseMyEquityDashboardResult {
         const [eh, em] = e.end_time.split(":").map(Number);
         let mins = eh * 60 + em - (sh * 60 + sm);
         if (mins < 0) mins += 24 * 60;
-        totalMin += mins;
+        // Horas NETAS del descanso, consistente con el rollup mensual de equidad,
+        // schedule-health y la nómina. Clamp inferior a 0.
+        totalMin += Math.max(0, mins - (e.break_minutes ?? 0));
       }
       setHoursThisWeek(Math.round((totalMin / 60) * 10) / 10);
 

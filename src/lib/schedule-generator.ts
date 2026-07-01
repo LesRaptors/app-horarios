@@ -592,6 +592,32 @@ export function generateSchedule(
     }
 
     if (!chosen) {
+      // ¿El slot corre en festivo con horario de festivo aplicado y su duración excede
+      // el tope diario de TODOS los candidatos de la posición? Aviso diagnóstico claro.
+      const slotIsHolidayHours =
+        isHoliday(slot.date, ctx.locationId, ctx.holidays) &&
+        slot.template.holiday_start_time != null &&
+        slot.template.holiday_end_time != null;
+      if (slotIsHolidayHours) {
+        const posCandidateIds = [...eligibility.primary, ...eligibility.floater];
+        const posCandidates = posCandidateIds.map((id) => employeeMap.get(id)).filter(Boolean) as ProfileWithPositions[];
+        const dayCapOf = (e: ProfileWithPositions): number => {
+          const c = ctx.contractTypes.get(e.contract_type_id ?? "");
+          return c?.is_healthcare ? 12 : (c?.max_hours_per_day ?? constraints.maxHoursPerDay);
+        };
+        const maxDayCap = posCandidates.length
+          ? Math.max(...posCandidates.map(dayCapOf))
+          : constraints.maxHoursPerDay;
+        if (slot.durationHours > maxDayCap) {
+          warnings.push({
+            kind: "holiday_hours_exceed_cap",
+            positionId: slot.positionId, date: slot.date, shiftTemplateId: slot.shiftTemplateId,
+            holidayHours: slot.durationHours, maxDayCap,
+          });
+          continue; // no emitir el genérico para este slot
+        }
+      }
+
       // Distinguir entre: nadie elegible (no_safe_candidate) vs todos al cap (coverage_gap)
       const allCandidates = [...eligibility.primary, ...eligibility.floater];
       const reason: "all_at_cap" | "no_eligible" = allCandidates.some((id) => {
@@ -622,6 +648,9 @@ export function generateSchedule(
       // Persiste el carácter nocturno EFECTIVO del slot (deriva del horario real,
       // incluido el horario especial de festivo), no del flag de la plantilla.
       is_night: slot.isNight,
+      // Descanso efectivo del slot (festivo puede diferir del normal); nulo en
+      // entradas de Pase 2 heredadas de config sin plantilla → 0 en nómina.
+      break_minutes: slot.breakMinutes,
       exceeds_caps: overtimeCaps,
       overtime_status: overtimeCaps.length > 0 ? "pending" : "none",
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,

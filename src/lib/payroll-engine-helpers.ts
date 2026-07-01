@@ -81,6 +81,55 @@ export function classifyHour(
   return { isNight, isSunday, isHoliday };
 }
 
+/**
+ * Fracción trabajada [0..1] de cada hora del turno tras descontar el descanso.
+ * El descanso (breakMinutes) se resta de las horas de MENOR peso de recargo primero
+ * (ordinaria antes que nocturna antes que dominical/festiva), propagando el remanente.
+ * `weights[i]` = suma de porcentajes de recargo de la hora i (0 = ordinaria).
+ */
+export function workedFractionsAfterBreak(weights: number[], breakMinutes: number): number[] {
+  const worked = weights.map(() => 1);
+  let remaining = breakMinutes / 60;
+  // `!(remaining > 0)` cubre 0, negativos y NaN (NaN nunca descuenta → no corrompe montos).
+  if (!(remaining > 0)) return worked;
+  const order = weights.map((_, i) => i).sort((a, b) => weights[a] - weights[b]);
+  for (const i of order) {
+    if (remaining <= 0) break;
+    const deduct = Math.min(worked[i], remaining);
+    worked[i] -= deduct;
+    remaining -= deduct;
+  }
+  return worked;
+}
+
+/** Clasificación de una hora del turno (nocturna / dominical / festiva). */
+export type HourClassification = { isNight: boolean; isSunday: boolean; isHoliday: boolean };
+
+/**
+ * Raíz compartida por las etapas 4 (recargos) y 5 (horas extra): clasifica cada hora
+ * del turno, calcula su peso de recargo con `weightOf` (fórmula inyectada por la etapa)
+ * y descuenta el descanso de las horas de menor recargo primero (horas netas).
+ *
+ * Devuelve `classes` (clasificación por hora) y `worked` (fracción trabajada [0..1] por
+ * hora tras el descanso). Cada etapa acumula sus propios buckets con `worked[i]`.
+ * Refactor puro: no altera ningún monto respecto al bloque duplicado previo.
+ */
+export function classifyAndDeductBreak(
+  hours: { date: string; hour: number }[],
+  holidays: HolidayDate[],
+  settings: PayrollSettings,
+  locationId: string,
+  breakMinutes: number,
+  weightOf: (hourClass: HourClassification) => number,
+): { classes: HourClassification[]; worked: number[] } {
+  const classes = hours.map(({ date, hour }) =>
+    classifyHour(date, hour, holidays, settings, locationId),
+  );
+  const weights = classes.map(weightOf);
+  const worked = workedFractionsAfterBreak(weights, breakMinutes);
+  return { classes, worked };
+}
+
 export function aplicarTablaRetencion(baseDepurada: number, uvt: number): number {
   const baseUvt = baseDepurada / uvt;
   if (baseUvt <= 95) return 0;

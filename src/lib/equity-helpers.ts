@@ -3,6 +3,7 @@ import type {
   HolidayDate,
   ShiftTemplate,
 } from "./types";
+import { formatTime } from "./utils";
 
 export function getQuarter(_year: number, month: number): number {
   return Math.ceil(month / 3);
@@ -124,6 +125,32 @@ export function effectiveShiftHours(
     : template.break_minutes;
   const isNight = useHol ? suggestIsNight(startTime, endTime) : template.is_night;
   return { startTime, endTime, breakMinutes, isNight };
+}
+
+/**
+ * Carácter nocturno y descanso EFECTIVOS de un turno guardado manualmente.
+ *
+ * Solo se heredan de la plantilla (`tplEffective`) si las horas realmente guardadas
+ * COINCIDEN con las efectivas de la plantilla. Si el usuario editó las horas (p.ej. las
+ * acortó), el break/carácter de la plantilla ya no corresponde al span real, así que se
+ * derivan de las horas guardadas y el break se pone en 0 (paga bruto, sin subpago).
+ *
+ * `savedStart`/`savedEnd` vienen del form como `HH:MM`; `tplEffective.startTime/endTime`
+ * pueden venir como `HH:MM:SS` (BD), por eso se normalizan con `formatTime`.
+ */
+export function resolveSavedShiftBreakAndNight(
+  tplEffective: { startTime: string; endTime: string; breakMinutes: number; isNight: boolean } | null,
+  savedStart: string,
+  savedEnd: string,
+): { isNight: boolean; breakMinutes: number } {
+  const usesTemplateHours =
+    tplEffective != null &&
+    formatTime(tplEffective.startTime) === savedStart &&
+    formatTime(tplEffective.endTime) === savedEnd;
+  return {
+    isNight: usesTemplateHours ? tplEffective!.isNight : suggestIsNight(savedStart, savedEnd),
+    breakMinutes: usesTemplateHours ? tplEffective!.breakMinutes : 0,
+  };
 }
 
 export function dayOfWeek(dateStr: string): number {

@@ -121,13 +121,13 @@ describe("generateSchedule — block packing", () => {
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-05", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     const config = baseConfig({
       employeeIds: ["e1", "e2"],
@@ -155,25 +155,25 @@ describe("generateSchedule — tie-breaker by totalShifts", () => {
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x2", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-02", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x3", schedule_id: "sch-1", employee_id: "e1", position_id: "pos-1",
         date: "2026-04-03", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
       { id: "x4", schedule_id: "sch-1", employee_id: "e2", position_id: "pos-1",
         date: "2026-04-04", start_time: "09:00:00", end_time: "17:00:00",
         shift_template_id: "tpl-morn", is_night: null, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     // Slot on 2026-04-15 (far from existing to avoid block bonus/fragmentation)
     const config = baseConfig({
@@ -207,7 +207,7 @@ describe("generateSchedule — 24h rest after night", () => {
         shift_template_id: "tpl-night", is_night: true, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
     const config = baseConfig({
       employeeIds: ["e1"],
@@ -238,6 +238,7 @@ describe("consecutive_days inviolable", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: domingo 5 abril (día consecutivo #7)
@@ -277,6 +278,7 @@ describe("score penaliza saturación", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
     // contract.target_hours_per_week = 40 → ya está al 100% (saturado)
 
@@ -375,6 +377,7 @@ describe("supernumerario (floater)", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: lun 13 abril (gap >= 3 desde último turno del primario, sin block bonus).
@@ -410,6 +413,7 @@ describe("supernumerario (floater)", () => {
       notes: null, created_at: "", updated_at: "",
       exceeds_caps: [], overtime_status: "none" as const,
       overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
+      break_minutes: null,
     }));
 
     // Demand: domingo 5 abril (día 7 consecutivo para primary → cap inviolable).
@@ -1085,7 +1089,7 @@ describe("readback de is_night en init del tracker (descanso 24h post-noche)", (
         shift_template_id: "tpl-morn", is_night: true, notes: null,
         exceeds_caps: [], overtime_status: "none",
         overtime_reviewed_by: null, overtime_reviewed_at: null, overtime_note: null,
-        created_at: "", updated_at: "" },
+        break_minutes: null, created_at: "", updated_at: "" },
     ];
 
     // Slot nuevo: 2026-04-06 22:00 → gap de 16h tras el fin de la noche (06:00 del 04-06).
@@ -1103,5 +1107,65 @@ describe("readback de is_night en init del tracker (descanso 24h post-noche)", (
     // El descanso de 24h post-noche se enforce desde is_night=true del entry → no se asigna.
     expect(result.entries.find((e) => e.date === "2026-04-06")).toBeUndefined();
     expect(result.warnings.some((w) => w.kind === "no_safe_candidate")).toBe(true);
+  });
+});
+
+describe("aviso: horario de festivo excede el tope diario", () => {
+  it("emite holiday_hours_exceed_cap cuando el horario de festivo supera el max_hours_per_day", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    // Turno diurno 08:00-17:00 (9h) con horario de festivo 07:00-18:00 (11h), sin descanso.
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", break_minutes: 0,
+      holiday_start_time: "07:00:00", holiday_end_time: "18:00:00", holiday_break_minutes: 0,
+    });
+    // Contrato con tope diario de 10h (no healthcare).
+    const ct: ContractType = { ...fullTime, id: "ct-10", is_healthcare: false, max_hours_per_day: 10 };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-10" });
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      { maxHoursPerWeek: 48, maxHoursPerDay: 10, minRestHoursBetweenShifts: 12, maxConsecutiveDays: 6 },
+      [{ id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+         day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" }],
+      [], holidays, [ct], defaultWeights,
+    );
+    // No se asigna el festivo y se emite el warning específico.
+    expect(result.entries.find((e) => e.date === "2026-04-09")).toBeUndefined();
+    const w = result.warnings.find((x) => x.kind === "holiday_hours_exceed_cap" && x.date === "2026-04-09");
+    expect(w).toBeDefined();
+    if (w && w.kind === "holiday_hours_exceed_cap") {
+      expect(w.holidayHours).toBe(11);
+      expect(w.maxDayCap).toBe(10);
+    }
+  });
+
+  it("horario de festivo dentro del tope se asigna normal (sin warning)", () => {
+    const holidays: HolidayDate[] = [
+      { id: "h", date: "2026-04-09", name: "Jueves Santo", location_id: null, created_at: "" },
+    ];
+    const tpl = makeTemplate({
+      id: "tpl-m", start_time: "08:00:00", end_time: "17:00:00", break_minutes: 0,
+      holiday_start_time: "10:00:00", holiday_end_time: "15:00:00", holiday_break_minutes: 0,
+    });
+    const ct: ContractType = { ...fullTime, id: "ct-10b", is_healthcare: false, max_hours_per_day: 10 };
+    const emp = makeEmployee({ id: "e1", contract_type_id: "ct-10b" });
+    const result = generateSchedule(
+      { scheduleId: "s", locationId: "loc-1", year: 2026, month: 3,
+        shiftTemplateIds: ["tpl-m"], positionIds: ["pos-1"],
+        excludeDates: excludeAllExcept("2026-04-09"), employeeIds: ["e1"],
+        useDemandRequirements: true },
+      [emp], [tpl], [], [],
+      { maxHoursPerWeek: 48, maxHoursPerDay: 10, minRestHoursBetweenShifts: 12, maxConsecutiveDays: 6 },
+      [{ id: "r1", location_id: "loc-1", position_id: "pos-1", shift_template_id: "tpl-m",
+         day_of_week: 4, required_count: 1, is_holiday: false, created_at: "", updated_at: "" }],
+      [], holidays, [ct], defaultWeights,
+    );
+    expect(result.entries.find((e) => e.date === "2026-04-09")).toBeDefined();
+    expect(result.warnings.some((x) => x.kind === "holiday_hours_exceed_cap")).toBe(false);
   });
 });

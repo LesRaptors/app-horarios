@@ -398,6 +398,7 @@ function mkEntry(overrides: {
   start_time: string;
   end_time: string;
   overtime_status?: "none" | "pending" | "approved" | "rejected";
+  break_minutes?: number | null;
 }): ScheduleEntry {
   return {
     id: "entry1",
@@ -415,6 +416,7 @@ function mkEntry(overrides: {
     overtime_reviewed_by: null,
     overtime_reviewed_at: null,
     overtime_note: null,
+    break_minutes: overrides.break_minutes ?? null,
     created_at: "2026-03-01T00:00:00Z",
     updated_at: "2026-03-01T00:00:00Z",
   };
@@ -524,6 +526,36 @@ describe("computeSurcharges", () => {
         end_time: "05:00",
         overtime_status: "approved",
       })],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    expect(entries).toHaveLength(0);
+  });
+
+  it("descuenta el descanso de las horas recargadas (turno festivo íntegro)", () => {
+    // Turno festivo Mayo 1 (viernes) 07:00-19:00 = 12h, todas festivas (night_start=21, no
+    // domingo). break_minutes=30 → 0.5h se descuenta de la hora de menor recargo (todas 0.8),
+    // dejando el recargo festivo sobre 11.5h netas.
+    const input = mkInput({
+      period: { start: "2026-05-01", end: "2026-05-31", frequency: "mensual" },
+      scheduleEntries: [mkEntry({ date: "2026-05-01", start_time: "07:00", end_time: "19:00", break_minutes: 30 })],
+      holidays: [mayo1Holiday],
+      settings: [settingsNight21],
+    });
+    const entries = computeSurcharges(input);
+    const holiday = entries.find((e) => e.concept_type === "surcharge_holiday");
+    expect(holiday).toBeDefined();
+    expect(holiday!.amount).toBe(Math.round(11.5 * VH * 0.8));
+    // No hay noche ni domingo → sin otros recargos.
+    expect(entries.filter((e) => e.concept_type === "surcharge_night")).toHaveLength(0);
+    expect(entries.filter((e) => e.concept_type === "surcharge_sunday")).toHaveLength(0);
+  });
+
+  it("turno diurno normal con break=60 → recargos sin cambio (descuento sale de horas ordinarias)", () => {
+    // 2026-03-02 lunes 14:00-18:00 (4h diurnas ordinarias) con break_minutes=60: el descanso
+    // se descuenta de las horas ordinarias, que no generan recargo → 0 recargos, igual que sin break.
+    const input = mkInput({
+      scheduleEntries: [mkEntry({ date: "2026-03-02", start_time: "14:00", end_time: "18:00", break_minutes: 60 })],
       settings: [settingsNight21],
     });
     const entries = computeSurcharges(input);
