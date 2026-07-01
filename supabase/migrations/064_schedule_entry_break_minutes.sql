@@ -48,12 +48,15 @@ BEGIN
         ))
     ))::INT,
     COALESCE(SUM(
-      EXTRACT(EPOCH FROM (
-        (se.date + se.end_time) +
-          CASE WHEN se.end_time < se.start_time THEN INTERVAL '1 day' ELSE INTERVAL '0' END
-        - (se.date + se.start_time)
-      )) / 3600
-      - COALESCE(se.break_minutes, 0) / 60.0
+      GREATEST(
+        EXTRACT(EPOCH FROM (
+          (se.date + se.end_time) +
+            CASE WHEN se.end_time < se.start_time THEN INTERVAL '1 day' ELSE INTERVAL '0' END
+          - (se.date + se.start_time)
+        )) / 3600
+        - COALESCE(se.break_minutes, 0) / 60.0,
+        0
+      )
     ), 0)::NUMERIC(6,2)
   FROM schedule_entries se
   LEFT JOIN shift_templates st ON st.id = se.shift_template_id
